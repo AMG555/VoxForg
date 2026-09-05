@@ -4,6 +4,7 @@
 
 **Enterprise-Grade, Self-Hostable, Multi-Engine Text-to-Speech Platform & Visual Pipeline Builder**
 
+[![Status](https://img.shields.io/badge/Status-In_Active_Development-yellow.svg)](docs/architecture.md)
 [![License](https://img.shields.io/badge/License-Apache_2.0_OR_MIT-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/Rust-1.80%2B-orange.svg)](https://www.rust-lang.org)
 [![React](https://img.shields.io/badge/Frontend-React_19_%2B_TypeScript-61dafb.svg)](https://react.dev)
@@ -15,6 +16,12 @@
 [Features](#key-features) • [Architecture](docs/architecture.md) • [Wireframes](docs/wireframes.md) • [API Spec](docs/api.md) • [Quick Start](#quick-start) • [Hardware Tiers](#hardware-profiler)
 
 </div>
+
+---
+
+> [!NOTE]
+> **Project Status: In Active Development (Pre-v1.0)**  
+> Core engine architecture, hardware autodetect, DAG pipeline runner, and OpenAI-compatible API are functional. Engine backends, offline neural weights, and desktop packaging are actively progressing.
 
 ---
 
