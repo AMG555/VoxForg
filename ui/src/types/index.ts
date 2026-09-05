@@ -51,3 +51,52 @@ export interface HardwareInfo {
   arch: string;
   os: string;
 }
+
+export interface AudioQualityMetrics {
+  duration_seconds: number;
+  sample_rate: number;
+  channels: number;
+  total_samples: number;
+  peak_amplitude: number;
+  peak_dbfs: number;
+  rms_amplitude: number;
+  rms_dbfs: number;
+  clipping_samples_count: number;
+  is_silent: boolean;
+}
+
+export interface VariantResult {
+  engine_id: string;
+  voice_id: string;
+  latency_ms: number;
+  audio_duration_seconds: number;
+  realtime_factor: number;
+  metrics: AudioQualityMetrics;
+}
+
+export interface AbTestComparison {
+  scenario_name: string;
+  variant_a: VariantResult;
+  variant_b: VariantResult;
+  latency_delta_ms: number;
+  speedup_ratio: number;
+  rms_delta_db: number;
+  faster_variant: string;
+  recommended_variant: string;
+  summary: string;
+}
+
+export interface AbTestScenario {
+  name: string;
+  text: string;
+  variant_a: {
+    voice_id: string;
+    speed?: number;
+    pitch?: number;
+  };
+  variant_b: {
+    voice_id: string;
+    speed?: number;
+    pitch?: number;
+  };
+}

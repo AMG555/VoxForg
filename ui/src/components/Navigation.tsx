@@ -1,10 +1,10 @@
 import React from 'react';
-import { Activity, Cpu, GitFork, Mic, Volume2 } from 'lucide-react';
+import { Activity, Cpu, GitFork, Mic, Scale, Volume2 } from 'lucide-react';
 import { HardwareInfo } from '../types';
 
 interface NavigationProps {
-  activeTab: 'canvas' | 'voices' | 'hardware';
-  setActiveTab: (tab: 'canvas' | 'voices' | 'hardware') => void;
+  activeTab: 'canvas' | 'voices' | 'hardware' | 'qa';
+  setActiveTab: (tab: 'canvas' | 'voices' | 'hardware' | 'qa') => void;
   hardware: HardwareInfo | null;
 }
 
@@ -57,6 +57,18 @@ export const Navigation: React.FC<NavigationProps> = ({ activeTab, setActiveTab,
           >
             <Cpu className="w-3.5 h-3.5" />
             <span>Hardware & Engines</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('qa')}
+            className={`flex items-center space-x-2 px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+              activeTab === 'qa'
+                ? 'bg-[#1A222D] text-white border border-[#3B485C]'
+                : 'text-[#94A3B8] hover:text-white hover:bg-[#1A222D]/50'
+            }`}
+          >
+            <Scale className="w-3.5 h-3.5" />
+            <span>A/B & QA Lab</span>
           </button>
         </nav>
       </div>

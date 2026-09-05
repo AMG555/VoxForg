@@ -1,8 +1,10 @@
 pub mod merge;
+pub mod metrics;
 pub mod normalizer;
 pub mod wav;
 
 pub use merge::AudioMerger;
+pub use metrics::{AudioAnalyzer, AudioQualityMetrics};
 pub use normalizer::AudioNormalizer;
 pub use wav::WavEncoder;
 
@@ -14,7 +16,6 @@ mod tests {
     fn test_wav_roundtrip() {
         let sample_rate = 24000;
         let channels = 1;
-        // Generate a 100ms 440Hz sine tone
         let num_samples = (sample_rate as f32 * 0.1) as usize;
         let pcm: Vec<i16> = (0..num_samples)
             .map(|i| {
@@ -36,7 +37,7 @@ mod tests {
     }
 
     #[test]
-    fn test_audio_normalizer() {
+    fn test_audio_normalizer_peak() {
         let mut samples = vec![1000i16, 2000, -4000, 3000];
         AudioNormalizer::peak_normalize(&mut samples, 1.0);
         let max_abs = samples.iter().map(|&s| s.abs()).max().unwrap();
@@ -44,14 +45,71 @@ mod tests {
     }
 
     #[test]
+    fn test_audio_normalizer_silent_handling() {
+        let mut samples = vec![0i16, 0, 0];
+        AudioNormalizer::peak_normalize(&mut samples, 0.95);
+        assert_eq!(samples, vec![0, 0, 0]);
+    }
+
+    #[test]
+    fn test_audio_normalizer_gain_db() {
+        let mut samples = vec![1000i16, 2000];
+        AudioNormalizer::apply_gain_db(&mut samples, 6.02); // ~2x gain
+        assert!((samples[0] - 2000).abs() <= 10);
+        assert!((samples[1] - 4000).abs() <= 10);
+    }
+
+    #[test]
     fn test_audio_merger_concatenation() {
         let seg1 = vec![100i16; 480]; // 10ms at 48kHz
         let seg2 = vec![200i16; 480];
         let merged = AudioMerger::concatenate_with_pause(&[&seg1, &seg2], 48000, 10);
-        // 480 + 480 + (48000 * 0.01 = 480 pause) = 1440
         assert_eq!(merged.len(), 1440);
         assert_eq!(merged[0], 100);
-        assert_eq!(merged[480], 0); // pause buffer
+        assert_eq!(merged[480], 0);
         assert_eq!(merged[960], 200);
+    }
+
+    #[test]
+    fn test_audio_merger_crossfade() {
+        let seg_a = vec![1000i16; 480];
+        let seg_b = vec![2000i16; 480];
+        let crossfaded = AudioMerger::crossfade(&seg_a, &seg_b, 48000, 2); // 2ms crossfade = 96 samples
+        assert!(crossfaded.len() < seg_a.len() + seg_b.len());
+    }
+
+    #[test]
+    fn test_audio_metrics_analysis() {
+        let sample_rate = 24000;
+        let channels = 1;
+        let num_samples = 24000; // 1 second
+        let mut samples = Vec::with_capacity(num_samples);
+        for i in 0..num_samples {
+            let t = i as f32 / sample_rate as f32;
+            let val = (f32::sin(2.0 * std::f32::consts::PI * 1000.0 * t) * 16384.0) as i16;
+            samples.push(val);
+        }
+
+        let metrics = AudioAnalyzer::analyze_pcm16(&samples, sample_rate, channels);
+        assert_eq!(metrics.duration_seconds, 1.0);
+        assert_eq!(metrics.sample_rate, 24000);
+        assert!(!metrics.is_silent);
+        assert_eq!(metrics.clipping_samples_count, 0);
+        assert!(metrics.peak_dbfs < 0.0 && metrics.peak_dbfs > -7.0);
+        assert!(metrics.rms_dbfs < metrics.peak_dbfs);
+    }
+
+    #[test]
+    fn test_audio_metrics_clipping_detection() {
+        let samples = vec![32767i16, -32768, 1000, 0];
+        let metrics = AudioAnalyzer::analyze_pcm16(&samples, 16000, 1);
+        assert_eq!(metrics.clipping_samples_count, 2);
+    }
+
+    #[test]
+    fn test_audio_metrics_empty() {
+        let metrics = AudioAnalyzer::analyze_pcm16(&[], 24000, 1);
+        assert_eq!(metrics.duration_seconds, 0.0);
+        assert!(metrics.is_silent);
     }
 }

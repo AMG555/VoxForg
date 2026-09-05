@@ -28,18 +28,27 @@ mod tests {
     use std::sync::Arc;
     use axum::body::Body;
     use axum::http::{Request, StatusCode};
+    use http_body_util::BodyExt;
     use tower::ServiceExt;
+    use uuid::Uuid;
+    use voxforg_core::models::{NodeType, PipelineDefinition, PipelineNode};
     use voxforg_core::store::memory::MemoryStore;
     use voxforg_engine::{EngineRegistry, MockTtsEngine};
     use voxforg_hardware::HardwareProbe;
 
-    #[tokio::test]
-    async fn test_health_route() {
+    async fn setup_test_state(api_key: Option<String>) -> AppState {
         let registry = Arc::new(EngineRegistry::new());
+        let mock_engine = Arc::new(MockTtsEngine::new(24000));
+        registry.register(mock_engine).await;
+
         let store = Arc::new(MemoryStore::new());
         let hardware = HardwareProbe::probe();
-        let state = AppState::new(registry, store, hardware, None);
+        AppState::new(registry, store, hardware, api_key)
+    }
 
+    #[tokio::test]
+    async fn test_health_route() {
+        let state = setup_test_state(None).await;
         let app = create_app(state);
         let req = Request::builder()
             .uri("/health")
@@ -52,18 +61,65 @@ mod tests {
             res.headers().get("x-content-type-options").unwrap(),
             "nosniff"
         );
+        assert_eq!(res.headers().get("x-frame-options").unwrap(), "DENY");
+    }
+
+    #[tokio::test]
+    async fn test_readiness_route() {
+        let state = setup_test_state(None).await;
+        let app = create_app(state);
+        let req = Request::builder()
+            .uri("/health/ready")
+            .body(Body::empty())
+            .unwrap();
+
+        let res = app.oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+
+        let body = res.into_body().collect().await.unwrap().to_bytes();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["status"], "ready");
+        assert!(json["registered_engines"].is_array());
+    }
+
+    #[tokio::test]
+    async fn test_models_list_endpoint() {
+        let state = setup_test_state(None).await;
+        let app = create_app(state);
+        let req = Request::builder()
+            .uri("/v1/models")
+            .body(Body::empty())
+            .unwrap();
+
+        let res = app.oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+
+        let body = res.into_body().collect().await.unwrap().to_bytes();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["object"], "list");
+        assert!(!json["data"].as_array().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_voices_list_endpoint() {
+        let state = setup_test_state(None).await;
+        let app = create_app(state);
+        let req = Request::builder()
+            .uri("/v1/voices")
+            .body(Body::empty())
+            .unwrap();
+
+        let res = app.oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+
+        let body = res.into_body().collect().await.unwrap().to_bytes();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert!(json["total"].as_u64().unwrap() >= 2);
     }
 
     #[tokio::test]
     async fn test_openai_speech_endpoint() {
-        let registry = Arc::new(EngineRegistry::new());
-        let mock_engine = Arc::new(MockTtsEngine::new(24000));
-        registry.register(mock_engine).await;
-
-        let store = Arc::new(MemoryStore::new());
-        let hardware = HardwareProbe::probe();
-        let state = AppState::new(registry, store, hardware, None);
-
+        let state = setup_test_state(None).await;
         let app = create_app(state);
         let payload = serde_json::json!({
             "model": "mock-tts",
@@ -82,9 +138,218 @@ mod tests {
 
         let res = app.oneshot(req).await.unwrap();
         assert_eq!(res.status(), StatusCode::OK);
-        assert_eq!(
-            res.headers().get("content-type").unwrap(),
-            "audio/wav"
-        );
+        assert_eq!(res.headers().get("content-type").unwrap(), "audio/wav");
+    }
+
+    #[tokio::test]
+    async fn test_openai_speech_empty_input_fails() {
+        let state = setup_test_state(None).await;
+        let app = create_app(state);
+        let payload = serde_json::json!({
+            "model": "mock-tts",
+            "input": "   ",
+            "voice": "mock-en-female"
+        });
+
+        let req = Request::builder()
+            .method("POST")
+            .uri("/v1/audio/speech")
+            .header("Content-Type", "application/json")
+            .body(Body::from(payload.to_string()))
+            .unwrap();
+
+        let res = app.oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn test_openai_speech_missing_voice_fails() {
+        let state = setup_test_state(None).await;
+        let app = create_app(state);
+        let payload = serde_json::json!({
+            "model": "non-existent-engine",
+            "input": "Valid text input",
+            "voice": "non-existent-voice"
+        });
+
+        let req = Request::builder()
+            .method("POST")
+            .uri("/v1/audio/speech")
+            .header("Content-Type", "application/json")
+            .body(Body::from(payload.to_string()))
+            .unwrap();
+
+        let res = app.oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn test_qa_ab_test_endpoint() {
+        let state = setup_test_state(None).await;
+        let app = create_app(state);
+        let payload = serde_json::json!({
+            "name": "API QA Evaluation",
+            "text": "Automated evaluation comparison.",
+            "variant_a": {
+                "text": "",
+                "voice_id": "mock-en-female",
+                "speed": 1.0,
+                "pitch": 0.0,
+                "format": "wav"
+            },
+            "variant_b": {
+                "text": "",
+                "voice_id": "mock-en-male",
+                "speed": 1.2,
+                "pitch": 2.0,
+                "format": "wav"
+            }
+        });
+
+        let req = Request::builder()
+            .method("POST")
+            .uri("/v1/qa/ab-test")
+            .header("Content-Type", "application/json")
+            .body(Body::from(payload.to_string()))
+            .unwrap();
+
+        let res = app.oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+
+        let body = res.into_body().collect().await.unwrap().to_bytes();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["scenario_name"], "API QA Evaluation");
+        assert!(json["variant_a"]["latency_ms"].is_f64());
+        assert!(json["variant_b"]["latency_ms"].is_f64());
+        assert!(!json["recommended_variant"].as_str().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_qa_ab_test_empty_text_rejected() {
+        let state = setup_test_state(None).await;
+        let app = create_app(state);
+        let payload = serde_json::json!({
+            "name": "Empty Test",
+            "text": "  ",
+            "variant_a": { "text": "", "voice_id": "mock-en-female" },
+            "variant_b": { "text": "", "voice_id": "mock-en-male" }
+        });
+
+        let req = Request::builder()
+            .method("POST")
+            .uri("/v1/qa/ab-test")
+            .header("Content-Type", "application/json")
+            .body(Body::from(payload.to_string()))
+            .unwrap();
+
+        let res = app.oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn test_pipeline_execute_endpoint() {
+        let state = setup_test_state(None).await;
+        let app = create_app(state);
+
+        let pipeline = PipelineDefinition {
+            id: Uuid::new_v4(),
+            name: "API Pipeline Test".to_string(),
+            description: None,
+            nodes: vec![
+                PipelineNode {
+                    id: "p1".to_string(),
+                    name: "In".to_string(),
+                    node_type: NodeType::TextInput,
+                    params: serde_json::json!({ "text": "Testing pipeline execution via API" }),
+                    position: None,
+                },
+                PipelineNode {
+                    id: "p2".to_string(),
+                    name: "Synth".to_string(),
+                    node_type: NodeType::Synthesizer,
+                    params: serde_json::json!({}),
+                    position: None,
+                },
+                PipelineNode {
+                    id: "p3".to_string(),
+                    name: "Out".to_string(),
+                    node_type: NodeType::OutputSink,
+                    params: serde_json::json!({}),
+                    position: None,
+                },
+            ],
+            edges: vec![
+                voxforg_core::models::PipelineEdge {
+                    id: "e1".to_string(),
+                    from_node: "p1".to_string(),
+                    to_node: "p2".to_string(),
+                    from_port: None,
+                    to_port: None,
+                },
+                voxforg_core::models::PipelineEdge {
+                    id: "e2".to_string(),
+                    from_node: "p2".to_string(),
+                    to_node: "p3".to_string(),
+                    from_port: None,
+                    to_port: None,
+                },
+            ],
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        };
+
+        let req = Request::builder()
+            .method("POST")
+            .uri("/v1/pipeline/execute")
+            .header("Content-Type", "application/json")
+            .body(Body::from(serde_json::to_string(&serde_json::json!({
+                "pipeline": pipeline,
+                "input_text": null
+            })).unwrap()))
+            .unwrap();
+
+        let res = app.oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(res.headers().get("content-type").unwrap(), "audio/wav");
+    }
+
+    #[tokio::test]
+    async fn test_auth_middleware_flow() {
+        let state = setup_test_state(Some("secret-token-123".to_string())).await;
+        let app = create_app(state);
+
+        // 1. Missing auth header -> 401 Unauthorized
+        let unauth_req = Request::builder()
+            .uri("/v1/models")
+            .body(Body::empty())
+            .unwrap();
+        let res1 = app.clone().oneshot(unauth_req).await.unwrap();
+        assert_eq!(res1.status(), StatusCode::UNAUTHORIZED);
+
+        // 2. Invalid auth token -> 401 Unauthorized
+        let bad_token_req = Request::builder()
+            .uri("/v1/models")
+            .header("Authorization", "Bearer wrong-token")
+            .body(Body::empty())
+            .unwrap();
+        let res2 = app.clone().oneshot(bad_token_req).await.unwrap();
+        assert_eq!(res2.status(), StatusCode::UNAUTHORIZED);
+
+        // 3. Valid token -> 200 OK
+        let valid_token_req = Request::builder()
+            .uri("/v1/models")
+            .header("Authorization", "Bearer secret-token-123")
+            .body(Body::empty())
+            .unwrap();
+        let res3 = app.clone().oneshot(valid_token_req).await.unwrap();
+        assert_eq!(res3.status(), StatusCode::OK);
+
+        // 4. Public route (/health) bypasses auth -> 200 OK
+        let health_req = Request::builder()
+            .uri("/health")
+            .body(Body::empty())
+            .unwrap();
+        let res4 = app.oneshot(health_req).await.unwrap();
+        assert_eq!(res4.status(), StatusCode::OK);
     }
 }

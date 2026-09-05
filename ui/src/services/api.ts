@@ -1,4 +1,4 @@
-import { HardwareInfo, PipelineDefinition, Voice } from '../types';
+import { AbTestComparison, AbTestScenario, HardwareInfo, PipelineDefinition, Voice } from '../types';
 
 const BASE_URL = '';
 
@@ -70,5 +70,37 @@ export const api = {
     }
 
     return res.blob();
+  },
+
+  async runAbTest(scenario: AbTestScenario): Promise<AbTestComparison> {
+    const res = await fetch(`${BASE_URL}/v1/qa/ab-test`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: scenario.name,
+        text: scenario.text,
+        variant_a: {
+          text: '',
+          voice_id: scenario.variant_a.voice_id,
+          speed: scenario.variant_a.speed ?? 1.0,
+          pitch: scenario.variant_a.pitch ?? 0.0,
+          format: 'wav',
+        },
+        variant_b: {
+          text: '',
+          voice_id: scenario.variant_b.voice_id,
+          speed: scenario.variant_b.speed ?? 1.0,
+          pitch: scenario.variant_b.pitch ?? 0.0,
+          format: 'wav',
+        },
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'A/B Test failed' }));
+      throw new Error(err.detail || 'A/B Test failed');
+    }
+
+    return res.json();
   },
 };

@@ -12,7 +12,9 @@ use voxforg_api::{create_app, AppState};
 use voxforg_audio::WavEncoder;
 use voxforg_core::models::AudioContainerFormat;
 use voxforg_core::store::memory::MemoryStore;
-use voxforg_engine::{EdgeTtsEngine, EngineRegistry, MockTtsEngine, SynthesisRequest};
+use voxforg_engine::{
+    AbTestRunner, AbTestScenario, EdgeTtsEngine, EngineRegistry, MockTtsEngine, SynthesisRequest,
+};
 use voxforg_hardware::HardwareProbe;
 
 #[derive(Parser)]
@@ -41,6 +43,9 @@ enum Commands {
 
     /// Run synthesis benchmark across available engines
     Bench(BenchArgs),
+
+    /// Run automated A/B quality comparison between two voices/engines
+    AbTest(AbTestArgs),
 }
 
 #[derive(Args)]
@@ -91,6 +96,49 @@ struct BenchArgs {
     iterations: usize,
 }
 
+#[derive(Args)]
+struct AbTestArgs {
+    /// Scenario name
+    #[arg(short, long, default_value = "Automated CLI A/B Evaluation")]
+    name: String,
+
+    /// Benchmark test sentence
+    #[arg(
+        short,
+        long,
+        default_value = "The quick brown fox jumps over the lazy dog. Comparative synthesis benchmark."
+    )]
+    text: String,
+
+    /// Voice for Variant A
+    #[arg(long, default_value = "mock-en-female")]
+    voice_a: String,
+
+    /// Voice for Variant B
+    #[arg(long, default_value = "en-US-AriaNeural")]
+    voice_b: String,
+
+    /// Speed for Variant A
+    #[arg(long, default_value_t = 1.0)]
+    speed_a: f32,
+
+    /// Speed for Variant B
+    #[arg(long, default_value_t = 1.0)]
+    speed_b: f32,
+
+    /// Pitch for Variant A
+    #[arg(long, default_value_t = 0.0)]
+    pitch_a: f32,
+
+    /// Pitch for Variant B
+    #[arg(long, default_value_t = 0.0)]
+    pitch_b: f32,
+
+    /// Number of evaluation iterations
+    #[arg(short, long, default_value_t = 1)]
+    iterations: usize,
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let subscriber = FmtSubscriber::builder()
@@ -107,6 +155,7 @@ async fn main() -> Result<()> {
         Commands::Hardware => run_hardware(),
         Commands::Engines => run_engines().await,
         Commands::Bench(args) => run_bench(args).await,
+        Commands::AbTest(args) => run_ab_test(args).await,
     }
 }
 
@@ -248,5 +297,66 @@ async fn run_bench(args: BenchArgs) -> Result<()> {
     let avg = total_duration / (args.iterations as u32);
     println!("---------------------------------");
     println!("Average Latency: {:.2?}", avg);
+    Ok(())
+}
+
+async fn run_ab_test(args: AbTestArgs) -> Result<()> {
+    let registry = initialize_registry().await;
+    let runner = AbTestRunner::new(registry);
+
+    let scenario = AbTestScenario {
+        name: args.name,
+        text: args.text,
+        variant_a: SynthesisRequest {
+            text: String::new(),
+            voice_id: args.voice_a,
+            speed: args.speed_a,
+            pitch: args.pitch_a,
+            format: AudioContainerFormat::Wav,
+        },
+        variant_b: SynthesisRequest {
+            text: String::new(),
+            voice_id: args.voice_b,
+            speed: args.speed_b,
+            pitch: args.pitch_b,
+            format: AudioContainerFormat::Wav,
+        },
+    };
+
+    println!("=== Running Automated A/B Evaluation ===");
+    println!("Scenario: {}", scenario.name);
+    println!("Test Text: \"{}\"", scenario.text);
+    println!("Iterations: {}", args.iterations);
+    println!("----------------------------------------");
+
+    let iters = args.iterations.max(1);
+    let mut last_comp = None;
+
+    for i in 1..=iters {
+        let comp = runner.run_comparison(&scenario).await?;
+        if iters > 1 {
+            println!("[Run {}/{}] Latency A: {:.2}ms | Latency B: {:.2}ms | Faster: Variant {}",
+                i, iters, comp.variant_a.latency_ms, comp.variant_b.latency_ms, comp.faster_variant);
+        }
+        last_comp = Some(comp);
+    }
+
+    let comp = last_comp.unwrap();
+
+    println!("Metric                  | Variant A ({:<18}) | Variant B ({:<18})",
+        comp.variant_a.voice_id, comp.variant_b.voice_id);
+    println!("{:-<75}", "");
+    println!("Engine                  | {:<30} | {:<30}", comp.variant_a.engine_id, comp.variant_b.engine_id);
+    println!("Latency                 | {:<28.2}ms | {:<28.2}ms", comp.variant_a.latency_ms, comp.variant_b.latency_ms);
+    println!("Audio Duration          | {:<29.2}s | {:<29.2}s", comp.variant_a.audio_duration_seconds, comp.variant_b.audio_duration_seconds);
+    println!("Real-Time Factor (RTF)  | {:<30.4} | {:<30.4}", comp.variant_a.realtime_factor, comp.variant_b.realtime_factor);
+    println!("Peak Amplitude (dBFS)   | {:<28.1}dB | {:<28.1}dB", comp.variant_a.metrics.peak_dbfs, comp.variant_b.metrics.peak_dbfs);
+    println!("RMS Loudness (dBFS)     | {:<28.1}dB | {:<28.1}dB", comp.variant_a.metrics.rms_dbfs, comp.variant_b.metrics.rms_dbfs);
+    println!("Clipping Samples Count  | {:<30} | {:<30}", comp.variant_a.metrics.clipping_samples_count, comp.variant_b.metrics.clipping_samples_count);
+    println!("----------------------------------------");
+    println!("Faster Variant:         Variant {}", comp.faster_variant);
+    println!("Recommended Variant:    Variant {}", comp.recommended_variant);
+    println!("Summary:                {}", comp.summary);
+
     Ok(())
 }

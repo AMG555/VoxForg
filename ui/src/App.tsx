@@ -3,11 +3,12 @@ import { Navigation } from './components/Navigation';
 import { PipelineCanvas } from './components/canvas/PipelineCanvas';
 import { VoiceLab } from './components/voices/VoiceLab';
 import { HardwareInspector } from './components/telemetry/HardwareInspector';
+import { AbTestLab } from './components/qa/AbTestLab';
 import { HardwareInfo, Voice } from './types';
 import { api } from './services/api';
 
 export const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'canvas' | 'voices' | 'hardware'>('canvas');
+  const [activeTab, setActiveTab] = useState<'canvas' | 'voices' | 'hardware' | 'qa'>('canvas');
   const [hardware, setHardware] = useState<HardwareInfo | null>(null);
   const [voices, setVoices] = useState<Voice[]>([]);
 
@@ -71,6 +72,7 @@ export const App: React.FC = () => {
         {activeTab === 'canvas' && <PipelineCanvas voices={voices} />}
         {activeTab === 'voices' && <VoiceLab voices={voices} />}
         {activeTab === 'hardware' && <HardwareInspector hardware={hardware} />}
+        {activeTab === 'qa' && <AbTestLab voices={voices} />}
       </main>
     </div>
   );

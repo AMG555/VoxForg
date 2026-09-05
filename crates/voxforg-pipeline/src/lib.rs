@@ -130,4 +130,52 @@ mod tests {
         let result = GraphValidator::topological_sort(&cyclic_pipeline);
         assert!(result.is_err());
     }
+
+    #[test]
+    fn test_invalid_edge_references() {
+        let invalid_pipeline = PipelineDefinition {
+            id: Uuid::new_v4(),
+            name: "Invalid Edge".to_string(),
+            description: None,
+            nodes: vec![
+                PipelineNode { id: "a".to_string(), name: "A".to_string(), node_type: NodeType::TextInput, params: serde_json::json!({}), position: None },
+            ],
+            edges: vec![
+                PipelineEdge { id: "e1".to_string(), from_node: "a".to_string(), to_node: "non_existent".to_string(), from_port: None, to_port: None },
+            ],
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        };
+
+        let result = GraphValidator::topological_sort(&invalid_pipeline);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_topological_sort_diamond_graph() {
+        let diamond_pipeline = PipelineDefinition {
+            id: Uuid::new_v4(),
+            name: "Diamond".to_string(),
+            description: None,
+            nodes: vec![
+                PipelineNode { id: "in".to_string(), name: "Input".to_string(), node_type: NodeType::TextInput, params: serde_json::json!({}), position: None },
+                PipelineNode { id: "b1".to_string(), name: "Branch 1".to_string(), node_type: NodeType::VoiceAssigner, params: serde_json::json!({}), position: None },
+                PipelineNode { id: "b2".to_string(), name: "Branch 2".to_string(), node_type: NodeType::VoiceAssigner, params: serde_json::json!({}), position: None },
+                PipelineNode { id: "out".to_string(), name: "Output".to_string(), node_type: NodeType::OutputSink, params: serde_json::json!({}), position: None },
+            ],
+            edges: vec![
+                PipelineEdge { id: "e1".to_string(), from_node: "in".to_string(), to_node: "b1".to_string(), from_port: None, to_port: None },
+                PipelineEdge { id: "e2".to_string(), from_node: "in".to_string(), to_node: "b2".to_string(), from_port: None, to_port: None },
+                PipelineEdge { id: "e3".to_string(), from_node: "b1".to_string(), to_node: "out".to_string(), from_port: None, to_port: None },
+                PipelineEdge { id: "e4".to_string(), from_node: "b2".to_string(), to_node: "out".to_string(), from_port: None, to_port: None },
+            ],
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        };
+
+        let order = GraphValidator::topological_sort(&diamond_pipeline).expect("Topological sort must succeed");
+        assert_eq!(order.len(), 4);
+        assert_eq!(order[0], "in");
+        assert_eq!(order[3], "out");
+    }
 }

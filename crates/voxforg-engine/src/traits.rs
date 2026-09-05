@@ -4,12 +4,20 @@ use tokio::sync::mpsc;
 use voxforg_core::error::Result;
 use voxforg_core::models::{AudioChunk, AudioContainerFormat, Voice};
 
+fn default_speed() -> f32 {
+    1.0
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SynthesisRequest {
+    #[serde(default)]
     pub text: String,
     pub voice_id: String,
+    #[serde(default = "default_speed")]
     pub speed: f32,
+    #[serde(default)]
     pub pitch: f32,
+    #[serde(default)]
     pub format: AudioContainerFormat,
 }
 

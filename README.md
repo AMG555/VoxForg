@@ -40,6 +40,10 @@ VoxForg eliminates vendor lock-in by abstracting 10+ local and cloud speech engi
   - **Embedded / Desktop**: Zero-dependency SQLite with WAL mode.
   - **Self-Hosted Docker**: High-concurrency PostgreSQL with connection pooling.
   - **Cloud Multi-Tenant**: Supabase integration with Row-Level Security (RLS).
+- **Automated QA & Voice A/B Benchmarking**:
+  - Side-by-side acoustic quality evaluation across engines, voices, and prosody parameters.
+  - Measures real-time factor (RTF), TTFB latency, RMS loudness (dBFS), peak amplitude, and digital clipping samples.
+  - Accessible via interactive UI (`A/B & QA Lab`), REST API (`POST /v1/qa/ab-test`), and CLI (`voxforg ab-test`).
 - **Enterprise Security Baseline**:
   - Strict server-side proxying; frontend never handles downstream API credentials.
   - Granular API key permissions (`tts:read`, `tts:write`, `pipeline:admin`).
@@ -125,6 +129,9 @@ cargo build --release --bin voxforg
 
 # Verify hardware environment
 ./target/release/voxforg hardware probe
+
+# Run automated QA A/B benchmark between voices
+./target/release/voxforg ab-test --iterations 3
 
 # Launch server
 ./target/release/voxforg serve --port 8080 --data-dir ./data
@@ -247,9 +254,16 @@ voxforg/
 
 ### Running Rust Workspace Tests
 
+The workspace features a comprehensive 38+ automated test suite covering acoustic quality metrics, DAG scheduling, topological sorting, storage isolation, hardware tiering, and REST/WebSocket API endpoints:
+
 ```bash
-# Run all unit and integration tests across crates
+# Run all unit and integration tests across crates (38+ tests)
 cargo test --workspace
+
+# Run dedicated audio metrics and QA benchmark tests
+cargo test -p voxforg-audio --lib metrics
+cargo test -p voxforg-engine --lib ab_test
+cargo test -p voxforg-api --lib tests
 
 # Run security linting
 cargo clippy --workspace -- -D warnings

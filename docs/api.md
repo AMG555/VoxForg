@@ -299,3 +299,86 @@ All non-2xx responses conform to RFC 7807 Problem Details:
   "timestamp": "2026-09-05T10:25:00Z"
 }
 ```
+
+---
+
+## 8. Automated QA & Voice A/B Testing
+
+### `POST /v1/qa/ab-test`
+
+Executes multi-run statistical and acoustic quality benchmarks comparing two engine/voice/parameter variants side-by-side. Evaluates real-time factor (RTF), latency, dynamic range, RMS loudness, peak amplitude, and digital clipping samples.
+
+#### Request Body
+```json
+{
+  "scenario_name": "Studio vs Field Comparison",
+  "text": "The atmospheric density on Kepler-452b enables acoustic wave amplification.",
+  "variant_a_engine": "edge-tts",
+  "variant_a_voice": "en-US-AriaNeural",
+  "variant_a_speed": 1.0,
+  "variant_b_engine": "mock-tts",
+  "variant_b_voice": "mock-en-female",
+  "variant_b_speed": 1.0,
+  "iterations": 3
+}
+```
+
+#### Parameters
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `scenario_name` | `string` | No | `"A/B Voice Comparison"` | Human-readable scenario name |
+| `text` | `string` | Yes | - | Prompt text synthesized across both variants |
+| `variant_a_engine` | `string` | Yes | - | Engine ID for Variant A |
+| `variant_a_voice` | `string` | Yes | - | Voice ID for Variant A |
+| `variant_a_speed` | `number` | No | `1.0` | Playback speed multiplier for Variant A |
+| `variant_b_engine` | `string` | Yes | - | Engine ID for Variant B |
+| `variant_b_voice` | `string` | Yes | - | Voice ID for Variant B |
+| `variant_b_speed` | `number` | No | `1.0` | Playback speed multiplier for Variant B |
+| `iterations` | `number` | No | `3` | Number of benchmark runs averaged (clamped 1-10) |
+
+#### Response (`200 OK`)
+```json
+{
+  "scenario": "Studio vs Field Comparison",
+  "variant_a": {
+    "engine_id": "edge-tts",
+    "voice_id": "en-US-AriaNeural",
+    "speed": 1.0,
+    "latency_ms": 142.5,
+    "rtf": 0.08,
+    "metrics": {
+      "duration_seconds": 1.82,
+      "sample_rate_hz": 24000,
+      "channels": 1,
+      "peak_amplitude": 0.76,
+      "peak_dbfs": -2.38,
+      "rms_dbfs": -16.42,
+      "clipping_samples": 0
+    },
+    "audio_base64": "<base64_encoded_audio>"
+  },
+  "variant_b": {
+    "engine_id": "mock-tts",
+    "voice_id": "mock-en-female",
+    "speed": 1.0,
+    "latency_ms": 1.8,
+    "rtf": 0.001,
+    "metrics": {
+      "duration_seconds": 1.80,
+      "sample_rate_hz": 24000,
+      "channels": 1,
+      "peak_amplitude": 0.50,
+      "peak_dbfs": -6.02,
+      "rms_dbfs": -9.03,
+      "clipping_samples": 0
+    },
+    "audio_base64": "<base64_encoded_audio>"
+  },
+  "latency_delta_ms": 140.7,
+  "rtf_delta": 0.079,
+  "loudness_delta_db": -7.39,
+  "latency_winner": "Variant B",
+  "loudness_winner": "Variant A",
+  "recommended_variant": "Variant B"
+}
+```

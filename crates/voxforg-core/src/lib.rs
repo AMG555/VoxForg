@@ -46,6 +46,9 @@ mod tests {
         let deleted = store.delete_pipeline(&pipeline_id).await.expect("Delete should succeed");
         assert!(deleted);
 
+        let delete_again = store.delete_pipeline(&pipeline_id).await.expect("Delete again should succeed");
+        assert!(!delete_again);
+
         let refetched = store.get_pipeline(&pipeline_id).await.expect("Fetch should succeed");
         assert!(refetched.is_none());
     }
@@ -86,5 +89,36 @@ mod tests {
         let piper_voices = store.list_voices(None, Some("piper")).await.unwrap();
         assert_eq!(piper_voices.len(), 1);
         assert_eq!(piper_voices[0].id, "de-DE-Thorsten");
+
+        let no_voices = store.list_voices(Some("ja"), None).await.unwrap();
+        assert!(no_voices.is_empty());
+    }
+
+    #[test]
+    fn test_audio_container_formats() {
+        assert_eq!(AudioContainerFormat::Wav.mime_type(), "audio/wav");
+        assert_eq!(AudioContainerFormat::Mp3.mime_type(), "audio/mpeg");
+        assert_eq!(AudioContainerFormat::Opus.mime_type(), "audio/opus");
+        assert_eq!(AudioContainerFormat::Pcm.mime_type(), "audio/pcm");
+        assert_eq!(AudioContainerFormat::Flac.mime_type(), "audio/flac");
+        assert_eq!(AudioContainerFormat::Aac.mime_type(), "audio/aac");
+    }
+
+    #[test]
+    fn test_error_to_problem_details() {
+        let err = VoxForgError::VoiceNotFound("test-voice".to_string());
+        let details = err.to_problem_details("/v1/audio/speech");
+        assert_eq!(details.status, 404);
+        assert_eq!(details.title, "Voice Not Found");
+        assert_eq!(details.instance, "/v1/audio/speech");
+        assert!(details.detail.contains("test-voice"));
+
+        let val_err = VoxForgError::PipelineValidation("Cycle detected".to_string());
+        let val_details = val_err.to_problem_details("/v1/pipeline/execute");
+        assert_eq!(val_details.status, 422);
+
+        let unauth_err = VoxForgError::Unauthorized("Bad token".to_string());
+        let unauth_details = unauth_err.to_problem_details("/health");
+        assert_eq!(unauth_details.status, 401);
     }
 }
