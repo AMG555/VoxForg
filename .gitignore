@@ -1,0 +1,49 @@
+# VoxForg .gitignore
+target/
+**/*.rs.bk
+Cargo.lock
+*.pdb
+
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Production build
+dist/
+build/
+out/
+
+# Environment and Secrets (CRITICAL: Never commit credentials)
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+credentials.json
+service-account.json
+
+# IDE / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Database / Storage
+data/
+*.sqlite
+*.sqlite3
+*.db
+voxforg.db
+storage/
+models/
+cache/
+tmp/
+scratch/
+*.wav
+*.mp3
+*.opus
+*.pcm
+

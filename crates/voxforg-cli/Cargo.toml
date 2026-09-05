@@ -1,0 +1,25 @@
+[package]
+name = "voxforg-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "voxforg"
+path = "src/main.rs"
+
+[dependencies]
+voxforg-core = { workspace = true }
+voxforg-hardware = { workspace = true }
+voxforg-audio = { workspace = true }
+voxforg-engine = { workspace = true }
+voxforg-pipeline = { workspace = true }
+voxforg-api = { workspace = true }
+axum.workspace = true
+clap.workspace = true
+tokio = { workspace = true, features = ["full"] }
+tracing.workspace = true
+tracing-subscriber.workspace = true
+anyhow.workspace = true
+uuid.workspace = true

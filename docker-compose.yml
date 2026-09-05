@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  voxforg-daemon:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: voxforg-daemon
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - VOXFORG_PORT=8080
+      - VOXFORG_HOST=0.0.0.0
+      - VOXFORG_API_KEY=${VOXFORG_API_KEY:-}
+      - RUST_LOG=info
+    volumes:
+      - voxforg-data:/app/data
+      - voxforg-models:/app/models
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: voxforg-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-voxforg}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-voxforg_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-voxforg}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U voxforg"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  voxforg-data:
+  voxforg-models:
+  pgdata:

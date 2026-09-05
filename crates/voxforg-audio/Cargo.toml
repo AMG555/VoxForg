@@ -1,0 +1,14 @@
+[package]
+name = "voxforg-audio"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+voxforg-core = { workspace = true }
+hound.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+thiserror.workspace = true

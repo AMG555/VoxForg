@@ -1,0 +1,48 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/voxforg-core",
+    "crates/voxforg-hardware",
+    "crates/voxforg-audio",
+    "crates/voxforg-engine",
+    "crates/voxforg-pipeline",
+    "crates/voxforg-api",
+    "crates/voxforg-cli",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["VoxForg Core Contributors"]
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/voxforg/voxforg"
+readme = "README.md"
+
+[workspace.dependencies]
+tokio = { version = "1.38", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+async-trait = "0.1"
+futures = "0.3"
+thiserror = "1.0"
+anyhow = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+uuid = { version = "1.8", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4.5", features = ["derive", "env"] }
+regex = "1.10"
+hound = "3.5"
+sysinfo = "0.30"
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"] }
+axum = { version = "0.7", features = ["ws", "macros"] }
+tower = { version = "0.4", features = ["util"] }
+tower-http = { version = "0.5", features = ["cors", "trace", "fs"] }
+
+# Internal workspace crates
+voxforg-core = { path = "crates/voxforg-core" }
+voxforg-hardware = { path = "crates/voxforg-hardware" }
+voxforg-audio = { path = "crates/voxforg-audio" }
+voxforg-engine = { path = "crates/voxforg-engine" }
+voxforg-pipeline = { path = "crates/voxforg-pipeline" }
+voxforg-api = { path = "crates/voxforg-api" }

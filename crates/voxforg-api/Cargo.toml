@@ -1,0 +1,25 @@
+[package]
+name = "voxforg-api"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+voxforg-core = { workspace = true }
+voxforg-engine = { workspace = true }
+voxforg-hardware = { workspace = true }
+voxforg-audio = { workspace = true }
+voxforg-pipeline = { workspace = true }
+axum.workspace = true
+tower.workspace = true
+tower-http.workspace = true
+tokio = { workspace = true, features = ["full"] }
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+reqwest = { workspace = true, features = ["json"] }
