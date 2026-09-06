@@ -11,7 +11,7 @@ pub struct ScriptSegment {
     pub pitch: Option<f32>,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct ExecutionContext {
     pub raw_text: Option<String>,
     pub segments: Vec<ScriptSegment>,
@@ -35,5 +35,11 @@ impl ExecutionContext {
             output_format: AudioContainerFormat::Wav,
             node_outputs: HashMap::new(),
         }
+    }
+}
+
+impl Default for ExecutionContext {
+    fn default() -> Self {
+        Self::new()
     }
 }

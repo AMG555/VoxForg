@@ -51,8 +51,8 @@ impl PipelineExecutor {
         // Format master audio buffer
         let wav_bytes = WavEncoder::encode_pcm16_to_wav(
             &ctx.master_audio_pcm,
-            ctx.sample_rate,
-            ctx.channels,
+            ctx.sample_rate.max(8000),
+            ctx.channels.max(1),
         )?;
 
         Ok(wav_bytes)
@@ -66,6 +66,12 @@ impl PipelineExecutor {
         match node.node_type {
             NodeType::TextInput => {
                 if let Some(text_val) = node.params.get("text").and_then(|t| t.as_str()) {
+                    if text_val.len() > 50_000 {
+                        return Err(VoxForgError::PipelineExecution {
+                            node_id: node.id.clone(),
+                            reason: "TextInput exceeds maximum supported length of 50,000 characters".to_string(),
+                        });
+                    }
                     ctx.raw_text = Some(text_val.to_string());
                 }
                 Ok(())

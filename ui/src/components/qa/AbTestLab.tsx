@@ -36,10 +36,25 @@ export const AbTestLab: React.FC<AbTestLabProps> = ({ voices }) => {
   const [audioUrlA, setAudioUrlA] = useState<string | null>(null);
   const [audioUrlB, setAudioUrlB] = useState<string | null>(null);
 
+  React.useEffect(() => {
+    return () => {
+      if (audioUrlA) URL.revokeObjectURL(audioUrlA);
+      if (audioUrlB) URL.revokeObjectURL(audioUrlB);
+    };
+  }, [audioUrlA, audioUrlB]);
+
   const handleRunEvaluation = async () => {
     if (!text.trim()) return;
     try {
       setIsRunning(true);
+      if (audioUrlA) {
+        URL.revokeObjectURL(audioUrlA);
+        setAudioUrlA(null);
+      }
+      if (audioUrlB) {
+        URL.revokeObjectURL(audioUrlB);
+        setAudioUrlB(null);
+      }
 
       // Run automated QA A/B test via API
       const result = await api.runAbTest({

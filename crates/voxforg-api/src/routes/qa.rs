@@ -36,14 +36,8 @@ pub async fn run_ab_test(
 
     let runner = AbTestRunner::new(state.engine_registry.clone());
     let comparison = runner.run_comparison(&scenario).await.map_err(|e| {
-        let err = ProblemDetails {
-            problem_type: "https://voxforg.org/errors/ab-test-failed".to_string(),
-            title: "A/B Test Execution Failed".to_string(),
-            status: StatusCode::INTERNAL_SERVER_ERROR.as_u16(),
-            detail: e.to_string(),
-            instance: "/v1/qa/ab-test".to_string(),
-        };
-        (StatusCode::INTERNAL_SERVER_ERROR, Json(err))
+        let problem = e.to_problem_details("/v1/qa/ab-test");
+        (StatusCode::from_u16(problem.status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR), Json(problem))
     })?;
 
     Ok(Json(comparison))

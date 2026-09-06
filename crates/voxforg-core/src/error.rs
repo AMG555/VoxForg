@@ -56,6 +56,7 @@ impl VoxForgError {
         let (status, title) = match self {
             VoxForgError::VoiceNotFound(_) => (404, "Voice Not Found"),
             VoxForgError::PipelineValidation(_) => (422, "Pipeline Validation Error"),
+            VoxForgError::PipelineExecution { .. } => (422, "Pipeline Execution Error"),
             VoxForgError::Unauthorized(_) => (401, "Unauthorized"),
             VoxForgError::RateLimited { .. } => (429, "Rate Limit Exceeded"),
             VoxForgError::HardwareUnsupported(_) => (400, "Hardware Unsupported"),

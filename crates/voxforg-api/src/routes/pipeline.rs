@@ -21,6 +21,18 @@ pub async fn execute_pipeline(
     State(state): State<AppState>,
     Json(payload): Json<PipelineExecuteRequest>,
 ) -> Result<Response, (StatusCode, Json<ProblemDetails>)> {
+    if let Some(text) = &payload.input_text {
+        if text.len() > 50_000 {
+            let err = ProblemDetails {
+                problem_type: "https://voxforg.org/errors/input-too-large".to_string(),
+                title: "Input Text Exceeds Limit".to_string(),
+                status: StatusCode::BAD_REQUEST.as_u16(),
+                detail: "The 'input_text' parameter cannot exceed 50,000 characters".to_string(),
+                instance: "/v1/pipeline/execute".to_string(),
+            };
+            return Err((StatusCode::BAD_REQUEST, Json(err)));
+        }
+    }
     let wav_bytes = state
         .pipeline_executor
         .execute(&payload.pipeline, payload.input_text)

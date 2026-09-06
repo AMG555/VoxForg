@@ -2,15 +2,28 @@ import { AbTestComparison, AbTestScenario, HardwareInfo, PipelineDefinition, Voi
 
 const BASE_URL = '';
 
+const getHeaders = (customHeaders: Record<string, string> = {}): Record<string, string> => {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('voxforg_api_key') : null;
+  const headers: Record<string, string> = { ...customHeaders };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  return headers;
+};
+
 export const api = {
   async getHealth(): Promise<{ status: string; version: string }> {
-    const res = await fetch(`${BASE_URL}/health`);
+    const res = await fetch(`${BASE_URL}/health`, {
+      headers: getHeaders(),
+    });
     if (!res.ok) throw new Error('Failed to fetch health');
     return res.json();
   },
 
   async getReadiness(): Promise<HardwareInfo> {
-    const res = await fetch(`${BASE_URL}/health/ready`);
+    const res = await fetch(`${BASE_URL}/health/ready`, {
+      headers: getHeaders(),
+    });
     if (!res.ok) throw new Error('Failed to fetch readiness');
     return res.json();
   },
@@ -20,7 +33,9 @@ export const api = {
     if (language) params.append('language', language);
     if (engine) params.append('engine', engine);
 
-    const res = await fetch(`${BASE_URL}/v1/voices?${params.toString()}`);
+    const res = await fetch(`${BASE_URL}/v1/voices?${params.toString()}`, {
+      headers: getHeaders(),
+    });
     if (!res.ok) throw new Error('Failed to fetch voices');
     const data = await res.json();
     return data.voices;
@@ -35,7 +50,7 @@ export const api = {
   }): Promise<Blob> {
     const res = await fetch(`${BASE_URL}/v1/audio/speech`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
         model: options.model || 'edge-tts',
         input: options.input,
@@ -57,7 +72,7 @@ export const api = {
   async executePipeline(pipeline: PipelineDefinition, text?: string): Promise<Blob> {
     const res = await fetch(`${BASE_URL}/v1/pipeline/execute`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
         pipeline,
         input_text: text,
@@ -75,7 +90,7 @@ export const api = {
   async runAbTest(scenario: AbTestScenario): Promise<AbTestComparison> {
     const res = await fetch(`${BASE_URL}/v1/qa/ab-test`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
         name: scenario.name,
         text: scenario.text,

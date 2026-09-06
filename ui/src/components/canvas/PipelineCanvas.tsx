@@ -80,6 +80,14 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
   const [isRunning, setIsRunning] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
 
+  React.useEffect(() => {
+    return () => {
+      if (audioUrl) {
+        URL.revokeObjectURL(audioUrl);
+      }
+    };
+  }, [audioUrl]);
+
   const selectedNode = pipeline.nodes.find((n) => n.id === selectedNodeId) || null;
 
   const handleUpdateParams = (nodeId: string, params: Record<string, any>) => {
@@ -103,6 +111,10 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
   const handleRunPipeline = async () => {
     try {
       setIsRunning(true);
+      if (audioUrl) {
+        URL.revokeObjectURL(audioUrl);
+        setAudioUrl(null);
+      }
       const blob = await api.executePipeline(pipeline);
       const url = URL.createObjectURL(blob);
       setAudioUrl(url);

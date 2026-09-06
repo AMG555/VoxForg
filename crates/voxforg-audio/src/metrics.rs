@@ -34,7 +34,9 @@ impl AudioAnalyzer {
         }
 
         let total_samples = samples.len();
-        let duration_seconds = total_samples as f64 / (sample_rate as f64 * channels as f64);
+        let safe_sample_rate = sample_rate.max(1);
+        let safe_channels = channels.max(1);
+        let duration_seconds = total_samples as f64 / (safe_sample_rate as f64 * safe_channels as f64);
 
         let mut max_abs: i16 = 0;
         let mut sum_squares: f64 = 0.0;

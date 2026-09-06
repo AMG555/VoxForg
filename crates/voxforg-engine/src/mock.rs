@@ -65,8 +65,14 @@ impl TtsEngine for MockTtsEngine {
         let duration_secs = (request.text.len() as f32 * 0.05).max(0.1);
         let num_samples = ((self.sample_rate as f32) * duration_secs) as usize;
 
+        let safe_pitch = if request.pitch.is_finite() {
+            request.pitch.clamp(-24.0, 24.0)
+        } else {
+            0.0
+        };
+
         // 440Hz base tone modulated by pitch
-        let freq = 440.0 * 2.0f32.powf(request.pitch / 12.0);
+        let freq = 440.0 * 2.0f32.powf(safe_pitch / 12.0);
         let pcm_data: Vec<i16> = (0..num_samples)
             .map(|i| {
                 let t = i as f32 / self.sample_rate as f32;

@@ -169,6 +169,10 @@ async fn initialize_registry() -> Arc<EngineRegistry> {
 async fn run_serve(args: ServeArgs) -> Result<()> {
     info!("Starting VoxForg Workstation Server v0.1.0");
 
+    if !args.data_dir.exists() {
+        let _ = std::fs::create_dir_all(&args.data_dir);
+    }
+
     let hardware = HardwareProbe::probe();
     info!("Host Architecture: {} / {}", hardware.os, hardware.arch);
     info!("Assigned Hardware Tier: {}", hardware.assigned_tier);
@@ -211,6 +215,12 @@ async fn run_synth(args: SynthArgs) -> Result<()> {
     let duration = start.elapsed();
 
     let wav_bytes = WavEncoder::encode_pcm16_to_wav(&chunk.pcm_data, chunk.sample_rate, chunk.channels)?;
+
+    if let Some(parent) = args.out.parent() {
+        if !parent.as_os_str().is_empty() {
+            std::fs::create_dir_all(parent)?;
+        }
+    }
     std::fs::write(&args.out, wav_bytes)?;
 
     info!(
@@ -272,8 +282,9 @@ async fn run_bench(args: BenchArgs) -> Result<()> {
     let test_text = "The quick brown fox jumps over the lazy dog. Speech synthesis benchmark test sentence.";
 
     let mut total_duration = std::time::Duration::ZERO;
+    let iters = args.iterations.max(1);
 
-    for i in 1..=args.iterations {
+    for i in 1..=iters {
         let req = SynthesisRequest {
             text: test_text.to_string(),
             voice_id: voice.id.clone(),
@@ -294,7 +305,7 @@ async fn run_bench(args: BenchArgs) -> Result<()> {
             i, elapsed, audio_duration_sec, rtf);
     }
 
-    let avg = total_duration / (args.iterations as u32);
+    let avg = total_duration / (iters as u32);
     println!("---------------------------------");
     println!("Average Latency: {:.2?}", avg);
     Ok(())

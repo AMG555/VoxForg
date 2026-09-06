@@ -136,7 +136,12 @@ impl TtsEngine for EdgeTtsEngine {
             "en-GB-SoniaNeural" => 220.0,
             _ => 240.0,
         };
-        let freq = base_pitch * 2.0f32.powf(request.pitch / 12.0);
+        let safe_pitch = if request.pitch.is_finite() {
+            request.pitch.clamp(-24.0, 24.0)
+        } else {
+            0.0
+        };
+        let freq = base_pitch * 2.0f32.powf(safe_pitch / 12.0);
 
         let pcm_data: Vec<i16> = (0..num_samples)
             .map(|i| {

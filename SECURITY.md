@@ -19,7 +19,7 @@ Please do **NOT** report security vulnerabilities via public GitHub issues or pu
 
 Instead, submit your report privately via one of the following channels:
 
-- **Security Email:** [security@voxforg.org](mailto:security@voxforg.org)
+- **Security Email:** [amgt503@gmail.com](mailto:amgt503@gmail.com)
 - **GitHub Private Vulnerability Reporting:** Open a private advisory under the Security tab of the [VoxForg Repository](https://github.com/AMG555/VoxForg/security/advisories).
 
 ### What to Include

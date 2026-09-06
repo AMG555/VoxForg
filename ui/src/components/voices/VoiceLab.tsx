@@ -18,6 +18,14 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices }) => {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
 
+  React.useEffect(() => {
+    return () => {
+      if (audioUrl) {
+        URL.revokeObjectURL(audioUrl);
+      }
+    };
+  }, [audioUrl]);
+
   const filteredVoices = voices.filter(
     (v) =>
       v.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -31,6 +39,10 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices }) => {
     if (!text.trim()) return;
     try {
       setIsGenerating(true);
+      if (audioUrl) {
+        URL.revokeObjectURL(audioUrl);
+        setAudioUrl(null);
+      }
       const blob = await api.synthesizeDirect({
         input: text,
         voice: selectedVoiceId,

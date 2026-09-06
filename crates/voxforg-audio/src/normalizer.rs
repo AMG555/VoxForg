@@ -2,7 +2,7 @@ pub struct AudioNormalizer;
 
 impl AudioNormalizer {
     pub fn peak_normalize(samples: &mut [i16], target_peak_ratio: f32) {
-        if samples.is_empty() {
+        if samples.is_empty() || !target_peak_ratio.is_finite() {
             return;
         }
 
@@ -25,7 +25,9 @@ impl AudioNormalizer {
 
         for sample in samples.iter_mut() {
             let scaled = (*sample as f32 * gain).round();
-            *sample = scaled.clamp(-32768.0, 32767.0) as i16;
+            if scaled.is_finite() {
+                *sample = scaled.clamp(-32768.0, 32767.0) as i16;
+            }
         }
     }
 
@@ -34,10 +36,17 @@ impl AudioNormalizer {
             return;
         }
 
-        let linear_factor = 10.0f32.powf(gain_db / 20.0);
+        let safe_gain_db = gain_db.clamp(-120.0, 60.0);
+        let linear_factor = 10.0f32.powf(safe_gain_db / 20.0);
+        if !linear_factor.is_finite() {
+            return;
+        }
+
         for sample in samples.iter_mut() {
             let scaled = (*sample as f32 * linear_factor).round();
-            *sample = scaled.clamp(-32768.0, 32767.0) as i16;
+            if scaled.is_finite() {
+                *sample = scaled.clamp(-32768.0, 32767.0) as i16;
+            }
         }
     }
 }
