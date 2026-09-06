@@ -2,7 +2,7 @@ pub mod middleware;
 pub mod routes;
 pub mod state;
 
-use axum::{middleware::from_fn, middleware::from_fn_with_state, Router};
+use axum::{extract::DefaultBodyLimit, middleware::from_fn, middleware::from_fn_with_state, Router};
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
 
@@ -17,6 +17,7 @@ pub fn create_app(state: AppState) -> Router {
     routes::build_api_router()
         .layer(from_fn_with_state(state.clone(), middleware::auth_middleware))
         .layer(from_fn(middleware::security_headers))
+        .layer(DefaultBodyLimit::max(10 * 1024 * 1024))
         .layer(cors)
         .layer(TraceLayer::new_for_http())
         .with_state(state)

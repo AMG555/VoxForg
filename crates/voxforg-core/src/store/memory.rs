@@ -30,6 +30,11 @@ impl DataStore for MemoryStore {
 
     async fn save_pipeline(&self, pipeline: &PipelineDefinition) -> Result<()> {
         let mut lock = self.pipelines.write().await;
+        if lock.len() >= 1000 && !lock.contains_key(&pipeline.id) {
+            if let Some(oldest_key) = lock.keys().next().cloned() {
+                lock.remove(&oldest_key);
+            }
+        }
         lock.insert(pipeline.id, pipeline.clone());
         Ok(())
     }

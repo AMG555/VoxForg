@@ -45,6 +45,41 @@ pub async fn synthesize_speech(
         return Err((StatusCode::BAD_REQUEST, Json(err)));
     }
 
+    if payload.input.len() > 50_000 {
+        let err = ProblemDetails {
+            problem_type: "https://voxforg.org/errors/input-too-large".to_string(),
+            title: "Input Text Exceeds Limit".to_string(),
+            status: StatusCode::BAD_REQUEST.as_u16(),
+            detail: "The 'input' parameter cannot exceed 50,000 characters per request".to_string(),
+            instance: "/v1/audio/speech".to_string(),
+        };
+        return Err((StatusCode::BAD_REQUEST, Json(err)));
+    }
+
+    if !payload.speed.is_finite() || payload.speed < 0.25 || payload.speed > 4.0 {
+        let err = ProblemDetails {
+            problem_type: "https://voxforg.org/errors/invalid-parameter".to_string(),
+            title: "Invalid Speed Parameter".to_string(),
+            status: StatusCode::BAD_REQUEST.as_u16(),
+            detail: "The 'speed' parameter must be a finite number between 0.25 and 4.0".to_string(),
+            instance: "/v1/audio/speech".to_string(),
+        };
+        return Err((StatusCode::BAD_REQUEST, Json(err)));
+    }
+
+    if let Some(p) = payload.pitch {
+        if !p.is_finite() || p < -50.0 || p > 50.0 {
+            let err = ProblemDetails {
+                problem_type: "https://voxforg.org/errors/invalid-parameter".to_string(),
+                title: "Invalid Pitch Parameter".to_string(),
+                status: StatusCode::BAD_REQUEST.as_u16(),
+                detail: "The 'pitch' parameter must be a finite number between -50.0 and 50.0 semitones".to_string(),
+                instance: "/v1/audio/speech".to_string(),
+            };
+            return Err((StatusCode::BAD_REQUEST, Json(err)));
+        }
+    }
+
     let (engine, voice) = match state.engine_registry.resolve_voice(&payload.voice).await {
         Ok(res) => res,
         Err(_) => {

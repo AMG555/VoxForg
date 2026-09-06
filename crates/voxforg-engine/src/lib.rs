@@ -78,6 +78,21 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_edge_tts_ssml_injection_prevention() {
+        let req = SynthesisRequest {
+            text: "Safe text".to_string(),
+            voice_id: "en-US-AriaNeural' extra='attr".to_string(),
+            speed: 1.0,
+            pitch: 0.0,
+            format: AudioContainerFormat::Wav,
+        };
+
+        let ssml = EdgeTtsEngine::build_ssml(&req);
+        assert!(!ssml.contains("AriaNeural' extra"));
+        assert!(ssml.contains("AriaNeural&apos; extra"));
+    }
+
+    #[tokio::test]
     async fn test_registry_resolution() {
         let registry = EngineRegistry::new();
         let mock = Arc::new(MockTtsEngine::new(24000));

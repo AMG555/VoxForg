@@ -8,7 +8,7 @@ impl AudioNormalizer {
 
         let max_abs = samples
             .iter()
-            .map(|&s| s.abs() as i32)
+            .map(|&s| (s as i32).abs())
             .max()
             .unwrap_or(0);
 
@@ -19,7 +19,7 @@ impl AudioNormalizer {
         let target_peak = (32767.0 * target_peak_ratio.clamp(0.0, 1.0)) as f32;
         let gain = target_peak / (max_abs as f32);
 
-        if (gain - 1.0).abs() < 0.001 {
+        if !gain.is_finite() || (gain - 1.0).abs() < 0.001 {
             return;
         }
 
@@ -30,7 +30,7 @@ impl AudioNormalizer {
     }
 
     pub fn apply_gain_db(samples: &mut [i16], gain_db: f32) {
-        if (gain_db.abs()) < 0.01 {
+        if !gain_db.is_finite() || gain_db.abs() < 0.01 {
             return;
         }
 

@@ -39,6 +39,11 @@ impl WavEncoder {
             .map_err(|e| VoxForgError::AudioProcessing(format!("Failed to parse WAV header: {}", e)))?;
 
         let spec = reader.spec();
+        if reader.duration() > 50_000_000 {
+            return Err(VoxForgError::AudioProcessing(
+                "WAV sample count exceeds maximum supported limit (50M samples)".to_string(),
+            ));
+        }
         let samples: std::result::Result<Vec<i16>, _> = reader.samples::<i16>().collect();
         let pcm_samples = samples.map_err(|e| VoxForgError::AudioProcessing(format!("Failed to read samples: {}", e)))?;
 

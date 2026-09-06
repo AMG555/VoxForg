@@ -178,4 +178,30 @@ mod tests {
         assert_eq!(order[0], "in");
         assert_eq!(order[3], "out");
     }
+
+    #[test]
+    fn test_excessive_nodes_rejected() {
+        let mut nodes = Vec::new();
+        for i in 0..501 {
+            nodes.push(PipelineNode {
+                id: format!("node_{}", i),
+                name: format!("Node {}", i),
+                node_type: NodeType::TextInput,
+                params: serde_json::json!({}),
+                position: None,
+            });
+        }
+        let pipeline = PipelineDefinition {
+            id: Uuid::new_v4(),
+            name: "Oversized".to_string(),
+            description: None,
+            nodes,
+            edges: Vec::new(),
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        };
+
+        let result = GraphValidator::topological_sort(&pipeline);
+        assert!(result.is_err());
+    }
 }

@@ -40,8 +40,15 @@ mod tests {
     fn test_audio_normalizer_peak() {
         let mut samples = vec![1000i16, 2000, -4000, 3000];
         AudioNormalizer::peak_normalize(&mut samples, 1.0);
-        let max_abs = samples.iter().map(|&s| s.abs()).max().unwrap();
+        let max_abs = samples.iter().map(|&s| (s as i32).abs()).max().unwrap();
         assert_eq!(max_abs, 32767);
+    }
+
+    #[test]
+    fn test_audio_normalizer_i16_min_no_overflow() {
+        let mut samples = vec![i16::MIN, 0, 1000];
+        AudioNormalizer::peak_normalize(&mut samples, 0.5);
+        assert_eq!(samples[0], -16384);
     }
 
     #[test]
@@ -68,6 +75,15 @@ mod tests {
         assert_eq!(merged[0], 100);
         assert_eq!(merged[480], 0);
         assert_eq!(merged[960], 200);
+    }
+
+    #[test]
+    fn test_audio_merger_huge_pause_bounded() {
+        let seg1 = vec![100i16; 48];
+        let seg2 = vec![200i16; 48];
+        // Request astronomical pause - must be safely clamped to 30s max without OOM
+        let merged = AudioMerger::concatenate_with_pause(&[&seg1, &seg2], 1000, u32::MAX);
+        assert_eq!(merged.len(), 48 + 30000 + 48);
     }
 
     #[test]

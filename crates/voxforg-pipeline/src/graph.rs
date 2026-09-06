@@ -6,6 +6,18 @@ pub struct GraphValidator;
 
 impl GraphValidator {
     pub fn topological_sort(pipeline: &PipelineDefinition) -> Result<Vec<String>> {
+        if pipeline.nodes.len() > 500 {
+            return Err(VoxForgError::PipelineValidation(
+                "Pipeline exceeds maximum allowed node limit (500 nodes)".to_string(),
+            ));
+        }
+
+        if pipeline.edges.len() > 2000 {
+            return Err(VoxForgError::PipelineValidation(
+                "Pipeline exceeds maximum allowed edge limit (2000 edges)".to_string(),
+            ));
+        }
+
         let mut in_degree: HashMap<String, usize> = HashMap::new();
         let mut adjacency: HashMap<String, Vec<String>> = HashMap::new();
 

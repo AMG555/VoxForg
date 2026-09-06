@@ -23,6 +23,17 @@ pub async fn run_ab_test(
         return Err((StatusCode::BAD_REQUEST, Json(err)));
     }
 
+    if scenario.text.len() > 50_000 {
+        let err = ProblemDetails {
+            problem_type: "https://voxforg.org/errors/input-too-large".to_string(),
+            title: "Scenario Text Exceeds Limit".to_string(),
+            status: StatusCode::BAD_REQUEST.as_u16(),
+            detail: "The 'text' parameter cannot exceed 50,000 characters per scenario".to_string(),
+            instance: "/v1/qa/ab-test".to_string(),
+        };
+        return Err((StatusCode::BAD_REQUEST, Json(err)));
+    }
+
     let runner = AbTestRunner::new(state.engine_registry.clone());
     let comparison = runner.run_comparison(&scenario).await.map_err(|e| {
         let err = ProblemDetails {

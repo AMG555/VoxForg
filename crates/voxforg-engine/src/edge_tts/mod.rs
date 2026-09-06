@@ -20,14 +20,24 @@ impl EdgeTtsEngine {
     }
 
     pub fn build_ssml(request: &SynthesisRequest) -> String {
-        let rate_pct = ((request.speed - 1.0) * 100.0).round() as i32;
+        let speed = if request.speed.is_finite() {
+            request.speed.clamp(0.25, 4.0)
+        } else {
+            1.0
+        };
+        let rate_pct = ((speed - 1.0) * 100.0).round() as i32;
         let rate_str = if rate_pct >= 0 {
             format!("+{}%", rate_pct)
         } else {
             format!("{}%", rate_pct)
         };
 
-        let pitch_hz = (request.pitch * 5.0).round() as i32;
+        let pitch = if request.pitch.is_finite() {
+            request.pitch.clamp(-50.0, 50.0)
+        } else {
+            0.0
+        };
+        let pitch_hz = (pitch * 5.0).round() as i32;
         let pitch_str = if pitch_hz >= 0 {
             format!("+{}Hz", pitch_hz)
         } else {
@@ -36,7 +46,7 @@ impl EdgeTtsEngine {
 
         format!(
             r#"<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'><voice name='{}'><prosody pitch='{}' rate='{}'>{}</prosody></voice></speak>"#,
-            request.voice_id, pitch_str, rate_str, quick_xml_escape(&request.text)
+            quick_xml_escape(&request.voice_id), pitch_str, rate_str, quick_xml_escape(&request.text)
         )
     }
 }
