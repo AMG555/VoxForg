@@ -335,6 +335,33 @@ mod tests {
         let res2 = app.clone().oneshot(bad_token_req).await.unwrap();
         assert_eq!(res2.status(), StatusCode::UNAUTHORIZED);
 
+        // 2b. Partial prefix match (timing attack simulation) -> 401 Unauthorized
+        let near_token_req = Request::builder()
+            .uri("/v1/models")
+            .header("Authorization", "Bearer secret-token-124")
+            .body(Body::empty())
+            .unwrap();
+        let res2b = app.clone().oneshot(near_token_req).await.unwrap();
+        assert_eq!(res2b.status(), StatusCode::UNAUTHORIZED);
+
+        // 2c. Substring match (shorter length) -> 401 Unauthorized
+        let short_token_req = Request::builder()
+            .uri("/v1/models")
+            .header("Authorization", "Bearer secret-token")
+            .body(Body::empty())
+            .unwrap();
+        let res2c = app.clone().oneshot(short_token_req).await.unwrap();
+        assert_eq!(res2c.status(), StatusCode::UNAUTHORIZED);
+
+        // 2d. Superstring match (longer length) -> 401 Unauthorized
+        let long_token_req = Request::builder()
+            .uri("/v1/models")
+            .header("Authorization", "Bearer secret-token-123-extended")
+            .body(Body::empty())
+            .unwrap();
+        let res2d = app.clone().oneshot(long_token_req).await.unwrap();
+        assert_eq!(res2d.status(), StatusCode::UNAUTHORIZED);
+
         // 3. Valid token -> 200 OK
         let valid_token_req = Request::builder()
             .uri("/v1/models")

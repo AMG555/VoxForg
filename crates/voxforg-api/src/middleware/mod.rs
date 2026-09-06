@@ -5,6 +5,7 @@ use axum::{
     response::Response,
     Json,
 };
+use subtle::ConstantTimeEq;
 use voxforg_core::error::ProblemDetails;
 use crate::state::AppState;
 
@@ -59,7 +60,9 @@ pub async fn auth_middleware(
     let is_authorized = match auth_header {
         Some(auth) if auth.starts_with("Bearer ") => {
             let token = &auth[7..];
-            token == expected_key
+            let token_bytes = token.as_bytes();
+            let expected_bytes = expected_key.as_bytes();
+            token_bytes.ct_eq(expected_bytes).into()
         }
         _ => false,
     };

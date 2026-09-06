@@ -46,8 +46,10 @@ scratch/
 *.mp3
 *.opus
 *.pcm
+build.bat
 run_tests.bat
 build_release.bat
+clean.bat
 \$null
 $null
 

@@ -39,6 +39,7 @@ axum = { version = "0.7", features = ["ws", "macros"] }
 tower = { version = "0.4", features = ["util"] }
 tower-http = { version = "0.5", features = ["cors", "trace", "fs"] }
 http-body-util = "0.1"
+subtle = "2.5"
 
 # Internal workspace crates
 voxforg-core = { path = "crates/voxforg-core" }
@@ -47,3 +48,9 @@ voxforg-audio = { path = "crates/voxforg-audio" }
 voxforg-engine = { path = "crates/voxforg-engine" }
 voxforg-pipeline = { path = "crates/voxforg-pipeline" }
 voxforg-api = { path = "crates/voxforg-api" }
+
+[profile.dev]
+debug = 0
+
+[profile.test]
+debug = 0
