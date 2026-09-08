@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Play, Loader2, Volume2, Mic, Search, Sliders } from 'lucide-react';
+import { Play, Loader2, Search } from 'lucide-react';
 import { Voice } from '../../types';
 import { api } from '../../services/api';
 

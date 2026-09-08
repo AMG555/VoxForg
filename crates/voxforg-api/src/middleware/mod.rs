@@ -10,6 +10,8 @@ use voxforg_core::error::ProblemDetails;
 use crate::state::AppState;
 
 pub async fn security_headers(req: Request, next: Next) -> Response {
+    let path = req.uri().path().to_string();
+    let is_docs = path == "/docs" || path.starts_with("/docs/");
     let mut response = next.run(req).await;
     let headers = response.headers_mut();
 
@@ -19,7 +21,11 @@ pub async fn security_headers(req: Request, next: Next) -> Response {
     );
     headers.insert(
         header::X_FRAME_OPTIONS,
-        HeaderValue::from_static("DENY"),
+        if is_docs {
+            HeaderValue::from_static("SAMEORIGIN")
+        } else {
+            HeaderValue::from_static("DENY")
+        },
     );
     headers.insert(
         header::STRICT_TRANSPORT_SECURITY,
@@ -27,7 +33,13 @@ pub async fn security_headers(req: Request, next: Next) -> Response {
     );
     headers.insert(
         header::CONTENT_SECURITY_POLICY,
-        HeaderValue::from_static("default-src 'self'"),
+        if is_docs {
+            HeaderValue::from_static(
+                "default-src 'self' https://cdn.jsdelivr.net; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https:; connect-src 'self' https:;"
+            )
+        } else {
+            HeaderValue::from_static("default-src 'self'")
+        },
     );
     headers.insert(
         header::REFERRER_POLICY,
@@ -48,7 +60,7 @@ pub async fn auth_middleware(
     };
 
     let path = req.uri().path();
-    if path == "/health" || path == "/health/ready" {
+    if path == "/health" || path == "/health/ready" || path == "/docs" || path == "/openapi.json" {
         return Ok(next.run(req).await);
     }
 

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Play, Plus, Loader2, Download, CheckCircle2 } from 'lucide-react';
-import { PipelineDefinition, PipelineNode, Voice } from '../../types';
+import { Play, Loader2 } from 'lucide-react';
+import { PipelineDefinition, Voice } from '../../types';
 import { NodeCard } from './NodeCard';
 import { NodeInspector } from './NodeInspector';
 import { api } from '../../services/api';

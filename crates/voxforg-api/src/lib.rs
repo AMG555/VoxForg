@@ -377,7 +377,70 @@ mod tests {
             .uri("/health")
             .body(Body::empty())
             .unwrap();
-        let res4 = app.oneshot(health_req).await.unwrap();
+        let res4 = app.clone().oneshot(health_req).await.unwrap();
         assert_eq!(res4.status(), StatusCode::OK);
+
+        // 5. Public routes (/docs and /openapi.json) bypass auth -> 200 OK
+        let docs_req = Request::builder()
+            .uri("/docs")
+            .body(Body::empty())
+            .unwrap();
+        let res5 = app.clone().oneshot(docs_req).await.unwrap();
+        assert_eq!(res5.status(), StatusCode::OK);
+
+        let openapi_req = Request::builder()
+            .uri("/openapi.json")
+            .body(Body::empty())
+            .unwrap();
+        let res6 = app.oneshot(openapi_req).await.unwrap();
+        assert_eq!(res6.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_scalar_docs_html_endpoint() {
+        let state = setup_test_state(None).await;
+        let app = create_app(state);
+        let req = Request::builder()
+            .uri("/docs")
+            .body(Body::empty())
+            .unwrap();
+
+        let res = app.oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(
+            res.headers().get("content-type").unwrap(),
+            "text/html; charset=utf-8"
+        );
+        assert_eq!(res.headers().get("x-frame-options").unwrap(), "SAMEORIGIN");
+        let csp = res.headers().get("content-security-policy").unwrap().to_str().unwrap();
+        assert!(csp.contains("https://cdn.jsdelivr.net"));
+
+        let body = res.into_body().collect().await.unwrap().to_bytes();
+        let html = String::from_utf8(body.to_vec()).unwrap();
+        assert!(html.contains("VoxForg API Reference"));
+        assert!(html.contains("@scalar/api-reference"));
+    }
+
+    #[tokio::test]
+    async fn test_openapi_spec_endpoint() {
+        let state = setup_test_state(None).await;
+        let app = create_app(state);
+        let req = Request::builder()
+            .uri("/openapi.json")
+            .body(Body::empty())
+            .unwrap();
+
+        let res = app.oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(res.headers().get("content-type").unwrap(), "application/json");
+
+        let body = res.into_body().collect().await.unwrap().to_bytes();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["openapi"], "3.1.0");
+        assert_eq!(json["info"]["title"], "VoxForg Neural Audio Engine API");
+        assert!(json["paths"]["/v1/audio/speech"].is_object());
+        assert!(json["paths"]["/v1/pipeline/execute"].is_object());
+        assert!(json["paths"]["/v1/qa/ab-test"].is_object());
+        assert!(json["components"]["schemas"]["PipelineDefinition"].is_object());
     }
 }

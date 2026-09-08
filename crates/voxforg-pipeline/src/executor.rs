@@ -1,5 +1,8 @@
 use std::sync::Arc;
-use voxforg_audio::{AudioMerger, AudioNormalizer, WavEncoder};
+use voxforg_audio::{
+    AudioMerger, AudioNormalizer, BrickwallLimiter, DynamicCompressor, ParametricEq, SilenceTrimmer,
+    WavEncoder,
+};
 use voxforg_core::error::{Result, VoxForgError};
 use voxforg_core::models::{NodeType, PipelineDefinition};
 use voxforg_engine::{EngineRegistry, SynthesisRequest};
@@ -164,15 +167,81 @@ impl PipelineExecutor {
             }
 
             NodeType::AudioFilter => {
-                let normalize_target = node
-                    .params
-                    .get("normalize_peak")
-                    .and_then(|p| p.as_f64())
-                    .unwrap_or(0.95) as f32;
-
-                for segment_pcm in &mut ctx.audio_segments {
-                    AudioNormalizer::peak_normalize(segment_pcm, normalize_target);
+                // 1. Peak normalization
+                if let Some(norm_val) = node.params.get("normalize_peak").and_then(|p| p.as_f64()) {
+                    let target = norm_val as f32;
+                    for segment_pcm in &mut ctx.audio_segments {
+                        AudioNormalizer::peak_normalize(segment_pcm, target);
+                    }
+                } else if node.params.get("filter_type").and_then(|t| t.as_str()) == Some("normalize")
+                    || node.params.is_null()
+                    || node.params.as_object().map_or(true, |o| o.is_empty())
+                {
+                    for segment_pcm in &mut ctx.audio_segments {
+                        AudioNormalizer::peak_normalize(segment_pcm, 0.95);
+                    }
                 }
+
+                // 2. Gain in dB
+                if let Some(gain_val) = node.params.get("gain_db").and_then(|g| g.as_f64()) {
+                    let gain_db = gain_val as f32;
+                    for segment_pcm in &mut ctx.audio_segments {
+                        AudioNormalizer::apply_gain_db(segment_pcm, gain_db);
+                    }
+                }
+
+                // 3. Silence trimmer
+                if let Some(trim_obj) = node.params.get("silence_trim") {
+                    let threshold = trim_obj
+                        .get("threshold_dbfs")
+                        .and_then(|t| t.as_f64())
+                        .unwrap_or(-45.0) as f32;
+                    let padding = trim_obj
+                        .get("padding_ms")
+                        .and_then(|p| p.as_u64())
+                        .unwrap_or(30) as u32;
+
+                    for segment_pcm in &mut ctx.audio_segments {
+                        *segment_pcm = SilenceTrimmer::trim(segment_pcm, ctx.sample_rate, threshold, padding);
+                    }
+                } else if node.params.get("trim_silence").and_then(|b| b.as_bool()).unwrap_or(false) {
+                    for segment_pcm in &mut ctx.audio_segments {
+                        *segment_pcm = SilenceTrimmer::trim(segment_pcm, ctx.sample_rate, -45.0, 30);
+                    }
+                }
+
+                // 4. 3-Band Parametric Equalizer
+                if let Some(eq_obj) = node.params.get("eq") {
+                    let low = eq_obj.get("low_gain_db").and_then(|v| v.as_f64()).unwrap_or(0.0) as f32;
+                    let mid = eq_obj.get("mid_gain_db").and_then(|v| v.as_f64()).unwrap_or(0.0) as f32;
+                    let high = eq_obj.get("high_gain_db").and_then(|v| v.as_f64()).unwrap_or(0.0) as f32;
+
+                    for segment_pcm in &mut ctx.audio_segments {
+                        ParametricEq::process_3band(segment_pcm, ctx.sample_rate, low, mid, high);
+                    }
+                }
+
+                // 5. Dynamic Range Compressor
+                if let Some(comp_obj) = node.params.get("compressor") {
+                    let threshold = comp_obj.get("threshold_dbfs").and_then(|v| v.as_f64()).unwrap_or(-18.0) as f32;
+                    let ratio = comp_obj.get("ratio").and_then(|v| v.as_f64()).unwrap_or(3.0) as f32;
+                    let attack = comp_obj.get("attack_ms").and_then(|v| v.as_f64()).unwrap_or(15.0) as f32;
+                    let release = comp_obj.get("release_ms").and_then(|v| v.as_f64()).unwrap_or(100.0) as f32;
+                    let makeup = comp_obj.get("makeup_gain_db").and_then(|v| v.as_f64()).unwrap_or(0.0) as f32;
+
+                    for segment_pcm in &mut ctx.audio_segments {
+                        DynamicCompressor::process(segment_pcm, ctx.sample_rate, threshold, ratio, attack, release, makeup);
+                    }
+                }
+
+                // 6. Brickwall Limiter
+                if let Some(limiter_obj) = node.params.get("limiter") {
+                    let ceiling = limiter_obj.get("ceiling_dbfs").and_then(|v| v.as_f64()).unwrap_or(-0.5) as f32;
+                    for segment_pcm in &mut ctx.audio_segments {
+                        BrickwallLimiter::process(segment_pcm, ceiling);
+                    }
+                }
+
                 Ok(())
             }
 

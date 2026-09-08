@@ -1,17 +1,5 @@
 import React, { useState } from 'react';
-import {
-  Activity,
-  Award,
-  CheckCircle2,
-  Cpu,
-  Gauge,
-  Loader2,
-  Play,
-  Scale,
-  Sparkles,
-  Volume2,
-  Zap,
-} from 'lucide-react';
+import { Award, Loader2, Scale } from 'lucide-react';
 import { AbTestComparison, Voice } from '../../types';
 import { api } from '../../services/api';
 

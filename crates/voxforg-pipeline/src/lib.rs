@@ -204,4 +204,80 @@ mod tests {
         let result = GraphValidator::topological_sort(&pipeline);
         assert!(result.is_err());
     }
+
+    #[tokio::test]
+    async fn test_pipeline_dsp_filtering() {
+        let registry = Arc::new(EngineRegistry::new());
+        let mock_engine = Arc::new(MockTtsEngine::new(24000));
+        registry.register(mock_engine).await;
+
+        let executor = PipelineExecutor::new(registry);
+        let pipeline = PipelineDefinition {
+            id: Uuid::new_v4(),
+            name: "DSP Pipeline Test".to_string(),
+            description: None,
+            nodes: vec![
+                PipelineNode {
+                    id: "in".to_string(),
+                    name: "Input".to_string(),
+                    node_type: NodeType::TextInput,
+                    params: serde_json::json!({ "text": "DSP speech processing test." }),
+                    position: None,
+                },
+                PipelineNode {
+                    id: "parse".to_string(),
+                    name: "Parser".to_string(),
+                    node_type: NodeType::SpeakerParser,
+                    params: serde_json::json!({}),
+                    position: None,
+                },
+                PipelineNode {
+                    id: "assign".to_string(),
+                    name: "Assign".to_string(),
+                    node_type: NodeType::VoiceAssigner,
+                    params: serde_json::json!({ "default_voice": "mock-en-female" }),
+                    position: None,
+                },
+                PipelineNode {
+                    id: "synth".to_string(),
+                    name: "Synth".to_string(),
+                    node_type: NodeType::Synthesizer,
+                    params: serde_json::json!({}),
+                    position: None,
+                },
+                PipelineNode {
+                    id: "dsp".to_string(),
+                    name: "DSP Mastering".to_string(),
+                    node_type: NodeType::AudioFilter,
+                    params: serde_json::json!({
+                        "eq": { "low_gain_db": 2.0, "mid_gain_db": -1.0, "high_gain_db": 1.5 },
+                        "compressor": { "threshold_dbfs": -16.0, "ratio": 3.0, "attack_ms": 10.0, "release_ms": 80.0, "makeup_gain_db": 1.0 },
+                        "limiter": { "ceiling_dbfs": -1.0 },
+                        "silence_trim": { "threshold_dbfs": -40.0, "padding_ms": 20 }
+                    }),
+                    position: None,
+                },
+                PipelineNode {
+                    id: "out".to_string(),
+                    name: "Output".to_string(),
+                    node_type: NodeType::OutputSink,
+                    params: serde_json::json!({}),
+                    position: None,
+                },
+            ],
+            edges: vec![
+                PipelineEdge { id: "e1".to_string(), from_node: "in".to_string(), to_node: "parse".to_string(), from_port: None, to_port: None },
+                PipelineEdge { id: "e2".to_string(), from_node: "parse".to_string(), to_node: "assign".to_string(), from_port: None, to_port: None },
+                PipelineEdge { id: "e3".to_string(), from_node: "assign".to_string(), to_node: "synth".to_string(), from_port: None, to_port: None },
+                PipelineEdge { id: "e4".to_string(), from_node: "synth".to_string(), to_node: "dsp".to_string(), from_port: None, to_port: None },
+                PipelineEdge { id: "e5".to_string(), from_node: "dsp".to_string(), to_node: "out".to_string(), from_port: None, to_port: None },
+            ],
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        };
+
+        let wav = executor.execute(&pipeline, None).await.expect("DSP pipeline execution must succeed");
+        assert!(!wav.is_empty());
+        assert_eq!(&wav[0..4], b"RIFF");
+    }
 }

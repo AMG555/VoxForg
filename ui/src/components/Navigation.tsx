@@ -74,6 +74,17 @@ export const Navigation: React.FC<NavigationProps> = ({ activeTab, setActiveTab,
       </div>
 
       <div className="flex items-center space-x-4">
+        <a
+          href="/docs"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center space-x-1.5 px-2.5 py-1 rounded text-xs font-mono text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 transition-colors"
+          title="Interactive Scalar OpenAPI Reference"
+        >
+          <Activity className="w-3.5 h-3.5" />
+          <span>API Docs</span>
+        </a>
+
         {hardware && (
           <div className="flex items-center space-x-2 text-xs font-mono text-[#94A3B8] bg-[#0B0E14] px-3 py-1 rounded border border-[#242E3D]">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />

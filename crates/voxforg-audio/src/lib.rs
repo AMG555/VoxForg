@@ -1,8 +1,10 @@
+pub mod dsp;
 pub mod merge;
 pub mod metrics;
 pub mod normalizer;
 pub mod wav;
 
+pub use dsp::{BrickwallLimiter, DynamicCompressor, ParametricEq, SilenceTrimmer};
 pub use merge::AudioMerger;
 pub use metrics::{AudioAnalyzer, AudioQualityMetrics};
 pub use normalizer::AudioNormalizer;
@@ -127,5 +129,45 @@ mod tests {
         let metrics = AudioAnalyzer::analyze_pcm16(&[], 24000, 1);
         assert_eq!(metrics.duration_seconds, 0.0);
         assert!(metrics.is_silent);
+    }
+
+    #[test]
+    fn test_silence_trimmer() {
+        // [silence, audio, silence]
+        let mut samples = vec![0i16; 500];
+        samples.extend(vec![15000i16; 1000]);
+        samples.extend(vec![0i16; 500]);
+
+        let trimmed = SilenceTrimmer::trim(&samples, 24000, -40.0, 10);
+        assert!(trimmed.len() < samples.len());
+        assert!(trimmed.len() >= 1000);
+    }
+
+    #[test]
+    fn test_parametric_eq() {
+        let mut samples = vec![5000i16; 2400];
+        let original = samples.clone();
+        ParametricEq::process_3band(&mut samples, 24000, 6.0, -3.0, 4.0);
+        assert_ne!(samples, original);
+    }
+
+    #[test]
+    fn test_dynamic_compressor() {
+        // High amplitude signal
+        let mut samples = vec![30000i16; 1200];
+        DynamicCompressor::process(&mut samples, 24000, -20.0, 4.0, 5.0, 50.0, 0.0);
+        let tail_amp = (samples[samples.len() - 1] as i32).abs();
+        // After attack phase, compressor should have significantly reduced amplitude
+        assert!(tail_amp < 15000);
+    }
+
+    #[test]
+    fn test_brickwall_limiter() {
+        let mut samples = vec![32767i16, -32768, 15000, -15000];
+        // Limit to -6 dBFS (~16422 peak amplitude)
+        BrickwallLimiter::process(&mut samples, -6.0);
+        let max_amp = samples.iter().map(|&s| (s as i32).abs()).max().unwrap();
+        assert!(max_amp <= 16500);
+        assert!(max_amp > 16000);
     }
 }
