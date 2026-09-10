@@ -2,12 +2,14 @@ pub mod ab_test;
 pub mod edge_tts;
 pub mod mock;
 pub mod registry;
+pub mod router;
 pub mod traits;
 
 pub use ab_test::{AbTestComparison, AbTestRunner, AbTestScenario, VariantResult};
 pub use edge_tts::EdgeTtsEngine;
 pub use mock::MockTtsEngine;
 pub use registry::EngineRegistry;
+pub use router::OpenAiRouterEngine;
 pub use traits::{SynthesisRequest, TtsEngine};
 
 #[cfg(test)]
@@ -266,6 +268,47 @@ mod tests {
         };
 
         let chunk = engine.synthesize(&req).await.expect("Synthesize must succeed");
+        assert_eq!(chunk.sample_rate, 24000);
+        assert_eq!(chunk.channels, 1);
+        assert!(!chunk.pcm_data.is_empty());
+        assert!(chunk.is_final);
+    }
+
+    #[tokio::test]
+    async fn test_openai_router_voice_catalog() {
+        let router = OpenAiRouterEngine::default_openai(None);
+        let voices = router.voices().await.expect("Router voices must load");
+        assert_eq!(voices.len(), 6);
+        assert!(voices.iter().any(|v| v.id == "alloy"));
+        assert!(voices.iter().any(|v| v.id == "echo"));
+        assert!(voices.iter().any(|v| v.id == "nova"));
+    }
+
+    #[test]
+    fn test_openai_router_endpoint_url_resolution() {
+        let r1 = OpenAiRouterEngine::new("https://api.openai.com/v1", None, None);
+        assert_eq!(r1.endpoint_url(), "https://api.openai.com/v1/audio/speech");
+
+        let r2 = OpenAiRouterEngine::new("http://localhost:8000", None, None);
+        assert_eq!(r2.endpoint_url(), "http://localhost:8000/v1/audio/speech");
+
+        let r3 = OpenAiRouterEngine::new("http://localhost:11434/v1/audio/speech", None, None);
+        assert_eq!(r3.endpoint_url(), "http://localhost:11434/v1/audio/speech");
+    }
+
+    #[tokio::test]
+    async fn test_openai_router_synthesis_fallback() {
+        // Router pointing to dummy port will fail network and cleanly fallback
+        let router = OpenAiRouterEngine::new("http://127.0.0.1:59999/v1", None, None);
+        let req = SynthesisRequest {
+            text: "Testing router fallback resiliency".to_string(),
+            voice_id: "alloy".to_string(),
+            speed: 1.0,
+            pitch: 0.0,
+            format: AudioContainerFormat::Wav,
+        };
+
+        let chunk = router.synthesize(&req).await.expect("Synthesize must succeed via fallback");
         assert_eq!(chunk.sample_rate, 24000);
         assert_eq!(chunk.channels, 1);
         assert!(!chunk.pcm_data.is_empty());

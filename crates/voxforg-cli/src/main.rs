@@ -13,7 +13,8 @@ use voxforg_audio::WavEncoder;
 use voxforg_core::models::AudioContainerFormat;
 use voxforg_core::store::memory::MemoryStore;
 use voxforg_engine::{
-    AbTestRunner, AbTestScenario, EdgeTtsEngine, EngineRegistry, MockTtsEngine, SynthesisRequest,
+    AbTestRunner, AbTestScenario, EdgeTtsEngine, EngineRegistry, MockTtsEngine,
+    OpenAiRouterEngine, SynthesisRequest,
 };
 use voxforg_hardware::HardwareProbe;
 
@@ -65,6 +66,18 @@ struct ServeArgs {
     /// Data directory for pipeline graphs and models
     #[arg(long, default_value = "./data")]
     data_dir: PathBuf,
+
+    /// Optional upstream model router endpoint URL (e.g. https://api.openai.com/v1 or http://localhost:8000/v1)
+    #[arg(long, env = "VOXFORG_ROUTER_URL")]
+    router_url: Option<String>,
+
+    /// Optional upstream model router API key / Bearer token
+    #[arg(long, env = "VOXFORG_ROUTER_API_KEY")]
+    router_api_key: Option<String>,
+
+    /// Optional upstream model router default TTS model (e.g. tts-1, kokoro)
+    #[arg(long, env = "VOXFORG_ROUTER_MODEL")]
+    router_model: Option<String>,
 }
 
 #[derive(Args)]
@@ -72,7 +85,7 @@ struct SynthArgs {
     /// Text to synthesize
     input: String,
 
-    /// Target voice identifier (e.g. en-US-AriaNeural, mock-en-female)
+    /// Target voice identifier (e.g. en-US-AriaNeural, mock-en-female, alloy, onyx)
     #[arg(short, long, default_value = "en-US-AriaNeural")]
     voice: String,
 
@@ -87,6 +100,18 @@ struct SynthArgs {
     /// Pitch adjustment in semitones (-12.0 to 12.0)
     #[arg(short, long, default_value_t = 0.0)]
     pitch: f32,
+
+    /// Optional upstream model router endpoint URL
+    #[arg(long, env = "VOXFORG_ROUTER_URL")]
+    router_url: Option<String>,
+
+    /// Optional upstream model router API key
+    #[arg(long, env = "VOXFORG_ROUTER_API_KEY")]
+    router_api_key: Option<String>,
+
+    /// Optional upstream model router default TTS model
+    #[arg(long, env = "VOXFORG_ROUTER_MODEL")]
+    router_model: Option<String>,
 }
 
 #[derive(Args)]
@@ -159,10 +184,26 @@ async fn main() -> Result<()> {
     }
 }
 
-async fn initialize_registry() -> Arc<EngineRegistry> {
+async fn initialize_registry(
+    router_url: Option<String>,
+    router_api_key: Option<String>,
+    router_model: Option<String>,
+) -> Arc<EngineRegistry> {
     let registry = Arc::new(EngineRegistry::new());
     registry.register(Arc::new(EdgeTtsEngine::new())).await;
     registry.register(Arc::new(MockTtsEngine::default())).await;
+
+    let r_url = router_url.or_else(|| std::env::var("VOXFORG_ROUTER_URL").ok());
+    let r_key = router_api_key.or_else(|| std::env::var("VOXFORG_ROUTER_API_KEY").ok());
+    let r_model = router_model.or_else(|| std::env::var("VOXFORG_ROUTER_MODEL").ok());
+
+    let router_engine = if let Some(url) = r_url {
+        OpenAiRouterEngine::new(url, r_key, r_model)
+    } else {
+        OpenAiRouterEngine::default_openai(r_key)
+    };
+    registry.register(Arc::new(router_engine)).await;
+
     registry
 }
 
@@ -178,7 +219,7 @@ async fn run_serve(args: ServeArgs) -> Result<()> {
     info!("Assigned Hardware Tier: {}", hardware.assigned_tier);
     info!("CPU: {} ({} threads)", hardware.cpu_brand, hardware.cpu_logical_threads);
 
-    let registry = initialize_registry().await;
+    let registry = initialize_registry(args.router_url, args.router_api_key, args.router_model).await;
     let store = Arc::new(MemoryStore::new());
     let state = AppState::new(registry, store, hardware, args.api_key.clone());
 
@@ -198,7 +239,7 @@ async fn run_serve(args: ServeArgs) -> Result<()> {
 }
 
 async fn run_synth(args: SynthArgs) -> Result<()> {
-    let registry = initialize_registry().await;
+    let registry = initialize_registry(args.router_url, args.router_api_key, args.router_model).await;
     let (engine, voice) = registry.resolve_voice(&args.voice).await?;
 
     info!("Synthesizing using engine: '{}' (Voice: '{}')", engine.name(), voice.name);
@@ -256,7 +297,7 @@ fn run_hardware() -> Result<()> {
 }
 
 async fn run_engines() -> Result<()> {
-    let registry = initialize_registry().await;
+    let registry = initialize_registry(None, None, None).await;
     let voices = registry.list_all_voices().await?;
 
     println!("=== Registered Speech Engines ===");
@@ -275,7 +316,7 @@ async fn run_engines() -> Result<()> {
 }
 
 async fn run_bench(args: BenchArgs) -> Result<()> {
-    let registry = initialize_registry().await;
+    let registry = initialize_registry(None, None, None).await;
     let (engine, voice) = registry.resolve_voice("mock-en-female").await?;
 
     println!("=== Benchmark: {} (Voice: {}) ===", engine.name(), voice.name);
@@ -312,7 +353,7 @@ async fn run_bench(args: BenchArgs) -> Result<()> {
 }
 
 async fn run_ab_test(args: AbTestArgs) -> Result<()> {
-    let registry = initialize_registry().await;
+    let registry = initialize_registry(None, None, None).await;
     let runner = AbTestRunner::new(registry);
 
     let scenario = AbTestScenario {
