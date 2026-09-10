@@ -1,7 +1,7 @@
-use std::io::Cursor;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use futures::{SinkExt, StreamExt};
 use sha2::{Digest, Sha256};
+use std::io::Cursor;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use symphonia::core::audio::SampleBuffer;
 use symphonia::core::codecs::{DecoderOptions, CODEC_TYPE_NULL};
 use symphonia::core::errors::Error as SymphoniaError;
@@ -17,9 +17,9 @@ use tokio_tungstenite::tungstenite::Message;
 use tracing::{debug, warn};
 use uuid::Uuid;
 
+use crate::traits::SynthesisRequest;
 use voxforg_core::error::{Result, VoxForgError};
 use voxforg_core::models::AudioChunk;
-use crate::traits::SynthesisRequest;
 
 pub const TRUSTED_CLIENT_TOKEN: &str = "6A5AA1D4EAFF4E9FB37E23D68491D6F4";
 pub const SEC_MS_GEC_VERSION: &str = "1-143.0.3650.75";
@@ -123,8 +123,14 @@ impl EdgeTtsClient {
         );
         headers.insert("Pragma", HeaderValue::from_static("no-cache"));
         headers.insert("Cache-Control", HeaderValue::from_static("no-cache"));
-        headers.insert("Accept-Encoding", HeaderValue::from_static("gzip, deflate, br, zstd"));
-        headers.insert("Accept-Language", HeaderValue::from_static("en-US,en;q=0.9"));
+        headers.insert(
+            "Accept-Encoding",
+            HeaderValue::from_static("gzip, deflate, br, zstd"),
+        );
+        headers.insert(
+            "Accept-Language",
+            HeaderValue::from_static("en-US,en;q=0.9"),
+        );
 
         let cookie_val = format!("muid={};", generate_muid());
         if let Ok(hv) = HeaderValue::from_str(&cookie_val) {
@@ -133,8 +139,12 @@ impl EdgeTtsClient {
 
         let (ws_stream, _) = tokio::time::timeout(Duration::from_secs(8), connect_async(req))
             .await
-            .map_err(|_| VoxForgError::AudioProcessing("Edge TTS connection timed out".to_string()))?
-            .map_err(|e| VoxForgError::AudioProcessing(format!("Edge TTS WebSocket error: {}", e)))?;
+            .map_err(|_| {
+                VoxForgError::AudioProcessing("Edge TTS connection timed out".to_string())
+            })?
+            .map_err(|e| {
+                VoxForgError::AudioProcessing(format!("Edge TTS WebSocket error: {}", e))
+            })?;
 
         let (mut write, mut read) = ws_stream.split();
 
@@ -166,7 +176,9 @@ impl EdgeTtsClient {
         write
             .send(Message::Text(config_message))
             .await
-            .map_err(|e| VoxForgError::AudioProcessing(format!("Failed to send speech.config: {}", e)))?;
+            .map_err(|e| {
+                VoxForgError::AudioProcessing(format!("Failed to send speech.config: {}", e))
+            })?;
 
         // 2. Send SSML request (note trailing 'Z' as required by Microsoft Edge speech parser)
         let ssml_message = format!(
@@ -175,10 +187,9 @@ impl EdgeTtsClient {
         );
 
         debug!("Sending Edge TTS SSML request");
-        write
-            .send(Message::Text(ssml_message))
-            .await
-            .map_err(|e| VoxForgError::AudioProcessing(format!("Failed to send SSML message: {}", e)))?;
+        write.send(Message::Text(ssml_message)).await.map_err(|e| {
+            VoxForgError::AudioProcessing(format!("Failed to send SSML message: {}", e))
+        })?;
 
         // 3. Collect incoming MP3 bytes
         let mut mp3_bytes = Vec::new();
@@ -207,7 +218,12 @@ impl EdgeTtsClient {
                 }
                 Message::Close(c) => {
                     if let Some(ref cf) = c {
-                        debug!("WebSocket closed with code: {} ({:?}), reason: {}", u16::from(cf.code), cf.code, cf.reason);
+                        debug!(
+                            "WebSocket closed with code: {} ({:?}), reason: {}",
+                            u16::from(cf.code),
+                            cf.code,
+                            cf.reason
+                        );
                     }
                     break;
                 }
@@ -271,7 +287,9 @@ pub fn decode_mp3_to_pcm(mp3_bytes: &[u8]) -> Result<(u32, u16, Vec<i16>)> {
         .tracks()
         .iter()
         .find(|t| t.codec_params.codec != CODEC_TYPE_NULL)
-        .ok_or_else(|| VoxForgError::AudioProcessing("No valid audio track in MP3 stream".to_string()))?;
+        .ok_or_else(|| {
+            VoxForgError::AudioProcessing("No valid audio track in MP3 stream".to_string())
+        })?;
 
     let track_id = track.id;
     let mut decoder = symphonia::default::get_codecs()
@@ -285,9 +303,18 @@ pub fn decode_mp3_to_pcm(mp3_bytes: &[u8]) -> Result<(u32, u16, Vec<i16>)> {
     loop {
         let packet = match format.next_packet() {
             Ok(packet) => packet,
-            Err(SymphoniaError::IoError(ref err)) if err.kind() == std::io::ErrorKind::UnexpectedEof => break,
+            Err(SymphoniaError::IoError(ref err))
+                if err.kind() == std::io::ErrorKind::UnexpectedEof =>
+            {
+                break
+            }
             Err(SymphoniaError::ResetRequired) => break,
-            Err(e) => return Err(VoxForgError::AudioProcessing(format!("Packet read error: {}", e))),
+            Err(e) => {
+                return Err(VoxForgError::AudioProcessing(format!(
+                    "Packet read error: {}",
+                    e
+                )))
+            }
         };
 
         if packet.track_id() != track_id {
@@ -305,9 +332,18 @@ pub fn decode_mp3_to_pcm(mp3_bytes: &[u8]) -> Result<(u32, u16, Vec<i16>)> {
                 pcm_samples.extend_from_slice(sample_buf.samples());
             }
             Err(SymphoniaError::DecodeError(_)) => continue,
-            Err(SymphoniaError::IoError(ref err)) if err.kind() == std::io::ErrorKind::UnexpectedEof => break,
+            Err(SymphoniaError::IoError(ref err))
+                if err.kind() == std::io::ErrorKind::UnexpectedEof =>
+            {
+                break
+            }
             Err(SymphoniaError::ResetRequired) => break,
-            Err(e) => return Err(VoxForgError::AudioProcessing(format!("Decode frame error: {}", e))),
+            Err(e) => {
+                return Err(VoxForgError::AudioProcessing(format!(
+                    "Decode frame error: {}",
+                    e
+                )))
+            }
         }
     }
 

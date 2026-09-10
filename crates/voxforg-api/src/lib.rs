@@ -3,7 +3,9 @@ pub mod middleware;
 pub mod routes;
 pub mod state;
 
-use axum::{extract::DefaultBodyLimit, middleware::from_fn, middleware::from_fn_with_state, Router};
+use axum::{
+    extract::DefaultBodyLimit, middleware::from_fn, middleware::from_fn_with_state, Router,
+};
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
 
@@ -16,9 +18,15 @@ pub fn create_app(state: AppState) -> Router {
         .allow_headers(Any);
 
     routes::build_api_router()
-        .layer(from_fn_with_state(state.clone(), middleware::auth_middleware))
+        .layer(from_fn_with_state(
+            state.clone(),
+            middleware::auth_middleware,
+        ))
         .layer(from_fn(middleware::security_headers))
-        .layer(from_fn_with_state(state.clone(), middleware::request_id_and_metrics))
+        .layer(from_fn_with_state(
+            state.clone(),
+            middleware::request_id_and_metrics,
+        ))
         .layer(DefaultBodyLimit::max(2 * 1024 * 1024))
         .layer(cors)
         .layer(TraceLayer::new_for_http())
@@ -28,10 +36,10 @@ pub fn create_app(state: AppState) -> Router {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Arc;
     use axum::body::Body;
     use axum::http::{Request, StatusCode};
     use http_body_util::BodyExt;
+    use std::sync::Arc;
     use tower::ServiceExt;
     use uuid::Uuid;
     use voxforg_core::models::{NodeType, PipelineDefinition, PipelineNode};
@@ -305,10 +313,13 @@ mod tests {
             .method("POST")
             .uri("/v1/pipeline/execute")
             .header("Content-Type", "application/json")
-            .body(Body::from(serde_json::to_string(&serde_json::json!({
-                "pipeline": pipeline,
-                "input_text": null
-            })).unwrap()))
+            .body(Body::from(
+                serde_json::to_string(&serde_json::json!({
+                    "pipeline": pipeline,
+                    "input_text": null
+                }))
+                .unwrap(),
+            ))
             .unwrap();
 
         let res = app.oneshot(req).await.unwrap();
@@ -383,10 +394,7 @@ mod tests {
         assert_eq!(res4.status(), StatusCode::OK);
 
         // 5. Public routes (/docs and /openapi.json) bypass auth -> 200 OK
-        let docs_req = Request::builder()
-            .uri("/docs")
-            .body(Body::empty())
-            .unwrap();
+        let docs_req = Request::builder().uri("/docs").body(Body::empty()).unwrap();
         let res5 = app.clone().oneshot(docs_req).await.unwrap();
         assert_eq!(res5.status(), StatusCode::OK);
 
@@ -402,10 +410,7 @@ mod tests {
     async fn test_scalar_docs_html_endpoint() {
         let state = setup_test_state(None).await;
         let app = create_app(state);
-        let req = Request::builder()
-            .uri("/docs")
-            .body(Body::empty())
-            .unwrap();
+        let req = Request::builder().uri("/docs").body(Body::empty()).unwrap();
 
         let res = app.oneshot(req).await.unwrap();
         assert_eq!(res.status(), StatusCode::OK);
@@ -414,7 +419,12 @@ mod tests {
             "text/html; charset=utf-8"
         );
         assert_eq!(res.headers().get("x-frame-options").unwrap(), "SAMEORIGIN");
-        let csp = res.headers().get("content-security-policy").unwrap().to_str().unwrap();
+        let csp = res
+            .headers()
+            .get("content-security-policy")
+            .unwrap()
+            .to_str()
+            .unwrap();
         assert!(csp.contains("https://cdn.jsdelivr.net"));
 
         let body = res.into_body().collect().await.unwrap().to_bytes();
@@ -434,7 +444,10 @@ mod tests {
 
         let res = app.oneshot(req).await.unwrap();
         assert_eq!(res.status(), StatusCode::OK);
-        assert_eq!(res.headers().get("content-type").unwrap(), "application/json");
+        assert_eq!(
+            res.headers().get("content-type").unwrap(),
+            "application/json"
+        );
 
         let body = res.into_body().collect().await.unwrap().to_bytes();
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
@@ -576,5 +589,3 @@ mod tests {
         assert!(!body.is_empty());
     }
 }
-
-

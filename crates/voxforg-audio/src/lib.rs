@@ -31,8 +31,8 @@ mod tests {
         assert!(!wav_bytes.is_empty());
         assert_eq!(&wav_bytes[0..4], b"RIFF");
 
-        let (decoded_pcm, dec_rate, dec_channels) = WavEncoder::decode_wav_to_pcm16(&wav_bytes)
-            .expect("WAV decoding must succeed");
+        let (decoded_pcm, dec_rate, dec_channels) =
+            WavEncoder::decode_wav_to_pcm16(&wav_bytes).expect("WAV decoding must succeed");
         assert_eq!(dec_rate, sample_rate);
         assert_eq!(dec_channels, channels);
         assert_eq!(decoded_pcm, pcm);

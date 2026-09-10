@@ -1,6 +1,6 @@
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Instant;
-use serde::{Deserialize, Serialize};
 use voxforg_audio::{AudioAnalyzer, AudioQualityMetrics};
 use voxforg_core::error::Result;
 
@@ -48,8 +48,14 @@ impl AbTestRunner {
     }
 
     pub async fn run_comparison(&self, scenario: &AbTestScenario) -> Result<AbTestComparison> {
-        let (engine_a, _) = self.engine_registry.resolve_voice(&scenario.variant_a.voice_id).await?;
-        let (engine_b, _) = self.engine_registry.resolve_voice(&scenario.variant_b.voice_id).await?;
+        let (engine_a, _) = self
+            .engine_registry
+            .resolve_voice(&scenario.variant_a.voice_id)
+            .await?;
+        let (engine_b, _) = self
+            .engine_registry
+            .resolve_voice(&scenario.variant_b.voice_id)
+            .await?;
 
         // Execute Variant A
         let mut req_a = scenario.variant_a.clone();
@@ -58,7 +64,8 @@ impl AbTestRunner {
         let chunk_a = engine_a.synthesize(&req_a).await?;
         let elapsed_a = start_a.elapsed();
         let latency_a_ms = elapsed_a.as_secs_f64() * 1000.0;
-        let metrics_a = AudioAnalyzer::analyze_pcm16(&chunk_a.pcm_data, chunk_a.sample_rate, chunk_a.channels);
+        let metrics_a =
+            AudioAnalyzer::analyze_pcm16(&chunk_a.pcm_data, chunk_a.sample_rate, chunk_a.channels);
         let rtf_a = if metrics_a.duration_seconds > 0.0 {
             elapsed_a.as_secs_f64() / metrics_a.duration_seconds
         } else {
@@ -72,7 +79,8 @@ impl AbTestRunner {
         let chunk_b = engine_b.synthesize(&req_b).await?;
         let elapsed_b = start_b.elapsed();
         let latency_b_ms = elapsed_b.as_secs_f64() * 1000.0;
-        let metrics_b = AudioAnalyzer::analyze_pcm16(&chunk_b.pcm_data, chunk_b.sample_rate, chunk_b.channels);
+        let metrics_b =
+            AudioAnalyzer::analyze_pcm16(&chunk_b.pcm_data, chunk_b.sample_rate, chunk_b.channels);
         let rtf_b = if metrics_b.duration_seconds > 0.0 {
             elapsed_b.as_secs_f64() / metrics_b.duration_seconds
         } else {
@@ -98,9 +106,9 @@ impl AbTestRunner {
         // Determine recommended variant (zero clipping preferred, then lower latency, non-silent)
         let recommended_variant = if metrics_a.is_silent && !metrics_b.is_silent {
             "B".to_string()
-        } else if metrics_b.is_silent && !metrics_a.is_silent {
-            "A".to_string()
-        } else if metrics_a.clipping_samples_count == 0 && metrics_b.clipping_samples_count > 0 {
+        } else if (metrics_b.is_silent && !metrics_a.is_silent)
+            || (metrics_a.clipping_samples_count == 0 && metrics_b.clipping_samples_count > 0)
+        {
             "A".to_string()
         } else if metrics_b.clipping_samples_count == 0 && metrics_a.clipping_samples_count > 0 {
             "B".to_string()

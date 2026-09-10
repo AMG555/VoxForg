@@ -6,17 +6,13 @@ impl AudioNormalizer {
             return;
         }
 
-        let max_abs = samples
-            .iter()
-            .map(|&s| (s as i32).abs())
-            .max()
-            .unwrap_or(0);
+        let max_abs = samples.iter().map(|&s| (s as i32).abs()).max().unwrap_or(0);
 
         if max_abs == 0 {
             return;
         }
 
-        let target_peak = (32767.0 * target_peak_ratio.clamp(0.0, 1.0)) as f32;
+        let target_peak = 32767.0 * target_peak_ratio.clamp(0.0, 1.0);
         let gain = target_peak / (max_abs as f32);
 
         if !gain.is_finite() || (gain - 1.0).abs() < 0.001 {

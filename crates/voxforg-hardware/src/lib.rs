@@ -31,7 +31,10 @@ mod tests {
         assert_eq!(HardwareTier::Tier1Minimal.to_string(), "TIER_1_MINIMAL");
         assert_eq!(HardwareTier::Tier2Standard.to_string(), "TIER_2_STANDARD");
         assert_eq!(HardwareTier::Tier3Pro.to_string(), "TIER_3_PRO");
-        assert_eq!(HardwareTier::Tier4Enterprise.to_string(), "TIER_4_ENTERPRISE");
+        assert_eq!(
+            HardwareTier::Tier4Enterprise.to_string(),
+            "TIER_4_ENTERPRISE"
+        );
     }
 
     #[test]

@@ -20,36 +20,49 @@ mod tests {
             id: pipeline_id,
             name: "Test Pipeline".to_string(),
             description: Some("Audio pipeline test".to_string()),
-            nodes: vec![
-                PipelineNode {
-                    id: "node-1".to_string(),
-                    name: "Input".to_string(),
-                    node_type: NodeType::TextInput,
-                    params: serde_json::json!({ "text": "Hello world" }),
-                    position: None,
-                },
-            ],
+            nodes: vec![PipelineNode {
+                id: "node-1".to_string(),
+                name: "Input".to_string(),
+                node_type: NodeType::TextInput,
+                params: serde_json::json!({ "text": "Hello world" }),
+                position: None,
+            }],
             edges: vec![],
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
         };
 
-        store.save_pipeline(&pipeline).await.expect("Save pipeline should succeed");
+        store
+            .save_pipeline(&pipeline)
+            .await
+            .expect("Save pipeline should succeed");
 
-        let fetched = store.get_pipeline(&pipeline_id).await.expect("Fetch should succeed");
+        let fetched = store
+            .get_pipeline(&pipeline_id)
+            .await
+            .expect("Fetch should succeed");
         assert!(fetched.is_some());
         assert_eq!(fetched.unwrap().name, "Test Pipeline");
 
         let list = store.list_pipelines().await.expect("List should succeed");
         assert_eq!(list.len(), 1);
 
-        let deleted = store.delete_pipeline(&pipeline_id).await.expect("Delete should succeed");
+        let deleted = store
+            .delete_pipeline(&pipeline_id)
+            .await
+            .expect("Delete should succeed");
         assert!(deleted);
 
-        let delete_again = store.delete_pipeline(&pipeline_id).await.expect("Delete again should succeed");
+        let delete_again = store
+            .delete_pipeline(&pipeline_id)
+            .await
+            .expect("Delete again should succeed");
         assert!(!delete_again);
 
-        let refetched = store.get_pipeline(&pipeline_id).await.expect("Fetch should succeed");
+        let refetched = store
+            .get_pipeline(&pipeline_id)
+            .await
+            .expect("Fetch should succeed");
         assert!(refetched.is_none());
     }
 

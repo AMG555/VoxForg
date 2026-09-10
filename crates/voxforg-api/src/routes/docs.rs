@@ -1,6 +1,6 @@
 use axum::{
-    response::{IntoResponse, Response},
     http::{header, HeaderValue, StatusCode},
+    response::{IntoResponse, Response},
     Json,
 };
 use serde_json::json;
@@ -34,7 +34,10 @@ pub async fn scalar_docs_html() -> impl IntoResponse {
 
     Response::builder()
         .status(StatusCode::OK)
-        .header(header::CONTENT_TYPE, HeaderValue::from_static("text/html; charset=utf-8"))
+        .header(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("text/html; charset=utf-8"),
+        )
         .body(axum::body::Body::from(html))
         .unwrap()
 }

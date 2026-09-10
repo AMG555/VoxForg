@@ -15,5 +15,6 @@ pub trait DataStore: Send + Sync {
 
     async fn get_voice(&self, id: &str) -> Result<Option<Voice>>;
     async fn save_voice(&self, voice: &Voice) -> Result<()>;
-    async fn list_voices(&self, language: Option<&str>, engine: Option<&str>) -> Result<Vec<Voice>>;
+    async fn list_voices(&self, language: Option<&str>, engine: Option<&str>)
+        -> Result<Vec<Voice>>;
 }

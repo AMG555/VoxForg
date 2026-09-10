@@ -76,7 +76,9 @@ impl TtsEngine for MockTtsEngine {
         let pcm_data: Vec<i16> = (0..num_samples)
             .map(|i| {
                 let t = i as f32 / self.sample_rate as f32;
-                let envelope = (1.0 - (i as f32 / num_samples as f32)).min(i as f32 / 500.0).clamp(0.0, 1.0);
+                let envelope = (1.0 - (i as f32 / num_samples as f32))
+                    .min(i as f32 / 500.0)
+                    .clamp(0.0, 1.0);
                 (f32::sin(2.0 * std::f32::consts::PI * freq * t) * 12000.0 * envelope) as i16
             })
             .collect();

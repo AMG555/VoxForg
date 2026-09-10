@@ -1,5 +1,5 @@
-use sysinfo::System;
 use crate::profile::{GpuAccelerator, HardwareProfile, HardwareTier, SimdSupport};
+use sysinfo::System;
 
 pub struct HardwareProbe;
 
@@ -12,10 +12,11 @@ impl HardwareProbe {
         let arch = std::env::consts::ARCH.to_string();
 
         let cpus = sys.cpus();
-        let cpu_brand = cpus.first()
+        let cpu_brand = cpus
+            .first()
             .map(|c| c.brand().to_string())
             .unwrap_or_else(|| "Unknown CPU".to_string());
-        
+
         let cpu_physical_cores = sys.physical_core_count().unwrap_or(1);
         let cpu_logical_threads = cpus.len();
 
@@ -151,10 +152,7 @@ impl HardwareProbe {
                 "kokoro-82m-cpu".to_string(),
                 "edge-tts".to_string(),
             ],
-            HardwareTier::Tier1Minimal => vec![
-                "edge-tts".to_string(),
-                "piper-low-cpu".to_string(),
-            ],
+            HardwareTier::Tier1Minimal => vec!["edge-tts".to_string(), "piper-low-cpu".to_string()],
         }
     }
 }

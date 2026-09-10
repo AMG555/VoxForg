@@ -47,7 +47,8 @@ fn validate_speech_request(
             problem_type: "https://voxforg.org/errors/empty-input".to_string(),
             title: "Empty Input Text".to_string(),
             status: StatusCode::BAD_REQUEST.as_u16(),
-            detail: "The 'input' parameter must contain at least 1 non-whitespace character".to_string(),
+            detail: "The 'input' parameter must contain at least 1 non-whitespace character"
+                .to_string(),
             instance: "/v1/audio/speech".to_string(),
         };
         return Err((StatusCode::BAD_REQUEST, Json(err)));
@@ -64,24 +65,27 @@ fn validate_speech_request(
         return Err((StatusCode::UNPROCESSABLE_ENTITY, Json(err)));
     }
 
-    if !payload.speed.is_finite() || payload.speed < 0.25 || payload.speed > 4.0 {
+    if !payload.speed.is_finite() || !(0.25..=4.0).contains(&payload.speed) {
         let err = ProblemDetails {
             problem_type: "https://voxforg.org/errors/invalid-parameter".to_string(),
             title: "Invalid Speed Parameter".to_string(),
             status: StatusCode::BAD_REQUEST.as_u16(),
-            detail: "The 'speed' parameter must be a finite number between 0.25 and 4.0".to_string(),
+            detail: "The 'speed' parameter must be a finite number between 0.25 and 4.0"
+                .to_string(),
             instance: "/v1/audio/speech".to_string(),
         };
         return Err((StatusCode::BAD_REQUEST, Json(err)));
     }
 
     if let Some(p) = payload.pitch {
-        if !p.is_finite() || p < -50.0 || p > 50.0 {
+        if !p.is_finite() || !(-50.0..=50.0).contains(&p) {
             let err = ProblemDetails {
                 problem_type: "https://voxforg.org/errors/invalid-parameter".to_string(),
                 title: "Invalid Pitch Parameter".to_string(),
                 status: StatusCode::BAD_REQUEST.as_u16(),
-                detail: "The 'pitch' parameter must be a finite number between -50.0 and 50.0 semitones".to_string(),
+                detail:
+                    "The 'pitch' parameter must be a finite number between -50.0 and 50.0 semitones"
+                        .to_string(),
                 instance: "/v1/audio/speech".to_string(),
             };
             return Err((StatusCode::BAD_REQUEST, Json(err)));
@@ -260,7 +264,10 @@ pub async fn synthesize_speech_stream(
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, HeaderValue::from_static("audio/pcm"))
         .header(header::CACHE_CONTROL, HeaderValue::from_static("no-cache"))
-        .header(header::TRANSFER_ENCODING, HeaderValue::from_static("chunked"))
+        .header(
+            header::TRANSFER_ENCODING,
+            HeaderValue::from_static("chunked"),
+        )
         .body(Body::from_stream(stream))
         .map_err(|e| {
             let err = ProblemDetails {
@@ -276,10 +283,7 @@ pub async fn synthesize_speech_stream(
     Ok(response)
 }
 
-pub async fn speech_websocket(
-    ws: WebSocketUpgrade,
-    State(state): State<AppState>,
-) -> Response {
+pub async fn speech_websocket(ws: WebSocketUpgrade, State(state): State<AppState>) -> Response {
     ws.on_upgrade(|socket| handle_speech_socket(socket, state))
 }
 

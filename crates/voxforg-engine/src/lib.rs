@@ -31,7 +31,10 @@ mod tests {
             format: AudioContainerFormat::Wav,
         };
 
-        let chunk = engine.synthesize(&req).await.expect("Synthesis must succeed");
+        let chunk = engine
+            .synthesize(&req)
+            .await
+            .expect("Synthesis must succeed");
         assert_eq!(chunk.sample_rate, 24000);
         assert!(!chunk.pcm_data.is_empty());
         assert!(chunk.is_final);
@@ -41,8 +44,9 @@ mod tests {
     async fn test_mock_engine_streaming() {
         let engine = MockTtsEngine::new(24000);
         let req = SynthesisRequest {
-            text: "Long sentence testing streaming audio generation across multiple chunk boundaries."
-                .to_string(),
+            text:
+                "Long sentence testing streaming audio generation across multiple chunk boundaries."
+                    .to_string(),
             voice_id: "mock-en-male".to_string(),
             speed: 1.0,
             pitch: 0.0,
@@ -77,7 +81,9 @@ mod tests {
         let ssml = EdgeTtsEngine::build_ssml(&req);
         assert!(ssml.contains("&lt;script&gt;"));
         assert!(ssml.contains("&amp;"));
-        assert!(ssml.contains("voice name='Microsoft Server Speech Text to Speech Voice (en-US, AriaNeural)'"));
+        assert!(ssml.contains(
+            "voice name='Microsoft Server Speech Text to Speech Voice (en-US, AriaNeural)'"
+        ));
         assert!(ssml.contains("rate='+25%'"));
     }
 
@@ -148,7 +154,10 @@ mod tests {
             },
         };
 
-        let result = runner.run_comparison(&scenario).await.expect("A/B comparison should succeed");
+        let result = runner
+            .run_comparison(&scenario)
+            .await
+            .expect("A/B comparison should succeed");
         assert_eq!(result.scenario_name, "Model Comparison Benchmark");
         assert_eq!(result.variant_a.voice_id, "mock-en-female");
         assert_eq!(result.variant_b.voice_id, "en-US-AriaNeural");
@@ -204,7 +213,10 @@ mod tests {
             },
         ];
 
-        let results = runner.run_batch(&scenarios).await.expect("Batch run must succeed");
+        let results = runner
+            .run_batch(&scenarios)
+            .await
+            .expect("Batch run must succeed");
         assert_eq!(results.len(), 2);
         assert_eq!(results[0].scenario_name, "Batch Item 1");
         assert_eq!(results[1].scenario_name, "Batch Item 2");
@@ -216,7 +228,9 @@ mod tests {
 
         let token = generate_sec_ms_gec();
         assert_eq!(token.len(), 64);
-        assert!(token.chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_lowercase()));
+        assert!(token
+            .chars()
+            .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_lowercase()));
     }
 
     #[test]
@@ -269,7 +283,10 @@ mod tests {
             format: AudioContainerFormat::Wav,
         };
 
-        let chunk = engine.synthesize(&req).await.expect("Synthesize must succeed");
+        let chunk = engine
+            .synthesize(&req)
+            .await
+            .expect("Synthesize must succeed");
         assert_eq!(chunk.sample_rate, 24000);
         assert_eq!(chunk.channels, 1);
         assert!(!chunk.pcm_data.is_empty());
@@ -310,7 +327,10 @@ mod tests {
             format: AudioContainerFormat::Wav,
         };
 
-        let chunk = router.synthesize(&req).await.expect("Synthesize must succeed via fallback");
+        let chunk = router
+            .synthesize(&req)
+            .await
+            .expect("Synthesize must succeed via fallback");
         assert_eq!(chunk.sample_rate, 24000);
         assert_eq!(chunk.channels, 1);
         assert!(!chunk.pcm_data.is_empty());
@@ -334,16 +354,26 @@ mod tests {
         };
 
         // Cache miss
-        assert!(cache.get("mock", "voice1", 1.0, 0.0, "hello").await.is_none());
+        assert!(cache
+            .get("mock", "voice1", 1.0, 0.0, "hello")
+            .await
+            .is_none());
 
         // Insert
-        cache.insert("mock", "voice1", 1.0, 0.0, "hello", chunk1.clone()).await;
+        cache
+            .insert("mock", "voice1", 1.0, 0.0, "hello", chunk1.clone())
+            .await;
         // Cache hit
-        let hit = cache.get("mock", "voice1", 1.0, 0.0, "hello").await.expect("Must hit cache");
+        let hit = cache
+            .get("mock", "voice1", 1.0, 0.0, "hello")
+            .await
+            .expect("Must hit cache");
         assert_eq!(hit.pcm_data, vec![100, 200, 300]);
 
         // Insert second entry
-        cache.insert("mock", "voice2", 1.0, 0.0, "world", chunk2.clone()).await;
+        cache
+            .insert("mock", "voice2", 1.0, 0.0, "world", chunk2.clone())
+            .await;
         assert_eq!(cache.len().await, 2);
 
         // Insert third entry, causes oldest to be evicted
@@ -353,7 +383,9 @@ mod tests {
             pcm_data: vec![700],
             is_final: true,
         };
-        cache.insert("mock", "voice3", 1.0, 0.0, "test", chunk3).await;
+        cache
+            .insert("mock", "voice3", 1.0, 0.0, "test", chunk3)
+            .await;
         assert_eq!(cache.len().await, 2);
 
         let (hits, misses) = cache.stats();
@@ -377,4 +409,3 @@ mod tests {
         assert!(validate_router_url("https://api.openai.com/v1", false).is_ok());
     }
 }
-

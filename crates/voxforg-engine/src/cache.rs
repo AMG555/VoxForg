@@ -38,9 +38,9 @@ impl AudioCache {
         hasher.update(b":");
         hasher.update(voice_id.as_bytes());
         hasher.update(b":");
-        hasher.update(&speed.to_bits().to_be_bytes());
+        hasher.update(speed.to_bits().to_be_bytes());
         hasher.update(b":");
-        hasher.update(&pitch.to_bits().to_be_bytes());
+        hasher.update(pitch.to_bits().to_be_bytes());
         hasher.update(b":");
         hasher.update(text.as_bytes());
         hex::encode(hasher.finalize())

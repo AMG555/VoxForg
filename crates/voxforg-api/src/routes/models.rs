@@ -1,6 +1,6 @@
+use crate::state::AppState;
 use axum::{extract::State, response::Json};
 use serde::{Deserialize, Serialize};
-use crate::state::AppState;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ModelCard {

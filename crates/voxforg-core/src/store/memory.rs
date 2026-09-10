@@ -60,7 +60,11 @@ impl DataStore for MemoryStore {
         Ok(())
     }
 
-    async fn list_voices(&self, language: Option<&str>, engine: Option<&str>) -> Result<Vec<Voice>> {
+    async fn list_voices(
+        &self,
+        language: Option<&str>,
+        engine: Option<&str>,
+    ) -> Result<Vec<Voice>> {
         let lock = self.voices.read().await;
         let filtered = lock
             .values()

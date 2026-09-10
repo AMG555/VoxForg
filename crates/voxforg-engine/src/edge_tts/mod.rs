@@ -6,10 +6,10 @@ use tracing::warn;
 use voxforg_core::error::Result;
 use voxforg_core::models::{AudioChunk, Gender, Voice};
 
+use crate::traits::{SynthesisRequest, TtsEngine};
 pub use client::{
     decode_mp3_to_pcm, generate_sec_ms_gec, parse_binary_audio_payload, EdgeTtsClient,
 };
-use crate::traits::{SynthesisRequest, TtsEngine};
 
 pub struct EdgeTtsEngine {
     _client: reqwest::Client,
@@ -54,7 +54,10 @@ impl EdgeTtsEngine {
 
         format!(
             r#"<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'><voice name='{}'><prosody pitch='{}' rate='{}' volume='+0%'>{}</prosody></voice></speak>"#,
-            quick_xml_escape(&formatted_voice), pitch_str, rate_str, quick_xml_escape(&request.text)
+            quick_xml_escape(&formatted_voice),
+            pitch_str,
+            rate_str,
+            quick_xml_escape(&request.text)
         )
     }
 
@@ -79,7 +82,9 @@ impl EdgeTtsEngine {
         let pcm_data: Vec<i16> = (0..num_samples)
             .map(|i| {
                 let t = i as f32 / sample_rate as f32;
-                let env = (1.0 - (i as f32 / num_samples as f32)).min(i as f32 / 400.0).clamp(0.0, 1.0);
+                let env = (1.0 - (i as f32 / num_samples as f32))
+                    .min(i as f32 / 400.0)
+                    .clamp(0.0, 1.0);
                 let tone1 = f32::sin(2.0 * std::f32::consts::PI * freq * t);
                 let tone2 = 0.5 * f32::sin(4.0 * std::f32::consts::PI * freq * t);
                 ((tone1 + tone2) * 10000.0 * env) as i16

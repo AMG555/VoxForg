@@ -23,11 +23,16 @@ impl SilenceTrimmer {
 
         let safe_sample_rate = sample_rate.max(1);
         let safe_padding_ms = padding_ms.min(2000);
-        let padding_samples = ((safe_sample_rate as f32) * (safe_padding_ms as f32 / 1000.0)) as usize;
+        let padding_samples =
+            ((safe_sample_rate as f32) * (safe_padding_ms as f32 / 1000.0)) as usize;
 
         // Find first sample above threshold
-        let first_loud = samples.iter().position(|&s| (s as i32).abs() >= threshold_amp);
-        let last_loud = samples.iter().rposition(|&s| (s as i32).abs() >= threshold_amp);
+        let first_loud = samples
+            .iter()
+            .position(|&s| (s as i32).abs() >= threshold_amp);
+        let last_loud = samples
+            .iter()
+            .rposition(|&s| (s as i32).abs() >= threshold_amp);
 
         match (first_loud, last_loud) {
             (Some(start_idx), Some(end_idx)) if start_idx <= end_idx => {

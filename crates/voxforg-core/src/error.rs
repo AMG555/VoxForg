@@ -65,7 +65,10 @@ impl VoxForgError {
         };
 
         ProblemDetails {
-            problem_type: format!("https://voxforg.org/errors/{}", title.to_lowercase().replace(' ', "-")),
+            problem_type: format!(
+                "https://voxforg.org/errors/{}",
+                title.to_lowercase().replace(' ', "-")
+            ),
             title: title.to_string(),
             status,
             detail: self.to_string(),

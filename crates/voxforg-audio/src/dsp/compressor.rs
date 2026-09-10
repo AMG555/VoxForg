@@ -15,11 +15,31 @@ impl DynamicCompressor {
         }
 
         let sr = (sample_rate.max(8000)) as f32;
-        let thresh = if threshold_dbfs.is_finite() { threshold_dbfs.clamp(-60.0, 0.0) } else { -18.0 };
-        let comp_ratio = if ratio.is_finite() { ratio.clamp(1.0, 20.0) } else { 3.0 };
-        let att_ms = if attack_ms.is_finite() { attack_ms.clamp(0.5, 500.0) } else { 15.0 };
-        let rel_ms = if release_ms.is_finite() { release_ms.clamp(5.0, 2000.0) } else { 100.0 };
-        let makeup = if makeup_gain_db.is_finite() { makeup_gain_db.clamp(-24.0, 24.0) } else { 0.0 };
+        let thresh = if threshold_dbfs.is_finite() {
+            threshold_dbfs.clamp(-60.0, 0.0)
+        } else {
+            -18.0
+        };
+        let comp_ratio = if ratio.is_finite() {
+            ratio.clamp(1.0, 20.0)
+        } else {
+            3.0
+        };
+        let att_ms = if attack_ms.is_finite() {
+            attack_ms.clamp(0.5, 500.0)
+        } else {
+            15.0
+        };
+        let rel_ms = if release_ms.is_finite() {
+            release_ms.clamp(5.0, 2000.0)
+        } else {
+            100.0
+        };
+        let makeup = if makeup_gain_db.is_finite() {
+            makeup_gain_db.clamp(-24.0, 24.0)
+        } else {
+            0.0
+        };
 
         let att_coeff = (-1.0 / (sr * (att_ms / 1000.0))).exp();
         let rel_coeff = (-1.0 / (sr * (rel_ms / 1000.0))).exp();

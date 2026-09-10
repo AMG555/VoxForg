@@ -40,7 +40,10 @@ impl GraphValidator {
                 )));
             }
 
-            adjacency.get_mut(&edge.from_node).unwrap().push(edge.to_node.clone());
+            adjacency
+                .get_mut(&edge.from_node)
+                .unwrap()
+                .push(edge.to_node.clone());
             *in_degree.get_mut(&edge.to_node).unwrap() += 1;
         }
 
@@ -70,7 +73,8 @@ impl GraphValidator {
 
         if order.len() != pipeline.nodes.len() {
             return Err(VoxForgError::PipelineValidation(
-                "Cycle detected in pipeline graph! Graphs must be strictly directed acyclic (DAG).".to_string(),
+                "Cycle detected in pipeline graph! Graphs must be strictly directed acyclic (DAG)."
+                    .to_string(),
             ));
         }
 

@@ -93,7 +93,8 @@ impl Biquad {
 
     fn process(&mut self, input: f32) -> f32 {
         let output = self.b0 * input + self.b1 * self.x1 + self.b2 * self.x2
-            - self.a1 * self.y1 - self.a2 * self.y2;
+            - self.a1 * self.y1
+            - self.a2 * self.y2;
 
         self.x2 = self.x1;
         self.x1 = input;
@@ -119,9 +120,21 @@ impl ParametricEq {
         }
 
         let sr = (sample_rate.max(8000)) as f32;
-        let safe_low = if low_gain_db.is_finite() { low_gain_db.clamp(-24.0, 24.0) } else { 0.0 };
-        let safe_mid = if mid_gain_db.is_finite() { mid_gain_db.clamp(-24.0, 24.0) } else { 0.0 };
-        let safe_high = if high_gain_db.is_finite() { high_gain_db.clamp(-24.0, 24.0) } else { 0.0 };
+        let safe_low = if low_gain_db.is_finite() {
+            low_gain_db.clamp(-24.0, 24.0)
+        } else {
+            0.0
+        };
+        let safe_mid = if mid_gain_db.is_finite() {
+            mid_gain_db.clamp(-24.0, 24.0)
+        } else {
+            0.0
+        };
+        let safe_high = if high_gain_db.is_finite() {
+            high_gain_db.clamp(-24.0, 24.0)
+        } else {
+            0.0
+        };
 
         if safe_low.abs() < 0.01 && safe_mid.abs() < 0.01 && safe_high.abs() < 0.01 {
             return;

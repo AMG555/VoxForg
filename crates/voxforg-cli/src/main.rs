@@ -13,8 +13,8 @@ use voxforg_audio::WavEncoder;
 use voxforg_core::models::AudioContainerFormat;
 use voxforg_core::store::memory::MemoryStore;
 use voxforg_engine::{
-    AbTestRunner, AbTestScenario, EdgeTtsEngine, EngineRegistry, MockTtsEngine,
-    OpenAiRouterEngine, SynthesisRequest,
+    AbTestRunner, AbTestScenario, EdgeTtsEngine, EngineRegistry, MockTtsEngine, OpenAiRouterEngine,
+    SynthesisRequest,
 };
 use voxforg_hardware::HardwareProbe;
 
@@ -217,9 +217,13 @@ async fn run_serve(args: ServeArgs) -> Result<()> {
     let hardware = HardwareProbe::probe();
     info!("Host Architecture: {} / {}", hardware.os, hardware.arch);
     info!("Assigned Hardware Tier: {}", hardware.assigned_tier);
-    info!("CPU: {} ({} threads)", hardware.cpu_brand, hardware.cpu_logical_threads);
+    info!(
+        "CPU: {} ({} threads)",
+        hardware.cpu_brand, hardware.cpu_logical_threads
+    );
 
-    let registry = initialize_registry(args.router_url, args.router_api_key, args.router_model).await;
+    let registry =
+        initialize_registry(args.router_url, args.router_api_key, args.router_model).await;
     let store = Arc::new(MemoryStore::new());
     let state = AppState::new(registry, store, hardware, args.api_key.clone());
 
@@ -270,10 +274,15 @@ async fn shutdown_signal() {
 }
 
 async fn run_synth(args: SynthArgs) -> Result<()> {
-    let registry = initialize_registry(args.router_url, args.router_api_key, args.router_model).await;
+    let registry =
+        initialize_registry(args.router_url, args.router_api_key, args.router_model).await;
     let (engine, voice) = registry.resolve_voice(&args.voice).await?;
 
-    info!("Synthesizing using engine: '{}' (Voice: '{}')", engine.name(), voice.name);
+    info!(
+        "Synthesizing using engine: '{}' (Voice: '{}')",
+        engine.name(),
+        voice.name
+    );
     let req = SynthesisRequest {
         text: args.input,
         voice_id: voice.id,
@@ -286,7 +295,8 @@ async fn run_synth(args: SynthArgs) -> Result<()> {
     let chunk = engine.synthesize(&req).await?;
     let duration = start.elapsed();
 
-    let wav_bytes = WavEncoder::encode_pcm16_to_wav(&chunk.pcm_data, chunk.sample_rate, chunk.channels)?;
+    let wav_bytes =
+        WavEncoder::encode_pcm16_to_wav(&chunk.pcm_data, chunk.sample_rate, chunk.channels)?;
 
     if let Some(parent) = args.out.parent() {
         if !parent.as_os_str().is_empty() {
@@ -314,12 +324,16 @@ fn run_hardware() -> Result<()> {
     println!("Logical Threads:     {}", hw.cpu_logical_threads);
     println!("Total System RAM:    {} MB", hw.total_memory_mb);
     println!("Available RAM:       {} MB", hw.available_memory_mb);
-    println!("SIMD Capabilities:   AVX: {}, AVX2: {}, AVX-512: {}, NEON: {}",
-        hw.simd.avx, hw.simd.avx2, hw.simd.avx512, hw.simd.neon);
+    println!(
+        "SIMD Capabilities:   AVX: {}, AVX2: {}, AVX-512: {}, NEON: {}",
+        hw.simd.avx, hw.simd.avx2, hw.simd.avx512, hw.simd.neon
+    );
     println!("GPU Adapters:        {}", hw.gpus.len());
     for (i, gpu) in hw.gpus.iter().enumerate() {
-        println!("  [{}] {} (VRAM: {} MB) [CUDA: {}, MPS: {}, DirectML: {}]",
-            i, gpu.name, gpu.vram_mb, gpu.has_cuda, gpu.has_mps, gpu.has_directml);
+        println!(
+            "  [{}] {} (VRAM: {} MB) [CUDA: {}, MPS: {}, DirectML: {}]",
+            i, gpu.name, gpu.vram_mb, gpu.has_cuda, gpu.has_mps, gpu.has_directml
+        );
     }
     println!("---------------------------------");
     println!("Assigned Tier:       {}", hw.assigned_tier);
@@ -337,11 +351,16 @@ async fn run_engines() -> Result<()> {
     }
 
     println!("\n=== Available Voices (Total: {}) ===", voices.len());
-    println!("{:<25} {:<20} {:<10} {:<10} {:<10}", "Voice ID", "Name", "Engine", "Language", "Rate");
+    println!(
+        "{:<25} {:<20} {:<10} {:<10} {:<10}",
+        "Voice ID", "Name", "Engine", "Language", "Rate"
+    );
     println!("{:-<75}", "");
     for v in voices {
-        println!("{:<25} {:<20} {:<10} {:<10} {}Hz",
-            v.id, v.name, v.engine_id, v.language, v.sample_rate_hz);
+        println!(
+            "{:<25} {:<20} {:<10} {:<10} {}Hz",
+            v.id, v.name, v.engine_id, v.language, v.sample_rate_hz
+        );
     }
     Ok(())
 }
@@ -350,8 +369,13 @@ async fn run_bench(args: BenchArgs) -> Result<()> {
     let registry = initialize_registry(None, None, None).await;
     let (engine, voice) = registry.resolve_voice("mock-en-female").await?;
 
-    println!("=== Benchmark: {} (Voice: {}) ===", engine.name(), voice.name);
-    let test_text = "The quick brown fox jumps over the lazy dog. Speech synthesis benchmark test sentence.";
+    println!(
+        "=== Benchmark: {} (Voice: {}) ===",
+        engine.name(),
+        voice.name
+    );
+    let test_text =
+        "The quick brown fox jumps over the lazy dog. Speech synthesis benchmark test sentence.";
 
     let mut total_duration = std::time::Duration::ZERO;
     let iters = args.iterations.max(1);
@@ -373,8 +397,10 @@ async fn run_bench(args: BenchArgs) -> Result<()> {
         let audio_duration_sec = chunk.pcm_data.len() as f64 / chunk.sample_rate as f64;
         let rtf = elapsed.as_secs_f64() / audio_duration_sec;
 
-        println!("Iteration #{}: Elapsed: {:.2?}, Audio Duration: {:.2}s, RTF: {:.4}",
-            i, elapsed, audio_duration_sec, rtf);
+        println!(
+            "Iteration #{}: Elapsed: {:.2?}, Audio Duration: {:.2}s, RTF: {:.4}",
+            i, elapsed, audio_duration_sec, rtf
+        );
     }
 
     let avg = total_duration / (iters as u32);
@@ -418,27 +444,56 @@ async fn run_ab_test(args: AbTestArgs) -> Result<()> {
     for i in 1..=iters {
         let comp = runner.run_comparison(&scenario).await?;
         if iters > 1 {
-            println!("[Run {}/{}] Latency A: {:.2}ms | Latency B: {:.2}ms | Faster: Variant {}",
-                i, iters, comp.variant_a.latency_ms, comp.variant_b.latency_ms, comp.faster_variant);
+            println!(
+                "[Run {}/{}] Latency A: {:.2}ms | Latency B: {:.2}ms | Faster: Variant {}",
+                i, iters, comp.variant_a.latency_ms, comp.variant_b.latency_ms, comp.faster_variant
+            );
         }
         last_comp = Some(comp);
     }
 
     let comp = last_comp.unwrap();
 
-    println!("Metric                  | Variant A ({:<18}) | Variant B ({:<18})",
-        comp.variant_a.voice_id, comp.variant_b.voice_id);
+    println!(
+        "Metric                  | Variant A ({:<18}) | Variant B ({:<18})",
+        comp.variant_a.voice_id, comp.variant_b.voice_id
+    );
     println!("{:-<75}", "");
-    println!("Engine                  | {:<30} | {:<30}", comp.variant_a.engine_id, comp.variant_b.engine_id);
-    println!("Latency                 | {:<28.2}ms | {:<28.2}ms", comp.variant_a.latency_ms, comp.variant_b.latency_ms);
-    println!("Audio Duration          | {:<29.2}s | {:<29.2}s", comp.variant_a.audio_duration_seconds, comp.variant_b.audio_duration_seconds);
-    println!("Real-Time Factor (RTF)  | {:<30.4} | {:<30.4}", comp.variant_a.realtime_factor, comp.variant_b.realtime_factor);
-    println!("Peak Amplitude (dBFS)   | {:<28.1}dB | {:<28.1}dB", comp.variant_a.metrics.peak_dbfs, comp.variant_b.metrics.peak_dbfs);
-    println!("RMS Loudness (dBFS)     | {:<28.1}dB | {:<28.1}dB", comp.variant_a.metrics.rms_dbfs, comp.variant_b.metrics.rms_dbfs);
-    println!("Clipping Samples Count  | {:<30} | {:<30}", comp.variant_a.metrics.clipping_samples_count, comp.variant_b.metrics.clipping_samples_count);
+    println!(
+        "Engine                  | {:<30} | {:<30}",
+        comp.variant_a.engine_id, comp.variant_b.engine_id
+    );
+    println!(
+        "Latency                 | {:<28.2}ms | {:<28.2}ms",
+        comp.variant_a.latency_ms, comp.variant_b.latency_ms
+    );
+    println!(
+        "Audio Duration          | {:<29.2}s | {:<29.2}s",
+        comp.variant_a.audio_duration_seconds, comp.variant_b.audio_duration_seconds
+    );
+    println!(
+        "Real-Time Factor (RTF)  | {:<30.4} | {:<30.4}",
+        comp.variant_a.realtime_factor, comp.variant_b.realtime_factor
+    );
+    println!(
+        "Peak Amplitude (dBFS)   | {:<28.1}dB | {:<28.1}dB",
+        comp.variant_a.metrics.peak_dbfs, comp.variant_b.metrics.peak_dbfs
+    );
+    println!(
+        "RMS Loudness (dBFS)     | {:<28.1}dB | {:<28.1}dB",
+        comp.variant_a.metrics.rms_dbfs, comp.variant_b.metrics.rms_dbfs
+    );
+    println!(
+        "Clipping Samples Count  | {:<30} | {:<30}",
+        comp.variant_a.metrics.clipping_samples_count,
+        comp.variant_b.metrics.clipping_samples_count
+    );
     println!("----------------------------------------");
     println!("Faster Variant:         Variant {}", comp.faster_variant);
-    println!("Recommended Variant:    Variant {}", comp.recommended_variant);
+    println!(
+        "Recommended Variant:    Variant {}",
+        comp.recommended_variant
+    );
     println!("Summary:                {}", comp.summary);
 
     Ok(())

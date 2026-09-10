@@ -1,8 +1,4 @@
-use axum::{
-    extract::State,
-    http::StatusCode,
-    response::Json,
-};
+use axum::{extract::State, http::StatusCode, response::Json};
 use voxforg_core::error::ProblemDetails;
 use voxforg_engine::{AbTestComparison, AbTestRunner, AbTestScenario};
 
@@ -37,7 +33,10 @@ pub async fn run_ab_test(
     let runner = AbTestRunner::new(state.engine_registry.clone());
     let comparison = runner.run_comparison(&scenario).await.map_err(|e| {
         let problem = e.to_problem_details("/v1/qa/ab-test");
-        (StatusCode::from_u16(problem.status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR), Json(problem))
+        (
+            StatusCode::from_u16(problem.status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
+            Json(problem),
+        )
     })?;
 
     Ok(Json(comparison))

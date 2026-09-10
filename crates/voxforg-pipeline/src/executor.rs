@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use voxforg_audio::{
-    AudioMerger, AudioNormalizer, BrickwallLimiter, DynamicCompressor, ParametricEq, SilenceTrimmer,
-    WavEncoder,
+    AudioMerger, AudioNormalizer, BrickwallLimiter, DynamicCompressor, ParametricEq,
+    SilenceTrimmer, WavEncoder,
 };
 use voxforg_core::error::{Result, VoxForgError};
 use voxforg_core::models::{NodeType, PipelineDefinition};
@@ -36,11 +36,9 @@ impl PipelineExecutor {
                 .nodes
                 .iter()
                 .find(|n| n.id == node_id)
-                .ok_or_else(|| {
-                    VoxForgError::PipelineExecution {
-                        node_id: node_id.clone(),
-                        reason: "Node missing in definition".to_string(),
-                    }
+                .ok_or_else(|| VoxForgError::PipelineExecution {
+                    node_id: node_id.clone(),
+                    reason: "Node missing in definition".to_string(),
                 })?;
 
             self.execute_node(node, &mut ctx).await.map_err(|e| {
@@ -72,7 +70,9 @@ impl PipelineExecutor {
                     if text_val.len() > 50_000 {
                         return Err(VoxForgError::PipelineExecution {
                             node_id: node.id.clone(),
-                            reason: "TextInput exceeds maximum supported length of 50,000 characters".to_string(),
+                            reason:
+                                "TextInput exceeds maximum supported length of 50,000 characters"
+                                    .to_string(),
                         });
                     }
                     ctx.raw_text = Some(text_val.to_string());
@@ -85,7 +85,11 @@ impl PipelineExecutor {
                 let mut segments = Vec::new();
 
                 // Check for dialog rules or fallback to paragraph chunking
-                let lines: Vec<&str> = text.lines().map(|l| l.trim()).filter(|l| !l.is_empty()).collect();
+                let lines: Vec<&str> = text
+                    .lines()
+                    .map(|l| l.trim())
+                    .filter(|l| !l.is_empty())
+                    .collect();
                 for line in lines {
                     if let Some((speaker, utterance)) = line.split_once(':') {
                         segments.push(ScriptSegment {
@@ -144,10 +148,7 @@ impl PipelineExecutor {
             NodeType::Synthesizer => {
                 ctx.audio_segments.clear();
                 for segment in &ctx.segments {
-                    let voice_id = segment
-                        .voice_id
-                        .as_deref()
-                        .unwrap_or("en-US-AriaNeural");
+                    let voice_id = segment.voice_id.as_deref().unwrap_or("en-US-AriaNeural");
 
                     let (engine, voice) = self.engine_registry.resolve_voice(voice_id).await?;
                     ctx.sample_rate = voice.sample_rate_hz;
@@ -173,9 +174,10 @@ impl PipelineExecutor {
                     for segment_pcm in &mut ctx.audio_segments {
                         AudioNormalizer::peak_normalize(segment_pcm, target);
                     }
-                } else if node.params.get("filter_type").and_then(|t| t.as_str()) == Some("normalize")
+                } else if node.params.get("filter_type").and_then(|t| t.as_str())
+                    == Some("normalize")
                     || node.params.is_null()
-                    || node.params.as_object().map_or(true, |o| o.is_empty())
+                    || node.params.as_object().is_none_or(|o| o.is_empty())
                 {
                     for segment_pcm in &mut ctx.audio_segments {
                         AudioNormalizer::peak_normalize(segment_pcm, 0.95);
@@ -202,19 +204,35 @@ impl PipelineExecutor {
                         .unwrap_or(30) as u32;
 
                     for segment_pcm in &mut ctx.audio_segments {
-                        *segment_pcm = SilenceTrimmer::trim(segment_pcm, ctx.sample_rate, threshold, padding);
+                        *segment_pcm =
+                            SilenceTrimmer::trim(segment_pcm, ctx.sample_rate, threshold, padding);
                     }
-                } else if node.params.get("trim_silence").and_then(|b| b.as_bool()).unwrap_or(false) {
+                } else if node
+                    .params
+                    .get("trim_silence")
+                    .and_then(|b| b.as_bool())
+                    .unwrap_or(false)
+                {
                     for segment_pcm in &mut ctx.audio_segments {
-                        *segment_pcm = SilenceTrimmer::trim(segment_pcm, ctx.sample_rate, -45.0, 30);
+                        *segment_pcm =
+                            SilenceTrimmer::trim(segment_pcm, ctx.sample_rate, -45.0, 30);
                     }
                 }
 
                 // 4. 3-Band Parametric Equalizer
                 if let Some(eq_obj) = node.params.get("eq") {
-                    let low = eq_obj.get("low_gain_db").and_then(|v| v.as_f64()).unwrap_or(0.0) as f32;
-                    let mid = eq_obj.get("mid_gain_db").and_then(|v| v.as_f64()).unwrap_or(0.0) as f32;
-                    let high = eq_obj.get("high_gain_db").and_then(|v| v.as_f64()).unwrap_or(0.0) as f32;
+                    let low = eq_obj
+                        .get("low_gain_db")
+                        .and_then(|v| v.as_f64())
+                        .unwrap_or(0.0) as f32;
+                    let mid = eq_obj
+                        .get("mid_gain_db")
+                        .and_then(|v| v.as_f64())
+                        .unwrap_or(0.0) as f32;
+                    let high = eq_obj
+                        .get("high_gain_db")
+                        .and_then(|v| v.as_f64())
+                        .unwrap_or(0.0) as f32;
 
                     for segment_pcm in &mut ctx.audio_segments {
                         ParametricEq::process_3band(segment_pcm, ctx.sample_rate, low, mid, high);
@@ -223,20 +241,46 @@ impl PipelineExecutor {
 
                 // 5. Dynamic Range Compressor
                 if let Some(comp_obj) = node.params.get("compressor") {
-                    let threshold = comp_obj.get("threshold_dbfs").and_then(|v| v.as_f64()).unwrap_or(-18.0) as f32;
-                    let ratio = comp_obj.get("ratio").and_then(|v| v.as_f64()).unwrap_or(3.0) as f32;
-                    let attack = comp_obj.get("attack_ms").and_then(|v| v.as_f64()).unwrap_or(15.0) as f32;
-                    let release = comp_obj.get("release_ms").and_then(|v| v.as_f64()).unwrap_or(100.0) as f32;
-                    let makeup = comp_obj.get("makeup_gain_db").and_then(|v| v.as_f64()).unwrap_or(0.0) as f32;
+                    let threshold = comp_obj
+                        .get("threshold_dbfs")
+                        .and_then(|v| v.as_f64())
+                        .unwrap_or(-18.0) as f32;
+                    let ratio = comp_obj
+                        .get("ratio")
+                        .and_then(|v| v.as_f64())
+                        .unwrap_or(3.0) as f32;
+                    let attack = comp_obj
+                        .get("attack_ms")
+                        .and_then(|v| v.as_f64())
+                        .unwrap_or(15.0) as f32;
+                    let release = comp_obj
+                        .get("release_ms")
+                        .and_then(|v| v.as_f64())
+                        .unwrap_or(100.0) as f32;
+                    let makeup = comp_obj
+                        .get("makeup_gain_db")
+                        .and_then(|v| v.as_f64())
+                        .unwrap_or(0.0) as f32;
 
                     for segment_pcm in &mut ctx.audio_segments {
-                        DynamicCompressor::process(segment_pcm, ctx.sample_rate, threshold, ratio, attack, release, makeup);
+                        DynamicCompressor::process(
+                            segment_pcm,
+                            ctx.sample_rate,
+                            threshold,
+                            ratio,
+                            attack,
+                            release,
+                            makeup,
+                        );
                     }
                 }
 
                 // 6. Brickwall Limiter
                 if let Some(limiter_obj) = node.params.get("limiter") {
-                    let ceiling = limiter_obj.get("ceiling_dbfs").and_then(|v| v.as_f64()).unwrap_or(-0.5) as f32;
+                    let ceiling = limiter_obj
+                        .get("ceiling_dbfs")
+                        .and_then(|v| v.as_f64())
+                        .unwrap_or(-0.5) as f32;
                     for segment_pcm in &mut ctx.audio_segments {
                         BrickwallLimiter::process(segment_pcm, ceiling);
                     }
@@ -261,8 +305,10 @@ impl PipelineExecutor {
             NodeType::OutputSink => {
                 // If master audio not merged yet, merge with default 100ms pause
                 if ctx.master_audio_pcm.is_empty() && !ctx.audio_segments.is_empty() {
-                    let refs: Vec<&[i16]> = ctx.audio_segments.iter().map(|s| s.as_slice()).collect();
-                    ctx.master_audio_pcm = AudioMerger::concatenate_with_pause(&refs, ctx.sample_rate, 100);
+                    let refs: Vec<&[i16]> =
+                        ctx.audio_segments.iter().map(|s| s.as_slice()).collect();
+                    ctx.master_audio_pcm =
+                        AudioMerger::concatenate_with_pause(&refs, ctx.sample_rate, 100);
                 }
                 Ok(())
             }

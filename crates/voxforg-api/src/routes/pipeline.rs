@@ -39,7 +39,10 @@ pub async fn execute_pipeline(
         .await
         .map_err(|e| {
             let problem = e.to_problem_details("/v1/pipeline/execute");
-            (StatusCode::from_u16(problem.status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR), Json(problem))
+            (
+                StatusCode::from_u16(problem.status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
+                Json(problem),
+            )
         })?;
 
     let _ = state.data_store.save_pipeline(&payload.pipeline).await;

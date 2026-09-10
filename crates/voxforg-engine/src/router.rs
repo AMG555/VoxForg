@@ -23,11 +23,16 @@ pub fn mask_secret(secret: &str) -> String {
     }
 }
 
-pub fn validate_router_url(url_str: &str, allow_private_ips: bool) -> std::result::Result<(), String> {
+pub fn validate_router_url(
+    url_str: &str,
+    allow_private_ips: bool,
+) -> std::result::Result<(), String> {
     let parsed = reqwest::Url::parse(url_str).map_err(|e| format!("Invalid URL: {e}"))?;
     let scheme = parsed.scheme();
     if scheme != "http" && scheme != "https" {
-        return Err(format!("Invalid URL scheme '{scheme}', only http and https allowed"));
+        return Err(format!(
+            "Invalid URL scheme '{scheme}', only http and https allowed"
+        ));
     }
 
     if let Some(host) = parsed.host_str() {
@@ -37,7 +42,10 @@ pub fn validate_router_url(url_str: &str, allow_private_ips: bool) -> std::resul
             || host_lower == "metadata.google.internal"
             || host_lower.contains("169.254.")
         {
-            return Err("Access to cloud metadata endpoints (169.254.x.x) is strictly forbidden".to_string());
+            return Err(
+                "Access to cloud metadata endpoints (169.254.x.x) is strictly forbidden"
+                    .to_string(),
+            );
         }
 
         // IP address checks
@@ -45,7 +53,9 @@ pub fn validate_router_url(url_str: &str, allow_private_ips: bool) -> std::resul
             match ip {
                 std::net::IpAddr::V4(ipv4) => {
                     if ipv4.is_link_local() {
-                        return Err("Link-local addresses (169.254.0.0/16) are forbidden".to_string());
+                        return Err(
+                            "Link-local addresses (169.254.0.0/16) are forbidden".to_string()
+                        );
                     }
                     if !allow_private_ips && (ipv4.is_loopback() || ipv4.is_private()) {
                         return Err(format!(
@@ -88,7 +98,8 @@ impl OpenAiRouterEngine {
         }
 
         // Default allow_private_ips to true if local development URL is specified
-        let is_local_dev = base.contains("localhost") || base.contains("127.0.0.1") || base.contains("[::1]");
+        let is_local_dev =
+            base.contains("localhost") || base.contains("127.0.0.1") || base.contains("[::1]");
 
         let client = Client::builder()
             .tcp_keepalive(Some(Duration::from_secs(15)))
@@ -163,8 +174,12 @@ impl OpenAiRouterEngine {
         let fails = self.consecutive_failures.fetch_add(1, Ordering::Relaxed) + 1;
         if fails >= 5 {
             let cooldown = Self::current_timestamp_ms() + 30_000; // 30s circuit break
-            self.circuit_open_until_ms.store(cooldown, Ordering::Relaxed);
-            warn!("Upstream router reached {} consecutive failures. Circuit breaker opened for 30s.", fails);
+            self.circuit_open_until_ms
+                .store(cooldown, Ordering::Relaxed);
+            warn!(
+                "Upstream router reached {} consecutive failures. Circuit breaker opened for 30s.",
+                fails
+            );
         }
     }
 
@@ -277,7 +292,10 @@ impl TtsEngine for OpenAiRouterEngine {
 
         // 1. SSRF URL validation
         if let Err(err) = validate_router_url(&url, self.allow_private_ips) {
-            warn!("Router request blocked by SSRF policy: {}. Operating in fallback mode.", err);
+            warn!(
+                "Router request blocked by SSRF policy: {}. Operating in fallback mode.",
+                err
+            );
             return Ok(self.synthesize_fallback(request));
         }
 
@@ -296,7 +314,11 @@ impl TtsEngine for OpenAiRouterEngine {
         });
 
         if let Some(ref key) = self.api_key {
-            debug!("Sending TTS request to upstream router {} (auth: {})", url, mask_secret(key));
+            debug!(
+                "Sending TTS request to upstream router {} (auth: {})",
+                url,
+                mask_secret(key)
+            );
         } else {
             debug!("Sending TTS request to upstream router {}", url);
         }
@@ -332,7 +354,9 @@ impl TtsEngine for OpenAiRouterEngine {
 
                         // Try decoding as WAV first
                         if bytes.starts_with(b"RIFF") {
-                            if let Ok((pcm_data, sample_rate, channels)) = WavEncoder::decode_wav_to_pcm16(&bytes) {
+                            if let Ok((pcm_data, sample_rate, channels)) =
+                                WavEncoder::decode_wav_to_pcm16(&bytes)
+                            {
                                 self.record_success();
                                 return Ok(AudioChunk {
                                     sample_rate,

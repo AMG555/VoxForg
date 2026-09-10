@@ -1,3 +1,4 @@
+use crate::state::AppState;
 use axum::{
     extract::{Request, State},
     http::{header, HeaderName, HeaderValue, StatusCode},
@@ -7,7 +8,6 @@ use axum::{
 };
 use subtle::ConstantTimeEq;
 use voxforg_core::error::ProblemDetails;
-use crate::state::AppState;
 
 pub async fn request_id_and_metrics(
     State(state): State<AppState>,

@@ -9,7 +9,8 @@ impl AudioMerger {
         // Bound pause duration to maximum 30 seconds to prevent OOM
         let safe_pause_ms = pause_duration_ms.min(30_000);
         let safe_sample_rate = sample_rate.min(192_000);
-        let pause_samples_count = ((safe_sample_rate as f32) * (safe_pause_ms as f32 / 1000.0)) as usize;
+        let pause_samples_count =
+            ((safe_sample_rate as f32) * (safe_pause_ms as f32 / 1000.0)) as usize;
 
         let total_len: usize = segments.iter().map(|s| s.len()).sum::<usize>()
             + (segments.len().saturating_sub(1) * pause_samples_count);

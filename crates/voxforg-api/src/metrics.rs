@@ -25,8 +25,10 @@ impl MetricsCollector {
 
     pub fn record_synthesis(&self, duration_ms: u64, samples_count: usize) {
         self.synthesis_count.fetch_add(1, Ordering::Relaxed);
-        self.synthesis_duration_ms_total.fetch_add(duration_ms, Ordering::Relaxed);
-        self.audio_samples_total.fetch_add(samples_count as u64, Ordering::Relaxed);
+        self.synthesis_duration_ms_total
+            .fetch_add(duration_ms, Ordering::Relaxed);
+        self.audio_samples_total
+            .fetch_add(samples_count as u64, Ordering::Relaxed);
     }
 
     pub fn inc_active_requests(&self) {
@@ -72,9 +74,14 @@ impl MetricsCollector {
         out.push_str("# HELP voxforg_synthesis_duration_seconds_total Total duration in seconds spent synthesizing audio\n");
         out.push_str("# TYPE voxforg_synthesis_duration_seconds_total counter\n");
         let total_secs = self.synthesis_duration_ms_total.load(Ordering::Relaxed) as f64 / 1000.0;
-        out.push_str(&format!("voxforg_synthesis_duration_seconds_total {:.4}\n\n", total_secs));
+        out.push_str(&format!(
+            "voxforg_synthesis_duration_seconds_total {:.4}\n\n",
+            total_secs
+        ));
 
-        out.push_str("# HELP voxforg_audio_samples_total Total 16-bit PCM audio samples generated\n");
+        out.push_str(
+            "# HELP voxforg_audio_samples_total Total 16-bit PCM audio samples generated\n",
+        );
         out.push_str("# TYPE voxforg_audio_samples_total counter\n");
         out.push_str(&format!(
             "voxforg_audio_samples_total {}\n\n",
@@ -85,7 +92,9 @@ impl MetricsCollector {
         out.push_str("# TYPE voxforg_cache_hits_total counter\n");
         out.push_str(&format!("voxforg_cache_hits_total {}\n\n", cache_hits));
 
-        out.push_str("# HELP voxforg_cache_misses_total In-memory audio synthesis LRU cache misses\n");
+        out.push_str(
+            "# HELP voxforg_cache_misses_total In-memory audio synthesis LRU cache misses\n",
+        );
         out.push_str("# TYPE voxforg_cache_misses_total counter\n");
         out.push_str(&format!("voxforg_cache_misses_total {}\n\n", cache_misses));
 

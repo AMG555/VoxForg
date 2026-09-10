@@ -85,12 +85,48 @@ mod tests {
                 },
             ],
             edges: vec![
-                PipelineEdge { id: "e1".to_string(), from_node: "n1".to_string(), to_node: "n2".to_string(), from_port: None, to_port: None },
-                PipelineEdge { id: "e2".to_string(), from_node: "n2".to_string(), to_node: "n3".to_string(), from_port: None, to_port: None },
-                PipelineEdge { id: "e3".to_string(), from_node: "n3".to_string(), to_node: "n4".to_string(), from_port: None, to_port: None },
-                PipelineEdge { id: "e4".to_string(), from_node: "n4".to_string(), to_node: "n5".to_string(), from_port: None, to_port: None },
-                PipelineEdge { id: "e5".to_string(), from_node: "n5".to_string(), to_node: "n6".to_string(), from_port: None, to_port: None },
-                PipelineEdge { id: "e6".to_string(), from_node: "n6".to_string(), to_node: "n7".to_string(), from_port: None, to_port: None },
+                PipelineEdge {
+                    id: "e1".to_string(),
+                    from_node: "n1".to_string(),
+                    to_node: "n2".to_string(),
+                    from_port: None,
+                    to_port: None,
+                },
+                PipelineEdge {
+                    id: "e2".to_string(),
+                    from_node: "n2".to_string(),
+                    to_node: "n3".to_string(),
+                    from_port: None,
+                    to_port: None,
+                },
+                PipelineEdge {
+                    id: "e3".to_string(),
+                    from_node: "n3".to_string(),
+                    to_node: "n4".to_string(),
+                    from_port: None,
+                    to_port: None,
+                },
+                PipelineEdge {
+                    id: "e4".to_string(),
+                    from_node: "n4".to_string(),
+                    to_node: "n5".to_string(),
+                    from_port: None,
+                    to_port: None,
+                },
+                PipelineEdge {
+                    id: "e5".to_string(),
+                    from_node: "n5".to_string(),
+                    to_node: "n6".to_string(),
+                    from_port: None,
+                    to_port: None,
+                },
+                PipelineEdge {
+                    id: "e6".to_string(),
+                    from_node: "n6".to_string(),
+                    to_node: "n7".to_string(),
+                    from_port: None,
+                    to_port: None,
+                },
             ],
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
@@ -116,12 +152,36 @@ mod tests {
             name: "Cyclic".to_string(),
             description: None,
             nodes: vec![
-                PipelineNode { id: "a".to_string(), name: "A".to_string(), node_type: NodeType::TextInput, params: serde_json::json!({}), position: None },
-                PipelineNode { id: "b".to_string(), name: "B".to_string(), node_type: NodeType::Synthesizer, params: serde_json::json!({}), position: None },
+                PipelineNode {
+                    id: "a".to_string(),
+                    name: "A".to_string(),
+                    node_type: NodeType::TextInput,
+                    params: serde_json::json!({}),
+                    position: None,
+                },
+                PipelineNode {
+                    id: "b".to_string(),
+                    name: "B".to_string(),
+                    node_type: NodeType::Synthesizer,
+                    params: serde_json::json!({}),
+                    position: None,
+                },
             ],
             edges: vec![
-                PipelineEdge { id: "e1".to_string(), from_node: "a".to_string(), to_node: "b".to_string(), from_port: None, to_port: None },
-                PipelineEdge { id: "e2".to_string(), from_node: "b".to_string(), to_node: "a".to_string(), from_port: None, to_port: None },
+                PipelineEdge {
+                    id: "e1".to_string(),
+                    from_node: "a".to_string(),
+                    to_node: "b".to_string(),
+                    from_port: None,
+                    to_port: None,
+                },
+                PipelineEdge {
+                    id: "e2".to_string(),
+                    from_node: "b".to_string(),
+                    to_node: "a".to_string(),
+                    from_port: None,
+                    to_port: None,
+                },
             ],
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
@@ -137,12 +197,20 @@ mod tests {
             id: Uuid::new_v4(),
             name: "Invalid Edge".to_string(),
             description: None,
-            nodes: vec![
-                PipelineNode { id: "a".to_string(), name: "A".to_string(), node_type: NodeType::TextInput, params: serde_json::json!({}), position: None },
-            ],
-            edges: vec![
-                PipelineEdge { id: "e1".to_string(), from_node: "a".to_string(), to_node: "non_existent".to_string(), from_port: None, to_port: None },
-            ],
+            nodes: vec![PipelineNode {
+                id: "a".to_string(),
+                name: "A".to_string(),
+                node_type: NodeType::TextInput,
+                params: serde_json::json!({}),
+                position: None,
+            }],
+            edges: vec![PipelineEdge {
+                id: "e1".to_string(),
+                from_node: "a".to_string(),
+                to_node: "non_existent".to_string(),
+                from_port: None,
+                to_port: None,
+            }],
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
         };
@@ -158,22 +226,71 @@ mod tests {
             name: "Diamond".to_string(),
             description: None,
             nodes: vec![
-                PipelineNode { id: "in".to_string(), name: "Input".to_string(), node_type: NodeType::TextInput, params: serde_json::json!({}), position: None },
-                PipelineNode { id: "b1".to_string(), name: "Branch 1".to_string(), node_type: NodeType::VoiceAssigner, params: serde_json::json!({}), position: None },
-                PipelineNode { id: "b2".to_string(), name: "Branch 2".to_string(), node_type: NodeType::VoiceAssigner, params: serde_json::json!({}), position: None },
-                PipelineNode { id: "out".to_string(), name: "Output".to_string(), node_type: NodeType::OutputSink, params: serde_json::json!({}), position: None },
+                PipelineNode {
+                    id: "in".to_string(),
+                    name: "Input".to_string(),
+                    node_type: NodeType::TextInput,
+                    params: serde_json::json!({}),
+                    position: None,
+                },
+                PipelineNode {
+                    id: "b1".to_string(),
+                    name: "Branch 1".to_string(),
+                    node_type: NodeType::VoiceAssigner,
+                    params: serde_json::json!({}),
+                    position: None,
+                },
+                PipelineNode {
+                    id: "b2".to_string(),
+                    name: "Branch 2".to_string(),
+                    node_type: NodeType::VoiceAssigner,
+                    params: serde_json::json!({}),
+                    position: None,
+                },
+                PipelineNode {
+                    id: "out".to_string(),
+                    name: "Output".to_string(),
+                    node_type: NodeType::OutputSink,
+                    params: serde_json::json!({}),
+                    position: None,
+                },
             ],
             edges: vec![
-                PipelineEdge { id: "e1".to_string(), from_node: "in".to_string(), to_node: "b1".to_string(), from_port: None, to_port: None },
-                PipelineEdge { id: "e2".to_string(), from_node: "in".to_string(), to_node: "b2".to_string(), from_port: None, to_port: None },
-                PipelineEdge { id: "e3".to_string(), from_node: "b1".to_string(), to_node: "out".to_string(), from_port: None, to_port: None },
-                PipelineEdge { id: "e4".to_string(), from_node: "b2".to_string(), to_node: "out".to_string(), from_port: None, to_port: None },
+                PipelineEdge {
+                    id: "e1".to_string(),
+                    from_node: "in".to_string(),
+                    to_node: "b1".to_string(),
+                    from_port: None,
+                    to_port: None,
+                },
+                PipelineEdge {
+                    id: "e2".to_string(),
+                    from_node: "in".to_string(),
+                    to_node: "b2".to_string(),
+                    from_port: None,
+                    to_port: None,
+                },
+                PipelineEdge {
+                    id: "e3".to_string(),
+                    from_node: "b1".to_string(),
+                    to_node: "out".to_string(),
+                    from_port: None,
+                    to_port: None,
+                },
+                PipelineEdge {
+                    id: "e4".to_string(),
+                    from_node: "b2".to_string(),
+                    to_node: "out".to_string(),
+                    from_port: None,
+                    to_port: None,
+                },
             ],
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
         };
 
-        let order = GraphValidator::topological_sort(&diamond_pipeline).expect("Topological sort must succeed");
+        let order = GraphValidator::topological_sort(&diamond_pipeline)
+            .expect("Topological sort must succeed");
         assert_eq!(order.len(), 4);
         assert_eq!(order[0], "in");
         assert_eq!(order[3], "out");
@@ -266,17 +383,50 @@ mod tests {
                 },
             ],
             edges: vec![
-                PipelineEdge { id: "e1".to_string(), from_node: "in".to_string(), to_node: "parse".to_string(), from_port: None, to_port: None },
-                PipelineEdge { id: "e2".to_string(), from_node: "parse".to_string(), to_node: "assign".to_string(), from_port: None, to_port: None },
-                PipelineEdge { id: "e3".to_string(), from_node: "assign".to_string(), to_node: "synth".to_string(), from_port: None, to_port: None },
-                PipelineEdge { id: "e4".to_string(), from_node: "synth".to_string(), to_node: "dsp".to_string(), from_port: None, to_port: None },
-                PipelineEdge { id: "e5".to_string(), from_node: "dsp".to_string(), to_node: "out".to_string(), from_port: None, to_port: None },
+                PipelineEdge {
+                    id: "e1".to_string(),
+                    from_node: "in".to_string(),
+                    to_node: "parse".to_string(),
+                    from_port: None,
+                    to_port: None,
+                },
+                PipelineEdge {
+                    id: "e2".to_string(),
+                    from_node: "parse".to_string(),
+                    to_node: "assign".to_string(),
+                    from_port: None,
+                    to_port: None,
+                },
+                PipelineEdge {
+                    id: "e3".to_string(),
+                    from_node: "assign".to_string(),
+                    to_node: "synth".to_string(),
+                    from_port: None,
+                    to_port: None,
+                },
+                PipelineEdge {
+                    id: "e4".to_string(),
+                    from_node: "synth".to_string(),
+                    to_node: "dsp".to_string(),
+                    from_port: None,
+                    to_port: None,
+                },
+                PipelineEdge {
+                    id: "e5".to_string(),
+                    from_node: "dsp".to_string(),
+                    to_node: "out".to_string(),
+                    from_port: None,
+                    to_port: None,
+                },
             ],
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
         };
 
-        let wav = executor.execute(&pipeline, None).await.expect("DSP pipeline execution must succeed");
+        let wav = executor
+            .execute(&pipeline, None)
+            .await
+            .expect("DSP pipeline execution must succeed");
         assert!(!wav.is_empty());
         assert_eq!(&wav[0..4], b"RIFF");
     }
