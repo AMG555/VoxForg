@@ -281,7 +281,7 @@ VoxForg treats audio generation security with enterprise rigor:
 - **Path Traversal Protection**: Export directories, custom audio models, and voice assets are strictly scoped to designated storage roots.
 - **Rate Limiting**: Configurable token bucket rate limiting prevents denial-of-service on local inference engines.
 
-To report security vulnerabilities, please contact `security@voxforg.org`.
+To report security vulnerabilities, please contact `amgt503@gmail.com`.
 
 ---
 
