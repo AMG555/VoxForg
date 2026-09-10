@@ -500,5 +500,81 @@ mod tests {
             "test-trace-12345"
         );
     }
+
+    #[tokio::test]
+    async fn test_raw_pcm_synthesis_format() {
+        let state = setup_test_state(None).await;
+        let app = create_app(state);
+
+        let payload = serde_json::json!({
+            "model": "mock-tts",
+            "voice": "mock-en-female",
+            "input": "Testing raw PCM format delivery",
+            "response_format": "pcm"
+        });
+
+        let req = Request::builder()
+            .method("POST")
+            .uri("/v1/audio/speech")
+            .header("content-type", "application/json")
+            .body(Body::from(payload.to_string()))
+            .unwrap();
+
+        let res = app.oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(res.headers().get("content-type").unwrap(), "audio/pcm");
+
+        let body = res.into_body().collect().await.unwrap().to_bytes();
+        assert!(!body.is_empty());
+        // Raw PCM has no "RIFF" WAV header
+        assert!(!body.starts_with(b"RIFF"));
+    }
+
+    #[tokio::test]
+    async fn test_readiness_deep_health_probing() {
+        let state = setup_test_state(None).await;
+        let app = create_app(state);
+
+        let req = Request::builder()
+            .uri("/health/ready")
+            .body(Body::empty())
+            .unwrap();
+
+        let res = app.oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+
+        let body = res.into_body().collect().await.unwrap().to_bytes();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["status"], "ready");
+        assert_eq!(json["engine_health"]["mock-tts"], "healthy");
+        assert_eq!(json["healthy_engines"], 1);
+    }
+
+    #[tokio::test]
+    async fn test_streaming_speech_endpoint() {
+        let state = setup_test_state(None).await;
+        let app = create_app(state);
+
+        let payload = serde_json::json!({
+            "model": "mock-tts",
+            "voice": "mock-en-female",
+            "input": "Testing real-time chunked transfer encoding stream"
+        });
+
+        let req = Request::builder()
+            .method("POST")
+            .uri("/v1/audio/speech/stream")
+            .header("content-type", "application/json")
+            .body(Body::from(payload.to_string()))
+            .unwrap();
+
+        let res = app.oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(res.headers().get("content-type").unwrap(), "audio/pcm");
+
+        let body = res.into_body().collect().await.unwrap().to_bytes();
+        assert!(!body.is_empty());
+    }
 }
+
 

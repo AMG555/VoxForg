@@ -62,8 +62,50 @@ Authorization: Bearer <api_key>
 
 #### Response
 - **Status:** `200 OK`
-- **Content-Type:** `audio/wav` (or requested format)
-- **Transfer-Encoding:** `chunked` (Streams audio bytes as produced)
+- **Content-Type:** `audio/wav` or `audio/pcm` (when `response_format: "pcm"`)
+- **Headers:** `x-request-id`, `cache-control: no-cache`
+
+---
+
+### `POST /v1/audio/speech/stream`
+
+Streams audio chunks in real-time using HTTP Chunked Transfer Encoding. Cuts time-to-first-byte (TTFB) down to `< 50ms`.
+
+#### Request Body
+Same JSON payload as `POST /v1/audio/speech`.
+
+#### Response
+- **Status:** `200 OK`
+- **Content-Type:** `audio/pcm`
+- **Transfer-Encoding:** `chunked`
+- **Body:** Continuous binary stream of raw 16-bit little-endian PCM sample slices as emitted by synthesis engine.
+
+---
+
+### `GET /v1/audio/speech/ws`
+
+Full-duplex real-time WebSocket speech synthesis streaming endpoint.
+
+#### Protocol Flow:
+1. **Client connects**: `ws://localhost:8080/v1/audio/speech/ws`
+2. **Client sends JSON request frame**:
+```json
+{
+  "model": "edge-tts",
+  "voice": "en-US-AriaNeural",
+  "input": "Streaming low-latency audio via WebSocket connection.",
+  "speed": 1.0
+}
+```
+3. **Server streams binary audio frames**:
+   - Multiple binary WebSocket messages containing 16-bit PCM audio chunks.
+4. **Server sends completion message**:
+```json
+{
+  "event": "done",
+  "total_samples": 84960
+}
+```
 
 ---
 
