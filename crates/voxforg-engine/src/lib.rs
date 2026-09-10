@@ -73,7 +73,7 @@ mod tests {
         let ssml = EdgeTtsEngine::build_ssml(&req);
         assert!(ssml.contains("&lt;script&gt;"));
         assert!(ssml.contains("&amp;"));
-        assert!(ssml.contains("voice name='en-US-AriaNeural'"));
+        assert!(ssml.contains("voice name='Microsoft Server Speech Text to Speech Voice (en-US, AriaNeural)'"));
         assert!(ssml.contains("rate='+25%'"));
     }
 
@@ -204,5 +204,71 @@ mod tests {
         assert_eq!(results.len(), 2);
         assert_eq!(results[0].scenario_name, "Batch Item 1");
         assert_eq!(results[1].scenario_name, "Batch Item 2");
+    }
+
+    #[test]
+    fn test_sec_ms_gec_token_calculation() {
+        use crate::edge_tts::generate_sec_ms_gec;
+
+        let token = generate_sec_ms_gec();
+        assert_eq!(token.len(), 64);
+        assert!(token.chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_lowercase()));
+    }
+
+    #[test]
+    fn test_binary_frame_header_parsing() {
+        use crate::edge_tts::parse_binary_audio_payload;
+
+        // Too short frame
+        assert!(parse_binary_audio_payload(&[0, 1]).is_none());
+
+        // Frame with header not containing Path:audio
+        let bad_header = "Path:metadata\r\n";
+        let bad_header_len = (bad_header.len() as u16).to_be_bytes();
+        let mut bad_frame = Vec::new();
+        bad_frame.extend_from_slice(&bad_header_len);
+        bad_frame.extend_from_slice(bad_header.as_bytes());
+        bad_frame.extend_from_slice(&[0, 0, 1, 1]);
+        assert!(parse_binary_audio_payload(&bad_frame).is_none());
+
+        // Frame with valid Path:audio and payload
+        let good_header = "X-RequestId:abc\r\nPath:audio\r\n";
+        let good_header_len = (good_header.len() as u16).to_be_bytes();
+        let mut good_frame = Vec::new();
+        good_frame.extend_from_slice(&good_header_len);
+        good_frame.extend_from_slice(good_header.as_bytes());
+        good_frame.extend_from_slice(&[0x49, 0x44, 0x33, 0x04]);
+
+        let payload = parse_binary_audio_payload(&good_frame).expect("Should parse audio payload");
+        assert_eq!(payload, &[0x49, 0x44, 0x33, 0x04]);
+    }
+
+    #[tokio::test]
+    async fn test_edge_tts_voices_catalog() {
+        let engine = EdgeTtsEngine::new();
+        let voices = engine.voices().await.expect("Voices must load");
+        assert!(voices.len() >= 10);
+        assert!(voices.iter().any(|v| v.id == "en-US-AriaNeural"));
+        assert!(voices.iter().any(|v| v.id == "en-US-GuyNeural"));
+        assert!(voices.iter().any(|v| v.id == "ja-JP-NanamiNeural"));
+        assert!(voices.iter().any(|v| v.id == "zh-CN-XiaoxiaoNeural"));
+    }
+
+    #[tokio::test]
+    async fn test_edge_tts_synthesize_execution() {
+        let engine = EdgeTtsEngine::new();
+        let req = SynthesisRequest {
+            text: "Hello from VoxForg neural engine testing".to_string(),
+            voice_id: "en-US-AriaNeural".to_string(),
+            speed: 1.0,
+            pitch: 0.0,
+            format: AudioContainerFormat::Wav,
+        };
+
+        let chunk = engine.synthesize(&req).await.expect("Synthesize must succeed");
+        assert_eq!(chunk.sample_rate, 24000);
+        assert_eq!(chunk.channels, 1);
+        assert!(!chunk.pcm_data.is_empty());
+        assert!(chunk.is_final);
     }
 }

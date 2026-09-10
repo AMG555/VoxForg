@@ -40,6 +40,10 @@ tower = { version = "0.4", features = ["util"] }
 tower-http = { version = "0.5", features = ["cors", "trace", "fs"] }
 http-body-util = "0.1"
 subtle = "2.5"
+tokio-tungstenite = { version = "0.23", features = ["rustls-tls-webpki-roots"] }
+sha2 = "0.10"
+hex = "0.4"
+symphonia = { version = "0.5", default-features = false, features = ["mp3"] }
 
 # Internal workspace crates
 voxforg-core = { path = "crates/voxforg-core" }
