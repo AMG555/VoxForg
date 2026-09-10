@@ -32,16 +32,16 @@ service-account.json
 Thumbs.db
 
 # Database / Storage
-data/
+/data/
 *.sqlite
 *.sqlite3
 *.db
 voxforg.db
-storage/
-models/
-cache/
-tmp/
-scratch/
+/storage/
+/models/
+/cache/
+/tmp/
+/scratch/
 *.wav
 *.mp3
 *.opus
