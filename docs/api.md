@@ -281,22 +281,58 @@ Inspects local engine readiness and database connectivity:
 ```
 
 ### `GET /metrics`
-Standard Prometheus metrics output (RTF, TTFB latency histograms, active connections, VRAM load).
+Standard Prometheus text format (`text/plain; version=0.0.4; charset=utf-8`) output for Grafana, VictoriaMetrics, and Prometheus scrapers:
+
+```prometheus
+# HELP voxforg_active_requests Currently in-flight HTTP requests
+# TYPE voxforg_active_requests gauge
+voxforg_active_requests 0
+
+# HELP voxforg_requests_total Total number of HTTP requests processed by endpoint and status
+# TYPE voxforg_requests_total counter
+voxforg_requests_total{endpoint="/v1/audio/speech",status="200"} 24
+
+# HELP voxforg_synthesis_total Total number of completed speech syntheses
+# TYPE voxforg_synthesis_total counter
+voxforg_synthesis_total 18
+
+# HELP voxforg_synthesis_duration_seconds_total Total duration in seconds spent synthesizing audio
+# TYPE voxforg_synthesis_duration_seconds_total counter
+voxforg_synthesis_duration_seconds_total 1.2940
+
+# HELP voxforg_audio_samples_total Total 16-bit PCM audio samples generated
+# TYPE voxforg_audio_samples_total counter
+voxforg_audio_samples_total 169920
+
+# HELP voxforg_cache_hits_total In-memory audio synthesis LRU cache hits
+# TYPE voxforg_cache_hits_total counter
+voxforg_cache_hits_total 6
+
+# HELP voxforg_cache_misses_total In-memory audio synthesis LRU cache misses
+# TYPE voxforg_cache_misses_total counter
+voxforg_cache_misses_total 18
+```
 
 ---
 
-## 7. Error Format (RFC 7807)
+## 7. Headers & Error Format (RFC 7807)
+
+### Distributed Tracing Header
+- `x-request-id`: Clients may supply a correlation UUID or string; if omitted, the server generates a UUIDv4 and returns it in the response headers.
+
+### Request Body & Payload Limits
+- Maximum Request Body Size: `2MB` (`DefaultBodyLimit::max(2 * 1024 * 1024)`).
+- Maximum Text Input Length: `10,000` characters per request. Requests exceeding 10k characters receive HTTP 422 Unprocessable Entity.
 
 All non-2xx responses conform to RFC 7807 Problem Details:
 
 ```json
 {
-  "type": "https://voxforg.org/errors/invalid-engine-parameters",
-  "title": "Invalid Engine Parameters",
-  "status": 400,
-  "detail": "Voice 'en_US-unknown' is not registered with engine 'kokoro-82m'.",
-  "instance": "/v1/audio/speech",
-  "timestamp": "2026-09-05T10:25:00Z"
+  "type": "https://voxforg.org/errors/input-too-large",
+  "title": "Input Text Exceeds Limit",
+  "status": 422,
+  "detail": "The 'input' parameter cannot exceed 10,000 characters per request",
+  "instance": "/v1/audio/speech"
 }
 ```
 

@@ -1,3 +1,4 @@
+pub mod metrics;
 pub mod middleware;
 pub mod routes;
 pub mod state;
@@ -17,7 +18,8 @@ pub fn create_app(state: AppState) -> Router {
     routes::build_api_router()
         .layer(from_fn_with_state(state.clone(), middleware::auth_middleware))
         .layer(from_fn(middleware::security_headers))
-        .layer(DefaultBodyLimit::max(10 * 1024 * 1024))
+        .layer(from_fn_with_state(state.clone(), middleware::request_id_and_metrics))
+        .layer(DefaultBodyLimit::max(2 * 1024 * 1024))
         .layer(cors)
         .layer(TraceLayer::new_for_http())
         .with_state(state)
@@ -443,4 +445,60 @@ mod tests {
         assert!(json["paths"]["/v1/qa/ab-test"].is_object());
         assert!(json["components"]["schemas"]["PipelineDefinition"].is_object());
     }
+
+    #[tokio::test]
+    async fn test_metrics_endpoint() {
+        let state = setup_test_state(None).await;
+        let app = create_app(state);
+        let req = Request::builder()
+            .uri("/metrics")
+            .body(Body::empty())
+            .unwrap();
+
+        let res = app.oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+        assert!(res
+            .headers()
+            .get("content-type")
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .contains("text/plain"));
+
+        let body = res.into_body().collect().await.unwrap().to_bytes();
+        let text = String::from_utf8(body.to_vec()).unwrap();
+        assert!(text.contains("voxforg_active_requests"));
+        assert!(text.contains("voxforg_synthesis_total"));
+        assert!(text.contains("voxforg_cache_hits_total"));
+    }
+
+    #[tokio::test]
+    async fn test_speech_input_limit_and_request_id() {
+        let state = setup_test_state(None).await;
+        let app = create_app(state);
+
+        // Input exceeding 10,000 chars should return 422
+        let huge_text = "a".repeat(10_001);
+        let payload = serde_json::json!({
+            "model": "mock-tts",
+            "voice": "mock-en-female",
+            "input": huge_text
+        });
+
+        let req = Request::builder()
+            .method("POST")
+            .uri("/v1/audio/speech")
+            .header("content-type", "application/json")
+            .header("x-request-id", "test-trace-12345")
+            .body(Body::from(payload.to_string()))
+            .unwrap();
+
+        let res = app.oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(
+            res.headers().get("x-request-id").unwrap(),
+            "test-trace-12345"
+        );
+    }
 }
+

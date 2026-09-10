@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Play, Loader2, Search } from 'lucide-react';
 import { Voice } from '../../types';
 import { api } from '../../services/api';
+import { AudioVisualizer } from '../common/AudioVisualizer';
 
 interface VoiceLabProps {
   voices: Voice[];
@@ -16,7 +17,9 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices }) => {
   const [pitch, setPitch] = useState<number>(0.0);
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   React.useEffect(() => {
     return () => {
@@ -164,27 +167,44 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices }) => {
             </div>
           </div>
 
-          <div className="flex items-center space-x-4">
-            <button
-              onClick={handleGenerate}
-              disabled={isGenerating}
-              className="flex items-center space-x-2 px-5 py-2.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-semibold text-xs transition-colors shadow-lg shadow-amber-500/20 disabled:opacity-50"
-            >
-              {isGenerating ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Synthesizing...</span>
-                </>
-              ) : (
-                <>
-                  <Play className="w-4 h-4 fill-black" />
-                  <span>Generate Audio</span>
-                </>
+          <div className="space-y-4">
+            <div className="flex items-center space-x-4">
+              <button
+                onClick={handleGenerate}
+                disabled={isGenerating}
+                className="flex items-center space-x-2 px-5 py-2.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-semibold text-xs transition-colors shadow-lg shadow-amber-500/20 disabled:opacity-50"
+              >
+                {isGenerating ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Synthesizing...</span>
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-4 h-4 fill-black" />
+                    <span>Generate Audio</span>
+                  </>
+                )}
+              </button>
+
+              {audioUrl && (
+                <audio
+                  ref={audioRef}
+                  controls
+                  src={audioUrl}
+                  onPlay={() => setIsPlaying(true)}
+                  onPause={() => setIsPlaying(false)}
+                  onEnded={() => setIsPlaying(false)}
+                  className="h-10 w-96 rounded-lg bg-[#121820]"
+                />
               )}
-            </button>
+            </div>
 
             {audioUrl && (
-              <audio controls src={audioUrl} className="h-10 w-96 rounded-lg bg-[#121820]" />
+              <AudioVisualizer
+                audioElement={audioRef.current}
+                isPlaying={isPlaying}
+              />
             )}
           </div>
         </div>

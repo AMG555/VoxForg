@@ -1,4 +1,5 @@
 pub mod ab_test;
+pub mod cache;
 pub mod edge_tts;
 pub mod mock;
 pub mod registry;
@@ -6,6 +7,7 @@ pub mod router;
 pub mod traits;
 
 pub use ab_test::{AbTestComparison, AbTestRunner, AbTestScenario, VariantResult};
+pub use cache::AudioCache;
 pub use edge_tts::EdgeTtsEngine;
 pub use mock::MockTtsEngine;
 pub use registry::EngineRegistry;
@@ -16,7 +18,7 @@ pub use traits::{SynthesisRequest, TtsEngine};
 mod tests {
     use super::*;
     use std::sync::Arc;
-    use voxforg_core::models::AudioContainerFormat;
+    use voxforg_core::models::{AudioChunk, AudioContainerFormat};
 
     #[tokio::test]
     async fn test_mock_engine_synthesis() {
@@ -314,4 +316,65 @@ mod tests {
         assert!(!chunk.pcm_data.is_empty());
         assert!(chunk.is_final);
     }
+
+    #[tokio::test]
+    async fn test_audio_cache_hit_and_eviction() {
+        let cache = AudioCache::new(2);
+        let chunk1 = AudioChunk {
+            sample_rate: 24000,
+            channels: 1,
+            pcm_data: vec![100, 200, 300],
+            is_final: true,
+        };
+        let chunk2 = AudioChunk {
+            sample_rate: 24000,
+            channels: 1,
+            pcm_data: vec![400, 500, 600],
+            is_final: true,
+        };
+
+        // Cache miss
+        assert!(cache.get("mock", "voice1", 1.0, 0.0, "hello").await.is_none());
+
+        // Insert
+        cache.insert("mock", "voice1", 1.0, 0.0, "hello", chunk1.clone()).await;
+        // Cache hit
+        let hit = cache.get("mock", "voice1", 1.0, 0.0, "hello").await.expect("Must hit cache");
+        assert_eq!(hit.pcm_data, vec![100, 200, 300]);
+
+        // Insert second entry
+        cache.insert("mock", "voice2", 1.0, 0.0, "world", chunk2.clone()).await;
+        assert_eq!(cache.len().await, 2);
+
+        // Insert third entry, causes oldest to be evicted
+        let chunk3 = AudioChunk {
+            sample_rate: 24000,
+            channels: 1,
+            pcm_data: vec![700],
+            is_final: true,
+        };
+        cache.insert("mock", "voice3", 1.0, 0.0, "test", chunk3).await;
+        assert_eq!(cache.len().await, 2);
+
+        let (hits, misses) = cache.stats();
+        assert_eq!(hits, 1);
+        assert_eq!(misses, 1);
+    }
+
+    #[test]
+    fn test_ssrf_url_validation() {
+        use crate::router::validate_router_url;
+        // Cloud metadata is unconditionally blocked
+        assert!(validate_router_url("http://169.254.169.254/v1/audio/speech", true).is_err());
+        assert!(validate_router_url("http://metadata.google.internal/v1", true).is_err());
+
+        // Private IPs blocked when allow_private is false
+        assert!(validate_router_url("http://10.0.0.1:8080/v1", false).is_err());
+        assert!(validate_router_url("http://192.168.1.50:8000/v1", false).is_err());
+
+        // Allowed when allow_private is true
+        assert!(validate_router_url("http://127.0.0.1:8000/v1", true).is_ok());
+        assert!(validate_router_url("https://api.openai.com/v1", false).is_ok());
+    }
 }
+

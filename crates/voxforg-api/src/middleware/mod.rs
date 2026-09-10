@@ -1,6 +1,6 @@
 use axum::{
     extract::{Request, State},
-    http::{header, HeaderValue, StatusCode},
+    http::{header, HeaderName, HeaderValue, StatusCode},
     middleware::Next,
     response::Response,
     Json,
@@ -8,6 +8,36 @@ use axum::{
 use subtle::ConstantTimeEq;
 use voxforg_core::error::ProblemDetails;
 use crate::state::AppState;
+
+pub async fn request_id_and_metrics(
+    State(state): State<AppState>,
+    req: Request,
+    next: Next,
+) -> Response {
+    let req_id = req
+        .headers()
+        .get("x-request-id")
+        .and_then(|h| h.to_str().ok())
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+
+    let path = req.uri().path().to_string();
+    state.metrics.inc_active_requests();
+
+    let mut response = next.run(req).await;
+
+    state.metrics.dec_active_requests();
+    let status = response.status().as_u16();
+    state.metrics.record_request(&path, status).await;
+
+    if let Ok(val) = HeaderValue::from_str(&req_id) {
+        response
+            .headers_mut()
+            .insert(HeaderName::from_static("x-request-id"), val);
+    }
+
+    response
+}
 
 pub async fn security_headers(req: Request, next: Next) -> Response {
     let path = req.uri().path().to_string();
@@ -60,7 +90,12 @@ pub async fn auth_middleware(
     };
 
     let path = req.uri().path();
-    if path == "/health" || path == "/health/ready" || path == "/docs" || path == "/openapi.json" {
+    if path == "/health"
+        || path == "/health/ready"
+        || path == "/docs"
+        || path == "/openapi.json"
+        || path == "/metrics"
+    {
         return Ok(next.run(req).await);
     }
 

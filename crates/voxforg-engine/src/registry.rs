@@ -2,18 +2,40 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use voxforg_core::error::{Result, VoxForgError};
-use voxforg_core::models::Voice;
+use voxforg_core::models::{AudioChunk, Voice};
 
-use crate::traits::TtsEngine;
+use crate::cache::AudioCache;
+use crate::traits::{SynthesisRequest, TtsEngine};
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct EngineRegistry {
     engines: Arc<RwLock<HashMap<String, Arc<dyn TtsEngine>>>>,
+    cache: Arc<AudioCache>,
+}
+
+impl Default for EngineRegistry {
+    fn default() -> Self {
+        Self {
+            engines: Arc::new(RwLock::new(HashMap::new())),
+            cache: Arc::new(AudioCache::default()),
+        }
+    }
 }
 
 impl EngineRegistry {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn with_cache_capacity(capacity: usize) -> Self {
+        Self {
+            engines: Arc::new(RwLock::new(HashMap::new())),
+            cache: Arc::new(AudioCache::new(capacity)),
+        }
+    }
+
+    pub fn cache(&self) -> Arc<AudioCache> {
+        self.cache.clone()
     }
 
     pub async fn register(&self, engine: Arc<dyn TtsEngine>) {
@@ -53,5 +75,32 @@ impl EngineRegistry {
             "Voice '{}' not found in any registered engine",
             voice_id
         )))
+    }
+
+    pub async fn synthesize_cached(
+        &self,
+        engine: Arc<dyn TtsEngine>,
+        req: &SynthesisRequest,
+    ) -> Result<AudioChunk> {
+        if let Some(cached) = self
+            .cache
+            .get(engine.id(), &req.voice_id, req.speed, req.pitch, &req.text)
+            .await
+        {
+            return Ok(cached);
+        }
+
+        let chunk = engine.synthesize(req).await?;
+        self.cache
+            .insert(
+                engine.id(),
+                &req.voice_id,
+                req.speed,
+                req.pitch,
+                &req.text,
+                chunk.clone(),
+            )
+            .await;
+        Ok(chunk)
     }
 }

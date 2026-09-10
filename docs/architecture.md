@@ -227,17 +227,66 @@ classDiagram
 
 ## 6. Security & Hardening Architecture
 
-1. **Zero Credential Exposure**:
-   - Upstream API keys (e.g. OpenAI, ElevenLabs, Azure, AWS Polly) are never sent to or stored in client-side code.
-   - All mutations and synthesis requests route through server-side authenticated controllers.
-2. **Strict Server-Side Validation**:
-   - All REST and WebSocket payloads undergo compile-time schema validation with length and character sanitization.
-   - SSML inputs are validated using an XML stream parser that forbids entity expansion (XXE protection).
-3. **Defense-in-Depth HTTP Headers**:
-   - `Content-Security-Policy: default-src 'self'`
+1. **Zero Credential Exposure & Secret Scrubbing**:
+   - Upstream API keys (OpenAI router, cloud providers) are never sent to or stored in client-side code.
+   - Keys are masked in server-side logs and tracing spans (`sk-***1234`).
+   - RFC 7807 `ProblemDetails` error payloads strictly redact authorization tokens and headers.
+
+2. **Server-Side Request Forgery (SSRF) Defense**:
+   - All router URLs are parsed and checked against cloud instance metadata endpoints (`169.254.169.254`, `metadata.google.internal`) and link-local IPv6 (`fe80::/10`).
+   - Private subnets (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`) are blocked by default unless explicit permission is granted via `--allow-private-ips`.
+
+3. **Denial-of-Service & Input Boundary Caps**:
+   - `DefaultBodyLimit::max(2 * 1024 * 1024)` limits incoming request sizes to 2MB.
+   - Text synthesis length is capped at 10,000 characters per request with RFC 7807 (HTTP 422 Unprocessable Entity) rejection.
+   - Speed (0.25 to 4.0) and pitch (-50.0 to 50.0 semitones) are clamped to prevent digital filter blowups.
+
+4. **Circuit Breakers & Exponential Backoff**:
+   - Upstream router connections implement a 5-failure threshold circuit breaker that trips for 30s to prevent request pileup.
+   - Transient 5xx server errors trigger up to 2 retries with jittered exponential backoff.
+
+5. **Defense-in-Depth HTTP Headers**:
+   - `Content-Security-Policy: default-src 'self'` (scoped CDN allowlists for interactive Scalar docs)
    - `X-Content-Type-Options: nosniff`
-   - `X-Frame-Options: DENY`
+   - `X-Frame-Options: DENY` (or `SAMEORIGIN` for `/docs`)
+   - `Strict-Transport-Security: max-age=31536000; includeSubDomains`
    - `Referrer-Policy: strict-origin-when-cross-origin`
-4. **Rate Limiting**:
-   - In-memory sliding window and token bucket rate limiters per IP and API key.
-   - Returns standard `429 Too Many Requests` with `Retry-After` header.
+
+---
+
+## 7. Audio Synthesis Caching & Observability Architecture
+
+```mermaid
+flowchart TD
+    Client["Client / Web UI"] -->|"POST /v1/audio/speech"| Api["Axum API Gateway"]
+    Api -->|"x-request-id & metrics"| Collector["MetricsCollector"]
+    Collector -->|"Expose GET /metrics"| Prometheus["Prometheus / Grafana"]
+
+    Api --> CacheCheck{"AudioCache Hit?"}
+    CacheCheck -->|"Yes (< 1ms)"| ReturnCached["Return Cached WAV"]
+    CacheCheck -->|"No"| Dispatch["EngineRegistry"]
+
+    Dispatch --> EngineChoice{"Selected Engine"}
+    EngineChoice -->|"Edge WebSocket"| EdgeTts["Edge TTS Client + Symphonia MP3 Decoder"]
+    EngineChoice -->|"OpenAI Router"| Router["SSRF Filter + OpenAiRouterEngine"]
+    EngineChoice -->|"Local Mock/ONNX"| Local["Local Mock TTS Engine"]
+
+    EdgeTts --> Buffer["AudioChunk (24kHz/16-bit PCM)"]
+    Router --> Buffer
+    Local --> Buffer
+
+    Buffer --> CacheInsert["Insert into AudioCache (LRU, Bounded RAM)"]
+    CacheInsert --> DspFilter["Studio DSP Chain (EQ, Compressor, Limiter)"]
+    DspFilter --> Encode["WavEncoder"]
+    Encode --> Return["Return Audio Stream"]
+```
+
+1. **In-Memory Audio LRU Cache**:
+   - Hash key: SHA-256 of `(engine_id, voice_id, speed, pitch, text)`.
+   - Bounded memory footprint (default 500 items).
+   - Serves repeated prompt requests in `< 1ms` with zero CPU/network cost.
+
+2. **Zero-Dependency Prometheus Exporter (`GET /metrics`)**:
+   - Reports `voxforg_requests_total{endpoint, status}`, `voxforg_synthesis_duration_seconds_total`, `voxforg_audio_samples_total`, `voxforg_cache_hits_total`, `voxforg_cache_misses_total`, and `voxforg_active_requests`.
+   - Fully compatible with Prometheus, VictoriaMetrics, and Datadog agents.
+

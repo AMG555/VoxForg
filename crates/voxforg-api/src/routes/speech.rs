@@ -45,15 +45,15 @@ pub async fn synthesize_speech(
         return Err((StatusCode::BAD_REQUEST, Json(err)));
     }
 
-    if payload.input.len() > 50_000 {
+    if payload.input.len() > 10_000 {
         let err = ProblemDetails {
             problem_type: "https://voxforg.org/errors/input-too-large".to_string(),
             title: "Input Text Exceeds Limit".to_string(),
-            status: StatusCode::BAD_REQUEST.as_u16(),
-            detail: "The 'input' parameter cannot exceed 50,000 characters per request".to_string(),
+            status: StatusCode::UNPROCESSABLE_ENTITY.as_u16(),
+            detail: "The 'input' parameter cannot exceed 10,000 characters per request".to_string(),
             instance: "/v1/audio/speech".to_string(),
         };
-        return Err((StatusCode::BAD_REQUEST, Json(err)));
+        return Err((StatusCode::UNPROCESSABLE_ENTITY, Json(err)));
     }
 
     if !payload.speed.is_finite() || payload.speed < 0.25 || payload.speed > 4.0 {
@@ -117,16 +117,26 @@ pub async fn synthesize_speech(
         format: payload.response_format,
     };
 
-    let audio_chunk = engine.synthesize(&synth_req).await.map_err(|e| {
-        let err = ProblemDetails {
-            problem_type: "https://voxforg.org/errors/synthesis-failure".to_string(),
-            title: "Synthesis Error".to_string(),
-            status: StatusCode::INTERNAL_SERVER_ERROR.as_u16(),
-            detail: e.to_string(),
-            instance: "/v1/audio/speech".to_string(),
-        };
-        (StatusCode::INTERNAL_SERVER_ERROR, Json(err))
-    })?;
+    let start = std::time::Instant::now();
+    let audio_chunk = state
+        .engine_registry
+        .synthesize_cached(engine, &synth_req)
+        .await
+        .map_err(|e| {
+            let err = ProblemDetails {
+                problem_type: "https://voxforg.org/errors/synthesis-failure".to_string(),
+                title: "Synthesis Error".to_string(),
+                status: StatusCode::INTERNAL_SERVER_ERROR.as_u16(),
+                detail: e.to_string(),
+                instance: "/v1/audio/speech".to_string(),
+            };
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(err))
+        })?;
+
+    let elapsed = start.elapsed();
+    state
+        .metrics
+        .record_synthesis(elapsed.as_millis() as u64, audio_chunk.pcm_data.len());
 
     let wav_bytes = WavEncoder::encode_pcm16_to_wav(
         &audio_chunk.pcm_data,

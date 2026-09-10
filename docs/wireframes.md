@@ -211,3 +211,41 @@ Detailed hardware telemetry panel with automated capability benchmark.
    - Contrast ratio exceeds `4.5:1` across all active UI text.
    - Distinctive border highlights accompany color state changes (never rely on color alone).
    - ARIA live regions announce batch completion and background render errors.
+
+---
+
+## 7. Real-Time Web Audio Visualizer & Pipeline Presets
+
+### 7.1 Real-Time Audio Telemetry Visualizer
+
+Embedded in Voice Lab and Canvas Bottom Dock during playback:
+
+```
++---------------------------------------------------------------------------------+
+| [*] REAL-TIME AUDIO TELEMETRY                       [ FFT Spectrum ] [ Waveform ]|
+| +-----------------------------------------------------------------------------+ |
+| |  |                                                                          | |
+| |  ||   ||   |||                                                              | |
+| |  ||| |||| |||||  ||   |                                                     | |
+| | |||||||||||||||||||| |||  ||   |                                            | |
+| | ||||||||||||||||||||||||||||||||| | |   |                                   | |
+| |+---------------------------------------------------------------------------+| |
+|  20Hz                           1kHz                             20kHz (24kHz)  |
++---------------------------------------------------------------------------------+
+```
+
+### 7.2 Pipeline Presets & Import / Export Controls
+
+Located in the central Canvas toolbar:
+
+```
++---------------------------------------------------------------------------------------------------------------+
+| Pipeline: [ Narrative Dialogue v ] [Preset: Studio Podcast v] [Export JSON] [Import JSON] [Execute Pipeline] |
++---------------------------------------------------------------------------------------------------------------+
+| Presets Available:                                                                                            |
+|   1. Narrative Dialogue: Multi-speaker script -> Parser -> Voice Allocator -> Synth -> Crossfade Merger      |
+|   2. Studio Podcast: Voice Synthesis -> 3-Band Parametric EQ -> Dynamic Compressor -> Limiter Mastering     |
+|   3. Punchy Radio: Aggressive EQ mid-boost -> Heavy dynamic compression -> Brickwall Limiter                 |
++---------------------------------------------------------------------------------------------------------------+
+```
+

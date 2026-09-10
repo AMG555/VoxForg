@@ -1,3 +1,7 @@
+use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
+use std::sync::Arc;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
 use async_trait::async_trait;
 use reqwest::Client;
 use serde_json::json;
@@ -11,12 +15,65 @@ use voxforg_core::models::{AudioChunk, Gender, Voice};
 use crate::edge_tts::decode_mp3_to_pcm;
 use crate::traits::{SynthesisRequest, TtsEngine};
 
+pub fn mask_secret(secret: &str) -> String {
+    if secret.len() <= 8 {
+        "***".to_string()
+    } else {
+        format!("{}...{}", &secret[..4], &secret[secret.len() - 4..])
+    }
+}
+
+pub fn validate_router_url(url_str: &str, allow_private_ips: bool) -> std::result::Result<(), String> {
+    let parsed = reqwest::Url::parse(url_str).map_err(|e| format!("Invalid URL: {e}"))?;
+    let scheme = parsed.scheme();
+    if scheme != "http" && scheme != "https" {
+        return Err(format!("Invalid URL scheme '{scheme}', only http and https allowed"));
+    }
+
+    if let Some(host) = parsed.host_str() {
+        let host_lower = host.to_lowercase();
+        // Disallow cloud metadata endpoints unconditionally
+        if host_lower == "169.254.169.254"
+            || host_lower == "metadata.google.internal"
+            || host_lower.contains("169.254.")
+        {
+            return Err("Access to cloud metadata endpoints (169.254.x.x) is strictly forbidden".to_string());
+        }
+
+        // IP address checks
+        if let Ok(ip) = host.parse::<std::net::IpAddr>() {
+            match ip {
+                std::net::IpAddr::V4(ipv4) => {
+                    if ipv4.is_link_local() {
+                        return Err("Link-local addresses (169.254.0.0/16) are forbidden".to_string());
+                    }
+                    if !allow_private_ips && (ipv4.is_loopback() || ipv4.is_private()) {
+                        return Err(format!(
+                            "Private IP address '{ipv4}' is blocked by SSRF policy. Use --allow-private-ips to permit."
+                        ));
+                    }
+                }
+                std::net::IpAddr::V6(ipv6) => {
+                    if !allow_private_ips && ipv6.is_loopback() {
+                        return Err("Loopback IPv6 is blocked by SSRF policy. Use --allow-private-ips to permit.".to_string());
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
 #[derive(Clone)]
 pub struct OpenAiRouterEngine {
     base_url: String,
     api_key: Option<String>,
     default_model: String,
+    allow_private_ips: bool,
     client: Client,
+    consecutive_failures: Arc<AtomicU32>,
+    circuit_open_until_ms: Arc<AtomicU64>,
 }
 
 impl OpenAiRouterEngine {
@@ -29,15 +86,33 @@ impl OpenAiRouterEngine {
         if base.ends_with('/') {
             base.pop();
         }
+
+        // Default allow_private_ips to true if local development URL is specified
+        let is_local_dev = base.contains("localhost") || base.contains("127.0.0.1") || base.contains("[::1]");
+
+        let client = Client::builder()
+            .tcp_keepalive(Some(Duration::from_secs(15)))
+            .pool_idle_timeout(Some(Duration::from_secs(90)))
+            .pool_max_idle_per_host(32)
+            .connect_timeout(Duration::from_secs(5))
+            .timeout(Duration::from_secs(25))
+            .build()
+            .unwrap_or_default();
+
         Self {
             base_url: base,
             api_key,
             default_model: default_model.unwrap_or_else(|| "tts-1".to_string()),
-            client: Client::builder()
-                .timeout(std::time::Duration::from_secs(30))
-                .build()
-                .unwrap_or_default(),
+            allow_private_ips: is_local_dev,
+            client,
+            consecutive_failures: Arc::new(AtomicU32::new(0)),
+            circuit_open_until_ms: Arc::new(AtomicU64::new(0)),
         }
+    }
+
+    pub fn with_allow_private_ips(mut self, allow: bool) -> Self {
+        self.allow_private_ips = allow;
+        self
     }
 
     pub fn default_openai(api_key: Option<String>) -> Self {
@@ -55,6 +130,41 @@ impl OpenAiRouterEngine {
             self.base_url.clone()
         } else {
             format!("{}/v1/audio/speech", self.base_url)
+        }
+    }
+
+    fn current_timestamp_ms() -> u64 {
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0)
+    }
+
+    fn is_circuit_open(&self) -> bool {
+        let open_until = self.circuit_open_until_ms.load(Ordering::Relaxed);
+        if open_until == 0 {
+            return false;
+        }
+        let now = Self::current_timestamp_ms();
+        if now < open_until {
+            true
+        } else {
+            self.circuit_open_until_ms.store(0, Ordering::Relaxed);
+            false
+        }
+    }
+
+    fn record_success(&self) {
+        self.consecutive_failures.store(0, Ordering::Relaxed);
+        self.circuit_open_until_ms.store(0, Ordering::Relaxed);
+    }
+
+    fn record_failure(&self) {
+        let fails = self.consecutive_failures.fetch_add(1, Ordering::Relaxed) + 1;
+        if fails >= 5 {
+            let cooldown = Self::current_timestamp_ms() + 30_000; // 30s circuit break
+            self.circuit_open_until_ms.store(cooldown, Ordering::Relaxed);
+            warn!("Upstream router reached {} consecutive failures. Circuit breaker opened for 30s.", fails);
         }
     }
 
@@ -146,7 +256,7 @@ impl TtsEngine for OpenAiRouterEngine {
                 language: "en-US".to_string(),
                 gender: Gender::Female,
                 sample_rate_hz: 24000,
-                tags: vec!["energetic".to_string(), "conversational".to_string()],
+                tags: vec!["conversational".to_string(), "openai".to_string()],
                 description: Some("Energetic, bright female conversational voice".to_string()),
             },
             Voice {
@@ -164,6 +274,19 @@ impl TtsEngine for OpenAiRouterEngine {
 
     async fn synthesize(&self, request: &SynthesisRequest) -> Result<AudioChunk> {
         let url = self.endpoint_url();
+
+        // 1. SSRF URL validation
+        if let Err(err) = validate_router_url(&url, self.allow_private_ips) {
+            warn!("Router request blocked by SSRF policy: {}. Operating in fallback mode.", err);
+            return Ok(self.synthesize_fallback(request));
+        }
+
+        // 2. Circuit Breaker Check
+        if self.is_circuit_open() {
+            debug!("Router circuit breaker is active. Fast-failing to fallback synthesis.");
+            return Ok(self.synthesize_fallback(request));
+        }
+
         let payload = json!({
             "model": self.default_model,
             "input": request.text,
@@ -172,72 +295,103 @@ impl TtsEngine for OpenAiRouterEngine {
             "speed": request.speed.clamp(0.25, 4.0),
         });
 
-        debug!("Sending TTS request to upstream router: {}", url);
-        let mut builder = self.client.post(&url).json(&payload);
         if let Some(ref key) = self.api_key {
-            builder = builder.bearer_auth(key);
+            debug!("Sending TTS request to upstream router {} (auth: {})", url, mask_secret(key));
+        } else {
+            debug!("Sending TTS request to upstream router {}", url);
         }
 
-        let resp = match builder.send().await {
-            Ok(r) => r,
-            Err(e) => {
-                warn!(
-                    "Router upstream request failed: {}. Operating in resilient fallback mode.",
-                    e
-                );
-                return Ok(self.synthesize_fallback(request));
+        // 3. Retry loop with exponential backoff and jitter
+        let mut attempts = 0;
+        let max_retries = 2;
+
+        loop {
+            attempts += 1;
+            let mut builder = self.client.post(&url).json(&payload);
+            if let Some(ref key) = self.api_key {
+                builder = builder.bearer_auth(key);
             }
-        };
 
-        if !resp.status().is_success() {
-            let status = resp.status();
-            let err_body = resp.text().await.unwrap_or_default();
-            warn!(
-                "Router upstream returned error {}: {}. Operating in resilient fallback mode.",
-                status, err_body
-            );
-            return Ok(self.synthesize_fallback(request));
-        }
+            match builder.send().await {
+                Ok(resp) => {
+                    let status = resp.status();
+                    if status.is_success() {
+                        let bytes = match resp.bytes().await {
+                            Ok(b) => b,
+                            Err(e) => {
+                                self.record_failure();
+                                warn!("Failed to read router audio stream: {e}. Operating in fallback mode.");
+                                return Ok(self.synthesize_fallback(request));
+                            }
+                        };
 
-        let bytes = match resp.bytes().await {
-            Ok(b) => b,
-            Err(e) => {
-                warn!(
-                    "Failed to read router audio stream: {}. Operating in resilient fallback mode.",
-                    e
-                );
-                return Ok(self.synthesize_fallback(request));
+                        if bytes.is_empty() {
+                            self.record_failure();
+                            return Ok(self.synthesize_fallback(request));
+                        }
+
+                        // Try decoding as WAV first
+                        if bytes.starts_with(b"RIFF") {
+                            if let Ok((pcm_data, sample_rate, channels)) = WavEncoder::decode_wav_to_pcm16(&bytes) {
+                                self.record_success();
+                                return Ok(AudioChunk {
+                                    sample_rate,
+                                    channels,
+                                    pcm_data,
+                                    is_final: true,
+                                });
+                            }
+                        }
+
+                        // Try decoding as MP3
+                        if let Ok((sample_rate, channels, pcm_data)) = decode_mp3_to_pcm(&bytes) {
+                            self.record_success();
+                            return Ok(AudioChunk {
+                                sample_rate,
+                                channels,
+                                pcm_data,
+                                is_final: true,
+                            });
+                        }
+
+                        self.record_failure();
+                        warn!("Router returned unparseable audio container. Operating in fallback mode.");
+                        return Ok(self.synthesize_fallback(request));
+                    }
+
+                    // Transient 5xx server errors warrant retry
+                    if (status.as_u16() == 502 || status.as_u16() == 503 || status.as_u16() == 504)
+                        && attempts <= max_retries
+                    {
+                        let backoff_ms = (attempts as u64) * 80 + 20;
+                        tokio::time::sleep(Duration::from_millis(backoff_ms)).await;
+                        continue;
+                    }
+
+                    let err_body = resp.text().await.unwrap_or_default();
+                    self.record_failure();
+                    warn!(
+                        "Router upstream returned error {}: {}. Operating in resilient fallback mode.",
+                        status, err_body
+                    );
+                    return Ok(self.synthesize_fallback(request));
+                }
+                Err(e) => {
+                    if attempts <= max_retries {
+                        let backoff_ms = (attempts as u64) * 80 + 20;
+                        tokio::time::sleep(Duration::from_millis(backoff_ms)).await;
+                        continue;
+                    }
+
+                    self.record_failure();
+                    warn!(
+                        "Router upstream request failed after {} attempts: {}. Operating in fallback mode.",
+                        attempts, e
+                    );
+                    return Ok(self.synthesize_fallback(request));
+                }
             }
-        };
-
-        if bytes.is_empty() {
-            return Ok(self.synthesize_fallback(request));
         }
-
-        // Try decoding as WAV first
-        if bytes.starts_with(b"RIFF") {
-            if let Ok((pcm_data, sample_rate, channels)) = WavEncoder::decode_wav_to_pcm16(&bytes) {
-                return Ok(AudioChunk {
-                    sample_rate,
-                    channels,
-                    pcm_data,
-                    is_final: true,
-                });
-            }
-        }
-
-        // Fallback: try decoding as MP3
-        if let Ok((sample_rate, channels, pcm_data)) = decode_mp3_to_pcm(&bytes) {
-            return Ok(AudioChunk {
-                sample_rate,
-                channels,
-                pcm_data,
-                is_final: true,
-            });
-        }
-
-        warn!("Router returned unparseable audio container. Operating in resilient fallback mode.");
-        Ok(self.synthesize_fallback(request))
     }
 
     async fn synthesize_stream(
@@ -275,6 +429,12 @@ impl TtsEngine for OpenAiRouterEngine {
     }
 
     async fn health_check(&self) -> Result<bool> {
-        Ok(true)
+        Ok(!self.is_circuit_open())
+    }
+}
+
+impl Default for OpenAiRouterEngine {
+    fn default() -> Self {
+        Self::new("https://api.openai.com/v1", None, None)
     }
 }
