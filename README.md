@@ -13,7 +13,7 @@
 
 *An open-source, modular speech synthesis workstation. Self-host high-fidelity neural voices, chain complex multi-speaker audio graphs, and run locally or scale horizontally.*
 
-[Features](#key-features) • [Architecture](docs/architecture.md) • [Wireframes](docs/wireframes.md) • [API Spec](docs/api.md) • [Quick Start](#quick-start) • [Hardware Tiers](#hardware-profiler)
+[Features](#key-features) • [Installation Guide](docs/installation.md) • [User Manual](docs/user-guide.md) • [Architecture](docs/architecture.md) • [API Spec](docs/api.md) • [Wireframes](docs/wireframes.md) • [Hardware Tiers](#hardware-profiler)
 
 </div>
 
@@ -95,6 +95,8 @@ VoxForg is built as a high-performance modular workspace in Rust:
 ```
 
 For complete technical specifications, sequence diagrams, and lifecycle documentation, refer to:
+- [Installation Guide](docs/installation.md)
+- [User Manual & CLI Reference](docs/user-guide.md)
 - [Architecture Deep-Dive](docs/architecture.md)
 - [UI/UX Wireframes & Component Specs](docs/wireframes.md)
 - [REST & WebSocket API Reference](docs/api.md)
