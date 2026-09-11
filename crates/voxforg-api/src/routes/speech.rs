@@ -19,6 +19,7 @@ use voxforg_audio::WavEncoder;
 use voxforg_core::error::ProblemDetails;
 use voxforg_core::models::{AudioContainerFormat, Voice};
 use voxforg_engine::{SynthesisRequest, TtsEngine};
+use voxforg_router::SynthesisPolicy;
 
 use crate::state::AppState;
 
@@ -33,6 +34,11 @@ pub struct OpenAiSpeechRequest {
     pub speed: f32,
     #[serde(default)]
     pub pitch: Option<f32>,
+    /// Optional SLA-policy-based routing. When present the engine is chosen
+    /// automatically by `VoiceRouter`; `model` and `voice` still select the
+    /// voice *within* the chosen engine as before.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub policy: Option<SynthesisPolicy>,
 }
 
 fn default_speed() -> f32 {
@@ -95,10 +101,56 @@ fn validate_speech_request(
     Ok(())
 }
 
+/// Resolve engine + voice, honouring `SynthesisPolicy` when provided.
+/// When no policy is present the legacy `resolve_voice` → `model` fallback path
+/// is used unchanged, so all existing callers continue to work.
 async fn resolve_engine_and_voice(
     state: &AppState,
     payload: &OpenAiSpeechRequest,
 ) -> Result<(Arc<dyn TtsEngine>, Voice), (StatusCode, Json<ProblemDetails>)> {
+    // ── Policy-based routing path ─────────────────────────────────────────
+    if let Some(policy) = &payload.policy {
+        return match state
+            .voice_router
+            .route(
+                policy,
+                &payload.input,
+                &payload.voice,
+                payload.response_format,
+            )
+            .await
+        {
+            Ok((decision, _synth_req)) => {
+                // Build a synthetic Voice so the rest of the handler stays unchanged
+                let voice = Voice {
+                    id: payload.voice.clone(),
+                    name: payload.voice.clone(),
+                    engine_id: decision.engine_id.clone(),
+                    language: policy
+                        .language
+                        .clone()
+                        .unwrap_or_else(|| "en-US".to_string()),
+                    gender: voxforg_core::models::Gender::Neutral,
+                    sample_rate_hz: 24000,
+                    tags: vec![],
+                    description: None,
+                };
+                Ok((decision.engine, voice))
+            }
+            Err(e) => {
+                let err = ProblemDetails {
+                    problem_type: "https://voxforg.org/errors/no-engine-for-policy".to_string(),
+                    title: "No Engine Satisfies Policy".to_string(),
+                    status: StatusCode::UNPROCESSABLE_ENTITY.as_u16(),
+                    detail: e.to_string(),
+                    instance: "/v1/audio/speech".to_string(),
+                };
+                Err((StatusCode::UNPROCESSABLE_ENTITY, Json(err)))
+            }
+        };
+    }
+
+    // ── Legacy path (voice_id / model fallback) ───────────────────────────
     match state.engine_registry.resolve_voice(&payload.voice).await {
         Ok(res) => Ok(res),
         Err(_) => {
@@ -140,7 +192,9 @@ pub async fn synthesize_speech(
     let (engine, voice) = resolve_engine_and_voice(&state, &payload).await?;
 
     let synth_req = SynthesisRequest {
-        text: payload.input,
+        // Apply pronunciation normalization before synthesis:
+        // symbols (₹→rupees), scale suffixes (1K→1000), dictionary overrides (SQL→sequel)
+        text: state.pronunciation.process(&payload.input),
         voice_id: voice.id,
         speed: payload.speed,
         pitch: payload.pitch.unwrap_or(0.0),

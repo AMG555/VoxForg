@@ -6,7 +6,7 @@ use tracing::warn;
 use voxforg_core::error::Result;
 use voxforg_core::models::{AudioChunk, Gender, Voice};
 
-use crate::traits::{SynthesisRequest, TtsEngine};
+use crate::traits::{EngineCapabilities, SynthesisRequest, TtsEngine};
 pub use client::{
     decode_mp3_to_pcm, generate_sec_ms_gec, parse_binary_audio_payload, EdgeTtsClient,
 };
@@ -144,6 +144,25 @@ impl TtsEngine for EdgeTtsEngine {
 
     fn is_local(&self) -> bool {
         false
+    }
+
+    fn capabilities(&self) -> EngineCapabilities {
+        EngineCapabilities {
+            cost_per_1k_chars: 0.0, // free tier via browser relay
+            avg_latency_ms: 300,
+            quality_score: 0.85,
+            languages: vec![
+                "en-US".to_string(),
+                "en-GB".to_string(),
+                "hi-IN".to_string(),
+                "de-DE".to_string(),
+                "fr-FR".to_string(),
+                "es-ES".to_string(),
+                "zh-CN".to_string(),
+                "ja-JP".to_string(),
+            ],
+            is_local: false,
+        }
     }
 
     async fn voices(&self) -> Result<Vec<Voice>> {

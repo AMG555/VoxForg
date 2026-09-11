@@ -13,7 +13,7 @@ use voxforg_core::error::Result;
 use voxforg_core::models::{AudioChunk, Gender, Voice};
 
 use crate::edge_tts::decode_mp3_to_pcm;
-use crate::traits::{SynthesisRequest, TtsEngine};
+use crate::traits::{EngineCapabilities, SynthesisRequest, TtsEngine};
 
 pub fn mask_secret(secret: &str) -> String {
     if secret.len() <= 8 {
@@ -220,6 +220,27 @@ impl TtsEngine for OpenAiRouterEngine {
 
     fn is_local(&self) -> bool {
         self.base_url.contains("localhost") || self.base_url.contains("127.0.0.1")
+    }
+
+    fn capabilities(&self) -> EngineCapabilities {
+        let local = self.is_local();
+        EngineCapabilities {
+            // Cloud OpenAI pricing as baseline; 0.0 for local inference
+            cost_per_1k_chars: if local { 0.0 } else { 0.015 },
+            avg_latency_ms: if local { 150 } else { 600 },
+            quality_score: 0.90,
+            languages: vec![
+                "en-US".to_string(),
+                "en-GB".to_string(),
+                "de-DE".to_string(),
+                "fr-FR".to_string(),
+                "es-ES".to_string(),
+                "zh-CN".to_string(),
+                "ja-JP".to_string(),
+                "hi-IN".to_string(),
+            ],
+            is_local: local,
+        }
     }
 
     async fn voices(&self) -> Result<Vec<Voice>> {

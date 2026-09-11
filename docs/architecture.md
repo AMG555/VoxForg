@@ -89,11 +89,19 @@ crates/
 │   ├── src/profile.rs     # HardwareProfile and HardwareTier definitions
 │   └── src/allocator.rs   # Engine recommendation matrix
 ├── voxforg-engine
-│   ├── src/traits.rs      # TtsEngine trait & async streaming iterator
-│   ├── src/registry.rs    # Thread-safe EngineRegistry
+│   ├── src/traits.rs      # TtsEngine trait & EngineCapabilities for routing
+│   ├── src/registry.rs    # Thread-safe EngineRegistry with LRU audio cache
 │   ├── src/edge_tts/      # Microsoft Edge TTS WebSocket client
-│   ├── src/piper/         # Piper ONNX local runtime
-│   └── src/kokoro/        # Kokoro-82M ONNX model handler
+│   ├── src/router.rs      # OpenAI-compatible pass-through engine
+│   └── src/mock.rs        # Deterministic synthetic engine for tests
+├── voxforg-router         # [Phase 2A] SLA-policy-based engine selection
+│   ├── src/policy.rs      # SynthesisPolicy, VoiceStyle, RoutingDecision types
+│   ├── src/scorer.rs      # Weighted multi-objective engine scoring algorithm
+│   └── src/router.rs      # VoiceRouter: scores engines, health-checks, falls back
+├── voxforg-pronunciation  # [Phase 2C] Pre-synthesis text normalization
+│   ├── src/dictionary.rs  # Thread-safe runtime-editable custom pronunciation dict
+│   ├── src/normalizer.rs  # Symbol/currency/scale-suffix/percent normalization
+│   └── src/processor.rs   # PronunciationProcessor: chain entry point
 ├── voxforg-audio
 │   ├── src/wav.rs         # Zero-allocation streaming WAV chunker
 │   ├── src/resample.rs    # Sample rate conversion (e.g. 24kHz to 48kHz)
@@ -104,7 +112,8 @@ crates/
 │   ├── src/nodes/         # Node implementations (Text, Chunker, Voice, Filter, Output)
 │   └── src/executor.rs    # Parallel async execution engine
 ├── voxforg-api
-│   ├── src/routes/        # /v1/audio/speech, /v1/models, /v1/voices, /v1/pipeline
+│   ├── src/routes/        # /v1/audio/speech, /v1/models, /v1/voices, /v1/pipeline,
+│   │                      # /v1/pronunciation/dictionary
 │   ├── src/middleware/    # Strict CORS, security headers, rate limiting
 │   └── src/server.rs      # Axum HTTP/WS server bootstrap
 └── voxforg-cli

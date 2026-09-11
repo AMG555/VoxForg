@@ -12,7 +12,7 @@ pub use edge_tts::EdgeTtsEngine;
 pub use mock::MockTtsEngine;
 pub use registry::EngineRegistry;
 pub use router::OpenAiRouterEngine;
-pub use traits::{SynthesisRequest, TtsEngine};
+pub use traits::{EngineCapabilities, SynthesisRequest, TtsEngine};
 
 #[cfg(test)]
 mod tests {

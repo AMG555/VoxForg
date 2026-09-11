@@ -3,7 +3,7 @@ use tokio::sync::mpsc;
 use voxforg_core::error::Result;
 use voxforg_core::models::{AudioChunk, Gender, Voice};
 
-use crate::traits::{SynthesisRequest, TtsEngine};
+use crate::traits::{EngineCapabilities, SynthesisRequest, TtsEngine};
 
 pub struct MockTtsEngine {
     sample_rate: u32,
@@ -33,6 +33,16 @@ impl TtsEngine for MockTtsEngine {
 
     fn is_local(&self) -> bool {
         true
+    }
+
+    fn capabilities(&self) -> EngineCapabilities {
+        EngineCapabilities {
+            cost_per_1k_chars: 0.0,
+            avg_latency_ms: 10,
+            quality_score: 0.3, // synthetic tone; low quality
+            languages: vec!["en-US".to_string()],
+            is_local: true,
+        }
     }
 
     async fn voices(&self) -> Result<Vec<Voice>> {

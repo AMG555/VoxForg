@@ -5,6 +5,8 @@ members = [
     "crates/voxforg-hardware",
     "crates/voxforg-audio",
     "crates/voxforg-engine",
+    "crates/voxforg-router",
+    "crates/voxforg-pronunciation",
     "crates/voxforg-pipeline",
     "crates/voxforg-api",
     "crates/voxforg-cli",
@@ -46,12 +48,14 @@ hex = "0.4"
 symphonia = { version = "0.5", default-features = false, features = ["mp3"] }
 
 # Internal workspace crates
-voxforg-core = { path = "crates/voxforg-core" }
-voxforg-hardware = { path = "crates/voxforg-hardware" }
-voxforg-audio = { path = "crates/voxforg-audio" }
-voxforg-engine = { path = "crates/voxforg-engine" }
-voxforg-pipeline = { path = "crates/voxforg-pipeline" }
-voxforg-api = { path = "crates/voxforg-api" }
+voxforg-core          = { path = "crates/voxforg-core" }
+voxforg-hardware      = { path = "crates/voxforg-hardware" }
+voxforg-audio         = { path = "crates/voxforg-audio" }
+voxforg-engine        = { path = "crates/voxforg-engine" }
+voxforg-router        = { path = "crates/voxforg-router" }
+voxforg-pronunciation = { path = "crates/voxforg-pronunciation" }
+voxforg-pipeline      = { path = "crates/voxforg-pipeline" }
+voxforg-api           = { path = "crates/voxforg-api" }
 
 [profile.dev]
 debug = 0
