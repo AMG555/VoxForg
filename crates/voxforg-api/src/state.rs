@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use voxforg_benchmark::store::BenchmarkStore;
 use voxforg_core::store::DataStore;
 use voxforg_engine::EngineRegistry;
 use voxforg_hardware::HardwareProfile;
@@ -13,6 +14,7 @@ pub struct AppState {
     pub engine_registry: Arc<EngineRegistry>,
     pub voice_router: Arc<VoiceRouter>,
     pub pronunciation: Arc<PronunciationProcessor>,
+    pub benchmark_store: Arc<BenchmarkStore>,
     pub data_store: Arc<dyn DataStore>,
     pub hardware_profile: HardwareProfile,
     pub pipeline_executor: Arc<PipelineExecutor>,
@@ -31,10 +33,12 @@ impl AppState {
         let metrics = Arc::new(MetricsCollector::new());
         let voice_router = Arc::new(VoiceRouter::new((*engine_registry).clone()));
         let pronunciation = Arc::new(PronunciationProcessor::new(ProcessorConfig::default()));
+        let benchmark_store = Arc::new(BenchmarkStore::new());
         Self {
             engine_registry,
             voice_router,
             pronunciation,
+            benchmark_store,
             data_store,
             hardware_profile,
             pipeline_executor,

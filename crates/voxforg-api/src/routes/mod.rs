@@ -1,3 +1,4 @@
+pub mod benchmark;
 pub mod docs;
 pub mod health;
 pub mod metrics;
@@ -40,4 +41,7 @@ pub fn build_api_router() -> Router<AppState> {
             "/v1/pronunciation/dictionary/:term",
             delete(pronunciation::delete_entry),
         )
+        // Engine benchmarking
+        .route("/v1/benchmark/results", get(benchmark::list_results))
+        .route("/v1/benchmark/run", post(benchmark::trigger_run))
 }

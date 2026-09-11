@@ -102,6 +102,10 @@ crates/
 │   ├── src/dictionary.rs  # Thread-safe runtime-editable custom pronunciation dict
 │   ├── src/normalizer.rs  # Symbol/currency/scale-suffix/percent normalization
 │   └── src/processor.rs   # PronunciationProcessor: chain entry point
+├── voxforg-benchmark      # [Phase 3A] Engine benchmarking and scoring
+│   ├── src/sentences.rs   # Canonical sentence suite (prose, numbers, acronyms, technical)
+│   ├── src/runner.rs      # BenchmarkRunner: exercises all engines, computes scorecards
+│   └── src/store.rs       # BenchmarkStore: thread-safe in-memory result persistence
 ├── voxforg-audio
 │   ├── src/wav.rs         # Zero-allocation streaming WAV chunker
 │   ├── src/resample.rs    # Sample rate conversion (e.g. 24kHz to 48kHz)
