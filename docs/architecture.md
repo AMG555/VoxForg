@@ -91,6 +91,7 @@ crates/
 ├── voxforg-engine
 │   ├── src/traits.rs      # TtsEngine trait & EngineCapabilities for routing
 │   ├── src/registry.rs    # Thread-safe EngineRegistry with LRU audio cache
+│   ├── src/identity.rs    # [Phase 2B] VoiceIdentityResolver: portable voices across engines
 │   ├── src/edge_tts/      # Microsoft Edge TTS WebSocket client
 │   ├── src/router.rs      # OpenAI-compatible pass-through engine
 │   └── src/mock.rs        # Deterministic synthetic engine for tests
@@ -106,6 +107,10 @@ crates/
 │   ├── src/sentences.rs   # Canonical sentence suite (prose, numbers, acronyms, technical)
 │   ├── src/runner.rs      # BenchmarkRunner: exercises all engines, computes scorecards
 │   └── src/store.rs       # BenchmarkStore: thread-safe in-memory result persistence
+├── voxforg-worker         # [Phase 4] Distributed worker nodes
+│   ├── src/types.rs       # WorkerRegistration, WorkerNode, WorkerStatus
+│   ├── src/pool.rs        # WorkerPool: load-balanced worker selection, leases, stale detection
+│   └── src/client.rs      # WorkerClient: HTTP dispatch to remote worker cluster nodes
 ├── voxforg-audio
 │   ├── src/wav.rs         # Zero-allocation streaming WAV chunker
 │   ├── src/resample.rs    # Sample rate conversion (e.g. 24kHz to 48kHz)
@@ -117,7 +122,8 @@ crates/
 │   └── src/executor.rs    # Parallel async execution engine
 ├── voxforg-api
 │   ├── src/routes/        # /v1/audio/speech, /v1/models, /v1/voices, /v1/pipeline,
-│   │                      # /v1/pronunciation/dictionary
+│   │                      # /v1/pronunciation/dictionary, /v1/voice-identities,
+│   │                      # /v1/benchmark, /v1/voice-ci, /v1/workers
 │   ├── src/middleware/    # Strict CORS, security headers, rate limiting
 │   └── src/server.rs      # Axum HTTP/WS server bootstrap
 └── voxforg-cli

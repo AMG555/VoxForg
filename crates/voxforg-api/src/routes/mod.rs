@@ -8,7 +8,9 @@ pub mod pronunciation;
 pub mod qa;
 pub mod speech;
 pub mod voice_ci;
+pub mod voice_identity;
 pub mod voices;
+pub mod workers;
 
 use crate::state::AppState;
 use axum::{
@@ -42,6 +44,15 @@ pub fn build_api_router() -> Router<AppState> {
             "/v1/pronunciation/dictionary/:term",
             delete(pronunciation::delete_entry),
         )
+        // Voice identities (portable voice abstraction)
+        .route(
+            "/v1/voice-identities",
+            get(voice_identity::list_identities).post(voice_identity::register_identity),
+        )
+        .route(
+            "/v1/voice-identities/:id",
+            get(voice_identity::get_identity).delete(voice_identity::delete_identity),
+        )
         // Engine benchmarking
         .route("/v1/benchmark/results", get(benchmark::list_results))
         .route("/v1/benchmark/run", post(benchmark::trigger_run))
@@ -51,4 +62,12 @@ pub fn build_api_router() -> Router<AppState> {
             get(voice_ci::list_profiles).post(voice_ci::create_profile),
         )
         .route("/v1/voice-ci/compare", post(voice_ci::compare))
+        // Distributed cluster workers
+        .route("/v1/workers", get(workers::list_workers))
+        .route("/v1/workers/register", post(workers::register_worker))
+        .route(
+            "/v1/workers/:id",
+            get(workers::get_worker).delete(workers::delete_worker),
+        )
+        .route("/v1/workers/:id/heartbeat", post(workers::worker_heartbeat))
 }

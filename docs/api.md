@@ -610,11 +610,97 @@ or `current_success_rate < success_threshold`.
 
 ---
 
+## 13. Voice Identity Abstraction (Phase 2B)
+
+Portable voice definitions decouple callers from vendor-specific voice identifiers. Voice identities map to preferred engines in priority order with automatic failover.
+
+### `GET /v1/voice-identities`
+
+Returns all registered portable voice identities.
+
+```json
+{
+  "count": 2,
+  "identities": [
+    {
+      "id": "default-female",
+      "display_name": "Default Female Voice",
+      "quality": "high",
+      "style": "conversational",
+      "accent": "en-US",
+      "gender": "female",
+      "engine_mappings": [
+        { "engine_id": "edge-tts", "voice_id": "en-US-JennyNeural", "priority": 1 },
+        { "engine_id": "mock-tts", "voice_id": "mock-en-female", "priority": 2 }
+      ]
+    }
+  ]
+}
+```
+
+### `POST /v1/voice-identities`
+
+Register or update a portable voice identity. Returns `201 Created` on insert, `200 OK` on update.
+
+### `GET /v1/voice-identities/{id}`
+
+Fetch a single voice identity by ID.
+
+### `DELETE /v1/voice-identities/{id}`
+
+Remove a voice identity. Returns `204 No Content` on success, `404` if not found.
+
+---
+
+## 14. Distributed Workers (Phase 4)
+
+Autonomous worker nodes can register with the coordinator pool to process distributed TTS synthesis jobs.
+
+### `GET /v1/workers`
+
+List all active cluster worker nodes.
+
+```json
+{
+  "count": 1,
+  "workers": [
+    {
+      "worker_id": "936da01f-9abd-4d9d-80c7-02af85c822a8",
+      "hardware": { "arch": "x86_64", "assigned_tier": "TIER_4_ENTERPRISE" },
+      "models": ["qwen3-tts", "kokoro"],
+      "capacity": 8,
+      "address": "http://10.0.0.12:8080",
+      "status": "ready",
+      "active_jobs": 0,
+      "total_jobs_processed": 142
+    }
+  ]
+}
+```
+
+### `POST /v1/workers/register`
+
+Self-register a worker node. Returns `201 Created` or `200 OK`.
+
+### `GET /v1/workers/{id}`
+
+Fetch status, hardware profile, and current load for a single worker node.
+
+### `DELETE /v1/workers/{id}`
+
+Deregister a worker node from the cluster. Returns `204 No Content`.
+
+### `POST /v1/workers/{id}/heartbeat`
+
+Update worker liveness and timestamp. If worker was offline, restores status to `ready`.
+
+---
+
 ## Endpoint Summary
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/v1/audio/speech` | Synthesize speech (supports `policy` field) |
+| POST | `/v1/audio/speech` | Synthesize speech (supports `policy`, `voice_id`, or `worker:` routing) |
 | POST | `/v1/audio/speech/stream` | Streaming speech synthesis (chunked) |
 | GET  | `/v1/audio/speech/ws` | WebSocket real-time streaming |
 | GET  | `/v1/voices` | List all voices from all engines |
@@ -624,11 +710,20 @@ or `current_success_rate < success_threshold`.
 | GET  | `/v1/pronunciation/dictionary` | List pronunciation overrides |
 | POST | `/v1/pronunciation/dictionary` | Add/update a pronunciation entry |
 | DELETE | `/v1/pronunciation/dictionary/{term}` | Remove a pronunciation entry |
+| GET  | `/v1/voice-identities` | List portable voice identities |
+| POST | `/v1/voice-identities` | Register/update a portable voice identity |
+| GET  | `/v1/voice-identities/{id}` | Get voice identity by ID |
+| DELETE | `/v1/voice-identities/{id}` | Delete voice identity |
 | POST | `/v1/benchmark/run` | Trigger async engine benchmark |
 | GET  | `/v1/benchmark/results` | Get benchmark scorecards |
 | GET  | `/v1/voice-ci/profiles` | List voice quality profiles |
 | POST | `/v1/voice-ci/profiles` | Capture voice quality baseline |
 | POST | `/v1/voice-ci/compare` | Run regression against baseline |
+| GET  | `/v1/workers` | List all cluster worker nodes |
+| POST | `/v1/workers/register` | Register an autonomous worker node |
+| GET  | `/v1/workers/{id}` | Get worker node details and load |
+| DELETE | `/v1/workers/{id}` | Deregister a cluster worker |
+| POST | `/v1/workers/{id}/heartbeat` | Report worker heartbeat |
 | GET  | `/health` | Liveness check |
 | GET  | `/health/ready` | Readiness check (deep probing) |
 | GET  | `/metrics` | Prometheus-style metrics |

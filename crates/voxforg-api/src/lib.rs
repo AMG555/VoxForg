@@ -588,4 +588,176 @@ mod tests {
         let body = res.into_body().collect().await.unwrap().to_bytes();
         assert!(!body.is_empty());
     }
+
+    #[tokio::test]
+    async fn test_voice_identity_crud() {
+        let state = setup_test_state(None).await;
+        let app = create_app(state);
+
+        // 1. List initial identities (contains defaults)
+        let req = Request::builder()
+            .uri("/v1/voice-identities")
+            .body(Body::empty())
+            .unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+        let body = res.into_body().collect().await.unwrap().to_bytes();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert!(json["count"].as_u64().unwrap() >= 2);
+
+        // 2. Create custom voice identity
+        let custom_identity = serde_json::json!({
+            "id": "narrator-en",
+            "display_name": "Studio Narrator",
+            "quality": "high",
+            "style": "narration",
+            "accent": "en-US",
+            "gender": "male",
+            "engine_mappings": [
+                { "engine_id": "mock-tts", "voice_id": "mock-en-male", "priority": 1 }
+            ]
+        });
+
+        let req = Request::builder()
+            .method("POST")
+            .uri("/v1/voice-identities")
+            .header("content-type", "application/json")
+            .body(Body::from(custom_identity.to_string()))
+            .unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::CREATED);
+
+        // 3. Fetch single identity
+        let req = Request::builder()
+            .uri("/v1/voice-identities/narrator-en")
+            .body(Body::empty())
+            .unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+        let body = res.into_body().collect().await.unwrap().to_bytes();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["display_name"], "Studio Narrator");
+
+        // 4. Delete identity
+        let req = Request::builder()
+            .method("DELETE")
+            .uri("/v1/voice-identities/narrator-en")
+            .body(Body::empty())
+            .unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::NO_CONTENT);
+    }
+
+    #[tokio::test]
+    async fn test_speech_with_voice_identity_resolution() {
+        let state = setup_test_state(None).await;
+        let app = create_app(state);
+
+        // "default-female" is registered by default with mock-tts fallback
+        let payload = serde_json::json!({
+            "model": "auto",
+            "voice": "default-female",
+            "input": "Portable voice identity test through speech endpoint"
+        });
+
+        let req = Request::builder()
+            .method("POST")
+            .uri("/v1/audio/speech")
+            .header("content-type", "application/json")
+            .body(Body::from(payload.to_string()))
+            .unwrap();
+
+        let res = app.oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(res.headers().get("content-type").unwrap(), "audio/wav");
+        let body = res.into_body().collect().await.unwrap().to_bytes();
+        assert!(!body.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_worker_registration_and_lifecycle() {
+        let state = setup_test_state(None).await;
+        let app = create_app(state);
+
+        let worker_id = Uuid::new_v4();
+        let payload = serde_json::json!({
+            "worker_id": worker_id,
+            "hardware": HardwareProbe::probe(),
+            "models": ["qwen3-tts", "piper"],
+            "capacity": 4,
+            "address": "http://127.0.0.1:9099"
+        });
+
+        // 1. Register worker
+        let req = Request::builder()
+            .method("POST")
+            .uri("/v1/workers/register")
+            .header("content-type", "application/json")
+            .body(Body::from(payload.to_string()))
+            .unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::CREATED);
+
+        // 2. List workers
+        let req = Request::builder()
+            .uri("/v1/workers")
+            .body(Body::empty())
+            .unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+        let body = res.into_body().collect().await.unwrap().to_bytes();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["count"], 1);
+
+        // 3. Get single worker
+        let req = Request::builder()
+            .uri(format!("/v1/workers/{worker_id}"))
+            .body(Body::empty())
+            .unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+
+        // 4. Heartbeat
+        let req = Request::builder()
+            .method("POST")
+            .uri(format!("/v1/workers/{worker_id}/heartbeat"))
+            .body(Body::empty())
+            .unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+
+        // 5. Deregister worker
+        let req = Request::builder()
+            .method("DELETE")
+            .uri(format!("/v1/workers/{worker_id}"))
+            .body(Body::empty())
+            .unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::NO_CONTENT);
+    }
+
+    #[tokio::test]
+    async fn test_speech_explicit_worker_missing() {
+        let state = setup_test_state(None).await;
+        let app = create_app(state);
+
+        let payload = serde_json::json!({
+            "model": "worker:non-existent-cluster-engine",
+            "voice": "mock-en-female",
+            "input": "Testing explicit worker node routing"
+        });
+
+        let req = Request::builder()
+            .method("POST")
+            .uri("/v1/audio/speech")
+            .header("content-type", "application/json")
+            .body(Body::from(payload.to_string()))
+            .unwrap();
+
+        let res = app.oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::NOT_FOUND);
+        let body = res.into_body().collect().await.unwrap().to_bytes();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["title"], "No Worker Available");
+    }
 }

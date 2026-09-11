@@ -1,6 +1,7 @@
 pub mod ab_test;
 pub mod cache;
 pub mod edge_tts;
+pub mod identity;
 pub mod mock;
 pub mod registry;
 pub mod router;
@@ -9,6 +10,7 @@ pub mod traits;
 pub use ab_test::{AbTestComparison, AbTestRunner, AbTestScenario, VariantResult};
 pub use cache::AudioCache;
 pub use edge_tts::EdgeTtsEngine;
+pub use identity::VoiceIdentityResolver;
 pub use mock::MockTtsEngine;
 pub use registry::EngineRegistry;
 pub use router::OpenAiRouterEngine;

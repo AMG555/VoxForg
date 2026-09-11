@@ -14,6 +14,7 @@ voxforg-pipeline      = { workspace = true }
 voxforg-router        = { workspace = true }
 voxforg-pronunciation = { workspace = true }
 voxforg-benchmark     = { workspace = true }
+voxforg-worker        = { workspace = true }
 axum.workspace = true
 tower.workspace = true
 tower-http.workspace = true

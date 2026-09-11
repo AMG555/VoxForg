@@ -150,7 +150,16 @@ async fn resolve_engine_and_voice(
         };
     }
 
-    // ── Legacy path (voice_id / model fallback) ───────────────────────────
+    // ── Voice Identity resolution path (portable voice abstraction) ─────
+    if let Ok(res) = state
+        .voice_identities
+        .resolve(&payload.voice, &state.engine_registry)
+        .await
+    {
+        return Ok(res);
+    }
+
+    // ── Legacy path (concrete voice_id / model fallback) ───────────────────
     match state.engine_registry.resolve_voice(&payload.voice).await {
         Ok(res) => Ok(res),
         Err(_) => {
@@ -189,6 +198,87 @@ pub async fn synthesize_speech(
     Json(payload): Json<OpenAiSpeechRequest>,
 ) -> Result<Response, (StatusCode, Json<ProblemDetails>)> {
     validate_speech_request(&payload)?;
+
+    // ── Distributed worker dispatch path ──────────────────────────────────
+    let is_explicit_worker = payload.model.starts_with("worker:");
+    let worker_target = payload
+        .model
+        .strip_prefix("worker:")
+        .unwrap_or(&payload.model);
+
+    if is_explicit_worker || state.engine_registry.get(&payload.model).await.is_none() {
+        if let Some(worker) = state.worker_pool.select_worker(worker_target).await {
+            if let Err(e) = state.worker_pool.acquire_lease(&worker.worker_id).await {
+                let err = ProblemDetails {
+                    problem_type: "https://voxforg.org/errors/worker-busy".to_string(),
+                    title: "Worker Node Busy".to_string(),
+                    status: StatusCode::TOO_MANY_REQUESTS.as_u16(),
+                    detail: format!("Worker '{}' at capacity: {}", worker.worker_id, e),
+                    instance: "/v1/audio/speech".to_string(),
+                };
+                return Err((StatusCode::TOO_MANY_REQUESTS, Json(err)));
+            }
+
+            let mut worker_payload = serde_json::to_value(&payload).unwrap();
+            if let Some(obj) = worker_payload.as_object_mut() {
+                obj.insert(
+                    "model".to_string(),
+                    serde_json::Value::String(worker_target.to_string()),
+                );
+            }
+
+            let dispatch_res = state
+                .worker_client
+                .dispatch_raw(&worker, &worker_payload)
+                .await;
+            let _ = state.worker_pool.release_lease(&worker.worker_id).await;
+
+            return match dispatch_res {
+                Ok(audio_bytes) => {
+                    let content_type = payload.response_format.mime_type();
+                    let response = Response::builder()
+                        .status(StatusCode::OK)
+                        .header(header::CONTENT_TYPE, content_type)
+                        .header("x-voxforg-dispatched-worker", worker.worker_id.to_string())
+                        .body(Body::from(audio_bytes))
+                        .map_err(|e| {
+                            let err = ProblemDetails {
+                                problem_type: "https://voxforg.org/errors/internal".to_string(),
+                                title: "Response Build Failed".to_string(),
+                                status: 500,
+                                detail: e.to_string(),
+                                instance: "/v1/audio/speech".to_string(),
+                            };
+                            (StatusCode::INTERNAL_SERVER_ERROR, Json(err))
+                        })?;
+                    Ok(response)
+                }
+                Err(e) => {
+                    let err = ProblemDetails {
+                        problem_type: "https://voxforg.org/errors/worker-dispatch-failed"
+                            .to_string(),
+                        title: "Worker Dispatch Failed".to_string(),
+                        status: StatusCode::BAD_GATEWAY.as_u16(),
+                        detail: e.to_string(),
+                        instance: "/v1/audio/speech".to_string(),
+                    };
+                    Err((StatusCode::BAD_GATEWAY, Json(err)))
+                }
+            };
+        } else if is_explicit_worker {
+            let err = ProblemDetails {
+                problem_type: "https://voxforg.org/errors/no-worker-available".to_string(),
+                title: "No Worker Available".to_string(),
+                status: StatusCode::NOT_FOUND.as_u16(),
+                detail: format!(
+                    "No available cluster worker node supports model '{worker_target}'"
+                ),
+                instance: "/v1/audio/speech".to_string(),
+            };
+            return Err((StatusCode::NOT_FOUND, Json(err)));
+        }
+    }
+
     let (engine, voice) = resolve_engine_and_voice(&state, &payload).await?;
 
     let synth_req = SynthesisRequest {
