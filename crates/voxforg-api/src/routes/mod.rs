@@ -7,6 +7,7 @@ pub mod pipeline;
 pub mod pronunciation;
 pub mod qa;
 pub mod speech;
+pub mod voice_ci;
 pub mod voices;
 
 use crate::state::AppState;
@@ -44,4 +45,10 @@ pub fn build_api_router() -> Router<AppState> {
         // Engine benchmarking
         .route("/v1/benchmark/results", get(benchmark::list_results))
         .route("/v1/benchmark/run", post(benchmark::trigger_run))
+        // Voice CI/CD regression
+        .route(
+            "/v1/voice-ci/profiles",
+            get(voice_ci::list_profiles).post(voice_ci::create_profile),
+        )
+        .route("/v1/voice-ci/compare", post(voice_ci::compare))
 }

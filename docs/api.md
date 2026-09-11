@@ -53,12 +53,13 @@ Authorization: Bearer <api_key>
 | Field | Type | Required | Default | Description |
 |---|---|---|---|---|
 | `model` | `string` | Yes | - | Engine ID or model name (`edge-tts`, `kokoro-82m`, `piper`, `qwen3-tts`, or `auto`). |
-| `input` | `string` | Yes | - | Raw text or SSML snippet (Max length: 50,000 characters per request). |
+| `input` | `string` | Yes | - | Raw text or SSML snippet (Max length: 50,000 characters). Text is pre-processed through the pronunciation normalizer. |
 | `voice` | `string` | Yes | - | Voice identifier (e.g. `en-US-AriaNeural`, `en_US-heart`). |
 | `response_format`| `string` | No | `wav` | Audio container: `wav`, `mp3`, `opus`, `aac`, `flac`, `pcm`. |
 | `speed` | `number` | No | `1.0` | Speaking rate multiplier between `0.25` and `4.0`. |
 | `pitch` | `number` | No | `0.0` | Pitch shift in semitones between `-12.0` and `+12.0` (Engine-dependent). |
 | `loudness_lufs` | `number` | No | `null`| Target EBU R128 integrated loudness (e.g., `-14.0` LUFS for podcasting). |
+| `policy` | `object` | No | `null`| SLA routing policy. When set, `VoiceRouter` auto-selects the best engine. See §9. |
 
 #### Response
 - **Status:** `200 OK`
@@ -460,3 +461,176 @@ Executes multi-run statistical and acoustic quality benchmarks comparing two eng
   "recommended_variant": "Variant B"
 }
 ```
+
+---
+
+## 9. SLA Policy-Based Routing (Phase 2A)
+
+The `POST /v1/audio/speech` endpoint accepts an optional `policy` field.
+When present, `VoiceRouter` selects the best-scoring registered engine automatically.
+
+### Policy Object
+
+```json
+{
+  "model": "auto",
+  "input": "Quarterly earnings rose 18%.",
+  "voice": "alloy",
+  "policy": {
+    "quality_min": 0.8,
+    "latency_max_ms": 500,
+    "cost_max_per_1k": 0.0,
+    "language": "en-US",
+    "style": "conversational",
+    "fallback_chain": ["edge-tts", "mock-tts"]
+  }
+}
+```
+
+#### Policy Fields
+| Field | Type | Description |
+|---|---|---|
+| `quality_min` | `number` | Minimum quality score (0.0–1.0). Engines below this are rejected. |
+| `latency_max_ms` | `integer` | Maximum acceptable latency ceiling in milliseconds. |
+| `cost_max_per_1k` | `number` | Cost ceiling in USD per 1,000 characters. Set `0.0` for free/local only. |
+| `language` | `string` | BCP-47 language tag preference (e.g. `"en-US"`, `"hi-IN"`). |
+| `style` | `string` | Voice style hint: `any`, `conversational`, `narration`, `news`, `assistant`. |
+| `fallback_chain` | `string[]` | Ordered engine IDs to consider. Empty = auto-select from all registered. |
+
+When no engine satisfies the policy, the endpoint returns `422 Unprocessable Entity`.
+
+---
+
+## 10. Pronunciation Dictionary (Phase 2C)
+
+### `GET /v1/pronunciation/dictionary`
+
+Returns all active pronunciation overrides.
+
+**Response:**
+```json
+{
+  "count": 2,
+  "entries": [
+    { "term": "SQL",  "replacement": "sequel", "note": "database query language" },
+    { "term": "nginx", "replacement": "engine X" }
+  ]
+}
+```
+
+### `POST /v1/pronunciation/dictionary`
+
+Add or update a pronunciation entry. Returns `201 Created` on insert, `200 OK` on update.
+
+```json
+{ "term": "VoxForg", "replacement": "Vox Forge", "note": "brand name" }
+```
+
+### `DELETE /v1/pronunciation/dictionary/{term}`
+
+Remove a pronunciation entry. Returns `204 No Content`, or `404` if not found.
+
+---
+
+## 11. Engine Benchmarking (Phase 3A)
+
+### `POST /v1/benchmark/run`
+
+Triggers an asynchronous benchmark across all registered engines. Returns `202 Accepted` immediately. Results become available via `GET /v1/benchmark/results` when complete.
+
+### `GET /v1/benchmark/results`
+
+Returns stored benchmark scorecards, sorted by overall score descending.
+
+```json
+{
+  "count": 1,
+  "results": [
+    {
+      "engine_id": "edge-tts",
+      "sentences_ok": 10,
+      "sentences_failed": 0,
+      "latency": { "p50_ms": 312, "p95_ms": 480, "max_ms": 620 },
+      "throughput_sps": 2.4,
+      "overall_score": 0.88,
+      "run_at": "2026-09-11T08:00:00Z"
+    }
+  ]
+}
+```
+
+---
+
+## 12. Voice CI/CD Regression (Phase 3B)
+
+### `GET /v1/voice-ci/profiles`
+
+List all captured voice quality profiles.
+
+### `POST /v1/voice-ci/profiles`
+
+Capture a voice quality baseline by running the benchmark sentence suite against a specific engine/voice pair.
+
+```json
+{ "engine_id": "edge-tts", "voice_id": "en-US-AriaNeural" }
+```
+
+Returns `201 Created` with the stored `VoiceProfile` or `200 OK` on update.
+
+### `POST /v1/voice-ci/compare`
+
+Run the benchmark suite against a stored profile and report regressions.
+
+```json
+{
+  "profile_id": "edge-tts:en-US-AriaNeural",
+  "latency_threshold_pct": 20.0,
+  "success_threshold": 1.0
+}
+```
+
+**Response:**
+```json
+{
+  "profile_id": "edge-tts:en-US-AriaNeural",
+  "engine_id": "edge-tts",
+  "voice_id": "en-US-AriaNeural",
+  "passed": true,
+  "current_latency_ms": 320,
+  "baseline_latency_ms": 310,
+  "latency_delta_pct": 3.2,
+  "current_success_rate": 1.0,
+  "baseline_success_rate": 1.0,
+  "run_at": "2026-09-11T09:00:00Z"
+}
+```
+
+`passed: false` is returned when latency increased beyond `latency_threshold_pct`
+or `current_success_rate < success_threshold`.
+
+---
+
+## Endpoint Summary
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/v1/audio/speech` | Synthesize speech (supports `policy` field) |
+| POST | `/v1/audio/speech/stream` | Streaming speech synthesis (chunked) |
+| GET  | `/v1/audio/speech/ws` | WebSocket real-time streaming |
+| GET  | `/v1/voices` | List all voices from all engines |
+| GET  | `/v1/models` | List all registered engines |
+| POST | `/v1/pipeline/execute` | Execute a DAG synthesis pipeline |
+| POST | `/v1/qa/ab-test` | A/B compare two synthesis variants |
+| GET  | `/v1/pronunciation/dictionary` | List pronunciation overrides |
+| POST | `/v1/pronunciation/dictionary` | Add/update a pronunciation entry |
+| DELETE | `/v1/pronunciation/dictionary/{term}` | Remove a pronunciation entry |
+| POST | `/v1/benchmark/run` | Trigger async engine benchmark |
+| GET  | `/v1/benchmark/results` | Get benchmark scorecards |
+| GET  | `/v1/voice-ci/profiles` | List voice quality profiles |
+| POST | `/v1/voice-ci/profiles` | Capture voice quality baseline |
+| POST | `/v1/voice-ci/compare` | Run regression against baseline |
+| GET  | `/health` | Liveness check |
+| GET  | `/health/ready` | Readiness check (deep probing) |
+| GET  | `/metrics` | Prometheus-style metrics |
+| GET  | `/docs` | Scalar API documentation UI |
+| GET  | `/openapi.json` | OpenAPI 3.1 spec |
