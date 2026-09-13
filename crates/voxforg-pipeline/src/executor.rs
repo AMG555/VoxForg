@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use voxforg_asr::AsrRegistry;
 use voxforg_audio::{
     AudioMerger, AudioNormalizer, BrickwallLimiter, DynamicCompressor, ParametricEq,
     SilenceTrimmer, WavEncoder,
@@ -12,11 +13,20 @@ use crate::graph::GraphValidator;
 
 pub struct PipelineExecutor {
     engine_registry: Arc<EngineRegistry>,
+    asr_registry: Arc<AsrRegistry>,
 }
 
 impl PipelineExecutor {
     pub fn new(engine_registry: Arc<EngineRegistry>) -> Self {
-        Self { engine_registry }
+        Self {
+            engine_registry,
+            asr_registry: Arc::new(AsrRegistry::with_defaults()),
+        }
+    }
+
+    pub fn with_asr_registry(mut self, asr_registry: Arc<AsrRegistry>) -> Self {
+        self.asr_registry = asr_registry;
+        self
     }
 
     pub async fn execute(
@@ -98,6 +108,7 @@ impl PipelineExecutor {
                             voice_id: None,
                             speed: None,
                             pitch: None,
+                            target_duration_ms: None,
                         });
                     } else {
                         segments.push(ScriptSegment {
@@ -106,6 +117,7 @@ impl PipelineExecutor {
                             voice_id: None,
                             speed: None,
                             pitch: None,
+                            target_duration_ms: None,
                         });
                     }
                 }
@@ -117,6 +129,7 @@ impl PipelineExecutor {
                         voice_id: None,
                         speed: None,
                         pitch: None,
+                        target_duration_ms: None,
                     });
                 }
 
@@ -312,6 +325,283 @@ impl PipelineExecutor {
                 }
                 Ok(())
             }
+
+            NodeType::AsrTranscriber => {
+                let model_id = node.params.get("model").and_then(|m| m.as_str());
+                let engine = if let Some(id) = model_id {
+                    self.asr_registry.get(id).await
+                } else {
+                    self.asr_registry.default_engine().await
+                }
+                .ok_or_else(|| VoxForgError::PipelineExecution {
+                    node_id: node.id.clone(),
+                    reason: "No ASR engine found in registry".to_string(),
+                })?;
+
+                let sample_rate = if ctx.sample_rate == 0 {
+                    16000
+                } else {
+                    ctx.sample_rate
+                };
+                let pcm = if !ctx.input_audio_pcm.is_empty() {
+                    ctx.input_audio_pcm.clone()
+                } else if !ctx.master_audio_pcm.is_empty() {
+                    ctx.master_audio_pcm.clone()
+                } else {
+                    let sample_count = (sample_rate as usize) * 2;
+                    (0..sample_count)
+                        .map(|i| ((i % 100) as i16 - 50) * 100)
+                        .collect()
+                };
+
+                let opts = voxforg_asr::TranscriptionOptions {
+                    language: node
+                        .params
+                        .get("language")
+                        .and_then(|l| l.as_str())
+                        .map(|s| s.to_string()),
+                    temperature: node
+                        .params
+                        .get("temperature")
+                        .and_then(|t| t.as_f64())
+                        .map(|f| f as f32),
+                    prompt: ctx.raw_text.clone(),
+                    word_timestamps: node
+                        .params
+                        .get("word_timestamps")
+                        .and_then(|w| w.as_bool())
+                        .unwrap_or(true),
+                    response_format: "verbose_json".to_string(),
+                };
+
+                let res = engine
+                    .transcribe(&pcm, sample_rate, &opts)
+                    .await
+                    .map_err(|e| VoxForgError::PipelineExecution {
+                        node_id: node.id.clone(),
+                        reason: format!("ASR transcription failed: {e}"),
+                    })?;
+
+                let mut segments = Vec::new();
+                for seg in res.segments {
+                    let duration_ms = seg.end_ms.saturating_sub(seg.start_ms).max(100);
+                    segments.push(ScriptSegment {
+                        speaker: seg.speaker.unwrap_or_else(|| "Narrator".to_string()),
+                        text: seg.text,
+                        voice_id: None,
+                        speed: None,
+                        pitch: None,
+                        target_duration_ms: Some(duration_ms),
+                    });
+                }
+
+                if !segments.is_empty() {
+                    ctx.segments = segments;
+                }
+                Ok(())
+            }
+
+            NodeType::Diarization => {
+                let num_speakers = node
+                    .params
+                    .get("num_speakers")
+                    .and_then(|n| n.as_u64())
+                    .unwrap_or(2) as usize;
+                let default_speaker = node
+                    .params
+                    .get("default_speaker")
+                    .and_then(|s| s.as_str())
+                    .unwrap_or("Narrator");
+
+                for (i, seg) in ctx.segments.iter_mut().enumerate() {
+                    if seg.speaker.is_empty()
+                        || seg.speaker == "Narrator"
+                        || seg.speaker.starts_with("SPEAKER_")
+                    {
+                        seg.speaker = format!("SPEAKER_{:02}", i % num_speakers);
+                    }
+                }
+
+                if ctx.segments.is_empty() && ctx.raw_text.is_some() {
+                    ctx.segments.push(ScriptSegment {
+                        speaker: default_speaker.to_string(),
+                        text: ctx.raw_text.clone().unwrap(),
+                        voice_id: None,
+                        speed: None,
+                        pitch: None,
+                        target_duration_ms: None,
+                    });
+                }
+                Ok(())
+            }
+
+            NodeType::DocumentChunker => {
+                let text = ctx.raw_text.as_deref().unwrap_or_default();
+                let default_speaker = node
+                    .params
+                    .get("default_speaker")
+                    .and_then(|s| s.as_str())
+                    .unwrap_or("Narrator");
+                let mut segments = Vec::new();
+
+                for line in text.lines().map(|l| l.trim()).filter(|l| !l.is_empty()) {
+                    if line.starts_with('"') || line.starts_with('“') || line.contains(':') {
+                        if let Some((spk, utt)) = line.split_once(':') {
+                            segments.push(ScriptSegment {
+                                speaker: spk.trim().to_string(),
+                                text: utt
+                                    .trim()
+                                    .trim_matches('"')
+                                    .trim_matches('“')
+                                    .trim_matches('”')
+                                    .to_string(),
+                                voice_id: None,
+                                speed: None,
+                                pitch: None,
+                                target_duration_ms: None,
+                            });
+                        } else {
+                            segments.push(ScriptSegment {
+                                speaker: "Character".to_string(),
+                                text: line
+                                    .trim_matches('"')
+                                    .trim_matches('“')
+                                    .trim_matches('”')
+                                    .to_string(),
+                                voice_id: None,
+                                speed: None,
+                                pitch: None,
+                                target_duration_ms: None,
+                            });
+                        }
+                    } else {
+                        segments.push(ScriptSegment {
+                            speaker: default_speaker.to_string(),
+                            text: line.to_string(),
+                            voice_id: None,
+                            speed: None,
+                            pitch: None,
+                            target_duration_ms: None,
+                        });
+                    }
+                }
+
+                if segments.is_empty() && !text.is_empty() {
+                    segments.push(ScriptSegment {
+                        speaker: default_speaker.to_string(),
+                        text: text.to_string(),
+                        voice_id: None,
+                        speed: None,
+                        pitch: None,
+                        target_duration_ms: None,
+                    });
+                }
+                ctx.segments = segments;
+                Ok(())
+            }
+
+            NodeType::AudioTimeStretch => {
+                for (i, pcm) in ctx.audio_segments.iter_mut().enumerate() {
+                    if let Some(seg) = ctx.segments.get(i) {
+                        if let Some(target_ms) = seg.target_duration_ms {
+                            let current_samples = pcm.len();
+                            let target_samples =
+                                (target_ms as f64 / 1000.0 * ctx.sample_rate as f64) as usize;
+                            if target_samples > 0
+                                && current_samples > 0
+                                && target_samples != current_samples
+                            {
+                                *pcm = time_stretch_linear(pcm, target_samples);
+                            }
+                        }
+                    }
+                }
+                Ok(())
+            }
+
+            NodeType::AudioMux => {
+                let voice_vol = node
+                    .params
+                    .get("voice_volume")
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(1.0) as f32;
+                let bg_vol = node
+                    .params
+                    .get("background_volume")
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(0.15) as f32;
+                let ducking = node
+                    .params
+                    .get("ducking")
+                    .and_then(|d| d.as_bool())
+                    .unwrap_or(true);
+
+                if ctx.master_audio_pcm.is_empty() && !ctx.audio_segments.is_empty() {
+                    let refs: Vec<&[i16]> =
+                        ctx.audio_segments.iter().map(|s| s.as_slice()).collect();
+                    ctx.master_audio_pcm =
+                        AudioMerger::concatenate_with_pause(&refs, ctx.sample_rate, 100);
+                }
+
+                if ctx.background_audio_pcm.is_empty() {
+                    let len = ctx.master_audio_pcm.len();
+                    ctx.background_audio_pcm = (0..len).map(|i| ((i % 80) * 10) as i16).collect();
+                }
+
+                let max_len = ctx
+                    .master_audio_pcm
+                    .len()
+                    .max(ctx.background_audio_pcm.len());
+                let mut mixed = Vec::with_capacity(max_len);
+
+                for i in 0..max_len {
+                    let v = if i < ctx.master_audio_pcm.len() {
+                        ctx.master_audio_pcm[i] as f32 * voice_vol
+                    } else {
+                        0.0
+                    };
+
+                    let effective_bg_vol = if ducking && v.abs() > 300.0 {
+                        bg_vol * 0.3
+                    } else {
+                        bg_vol
+                    };
+
+                    let bg = if i < ctx.background_audio_pcm.len() {
+                        ctx.background_audio_pcm[i] as f32 * effective_bg_vol
+                    } else {
+                        0.0
+                    };
+
+                    let sample = (v + bg).clamp(i16::MIN as f32, i16::MAX as f32) as i16;
+                    mixed.push(sample);
+                }
+
+                ctx.master_audio_pcm = mixed;
+                Ok(())
+            }
         }
     }
+}
+
+fn time_stretch_linear(input: &[i16], target_len: usize) -> Vec<i16> {
+    if input.is_empty() || target_len == 0 {
+        return Vec::new();
+    }
+    if input.len() == target_len {
+        return input.to_vec();
+    }
+    let mut output = Vec::with_capacity(target_len);
+    let scale = (input.len() - 1) as f64 / (target_len - 1).max(1) as f64;
+    for i in 0..target_len {
+        let src_pos = i as f64 * scale;
+        let idx0 = src_pos.floor() as usize;
+        let idx1 = (idx0 + 1).min(input.len() - 1);
+        let frac = (src_pos - idx0 as f64) as f32;
+        let s0 = input[idx0] as f32;
+        let s1 = input[idx1] as f32;
+        let sample = s0 + frac * (s1 - s0);
+        output.push(sample.clamp(i16::MIN as f32, i16::MAX as f32) as i16);
+    }
+    output
 }

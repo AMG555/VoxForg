@@ -38,12 +38,14 @@ impl AppState {
         hardware_profile: HardwareProfile,
         api_key: Option<String>,
     ) -> Self {
-        let pipeline_executor = Arc::new(PipelineExecutor::new(engine_registry.clone()));
+        let asr_registry = Arc::new(AsrRegistry::with_defaults());
+        let pipeline_executor = Arc::new(
+            PipelineExecutor::new(engine_registry.clone()).with_asr_registry(asr_registry.clone()),
+        );
         let metrics = Arc::new(MetricsCollector::new());
         let voice_router = Arc::new(VoiceRouter::new((*engine_registry).clone()));
         let voice_identities = Arc::new(VoiceIdentityResolver::with_defaults());
         let voice_profiles = Arc::new(VoiceProfileStore::with_defaults());
-        let asr_registry = Arc::new(AsrRegistry::with_defaults());
         let pronunciation = Arc::new(PronunciationProcessor::new(ProcessorConfig::default()));
         let benchmark_store = Arc::new(BenchmarkStore::new());
         let voice_ci_store = ProfileStore::new();

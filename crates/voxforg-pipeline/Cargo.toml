@@ -9,6 +9,7 @@ authors.workspace = true
 voxforg-core = { workspace = true }
 voxforg-engine = { workspace = true }
 voxforg-audio = { workspace = true }
+voxforg-asr = { workspace = true }
 serde.workspace = true
 serde_json.workspace = true
 tokio = { workspace = true, features = ["full"] }

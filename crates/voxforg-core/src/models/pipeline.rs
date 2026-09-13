@@ -11,6 +11,12 @@ pub enum NodeType {
     AudioFilter,
     AudioMerge,
     OutputSink,
+    // Production DAG workflow nodes
+    AsrTranscriber,
+    Diarization,
+    DocumentChunker,
+    AudioTimeStretch,
+    AudioMux,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

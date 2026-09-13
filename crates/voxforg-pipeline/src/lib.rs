@@ -1,10 +1,12 @@
 pub mod context;
 pub mod executor;
 pub mod graph;
+pub mod templates;
 
 pub use context::{ExecutionContext, ScriptSegment};
 pub use executor::PipelineExecutor;
 pub use graph::GraphValidator;
+pub use templates::PipelineTemplates;
 
 #[cfg(test)]
 mod tests {
@@ -427,6 +429,40 @@ mod tests {
             .execute(&pipeline, None)
             .await
             .expect("DSP pipeline execution must succeed");
+        assert!(!wav.is_empty());
+        assert_eq!(&wav[0..4], b"RIFF");
+    }
+
+    #[tokio::test]
+    async fn test_video_dubbing_pipeline_template() {
+        let registry = Arc::new(EngineRegistry::new());
+        let mock_engine = Arc::new(MockTtsEngine::new(24000));
+        registry.register(mock_engine).await;
+
+        let executor = PipelineExecutor::new(registry);
+        let pipeline = PipelineTemplates::video_dubbing("Action Film Dub", "mock-en-male");
+
+        let wav = executor
+            .execute(&pipeline, None)
+            .await
+            .expect("Video dubbing pipeline execution must succeed");
+        assert!(!wav.is_empty());
+        assert_eq!(&wav[0..4], b"RIFF");
+    }
+
+    #[tokio::test]
+    async fn test_audiobook_pipeline_template() {
+        let registry = Arc::new(EngineRegistry::new());
+        let mock_engine = Arc::new(MockTtsEngine::new(24000));
+        registry.register(mock_engine).await;
+
+        let executor = PipelineExecutor::new(registry);
+        let pipeline = PipelineTemplates::audiobook("Moby Dick Chapter 1", "mock-en-male");
+
+        let wav = executor
+            .execute(&pipeline, None)
+            .await
+            .expect("Audiobook pipeline execution must succeed");
         assert!(!wav.is_empty());
         assert_eq!(&wav[0..4], b"RIFF");
     }

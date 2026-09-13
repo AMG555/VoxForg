@@ -126,8 +126,9 @@ crates/
 │   └── src/concat.rs      # Cross-fade and pause insertion
 ├── voxforg-pipeline
 │   ├── src/graph.rs       # Directed Acyclic Graph validator and topological sorter
-│   ├── src/nodes/         # Node implementations (Text, Chunker, Voice, Filter, Output)
-│   └── src/executor.rs    # Parallel async execution engine
+│   ├── src/context.rs     # ExecutionContext with multi-track audio buffers & timing
+│   ├── src/templates.rs   # [Phase 7] Video dubbing and audiobook production DAG templates
+│   └── src/executor.rs    # PipelineExecutor (ASR, Diarization, Chunker, TimeStretch, Mux, Filter)
 ├── voxforg-api
 │   ├── src/routes/        # /v1/audio/speech, /v1/models, /v1/voices, /v1/pipeline,
 │   │                      # /v1/pronunciation/dictionary, /v1/voice-identities,
