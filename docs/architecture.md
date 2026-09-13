@@ -141,8 +141,12 @@ crates/
 │   │                      # /v1/catalog/models [Phase 8]
 │   ├── src/middleware/    # Strict CORS, security headers, rate limiting
 │   └── src/server.rs      # Axum HTTP/WS server bootstrap
+├── voxforg-mcp            # [Phase 9] Model Context Protocol JSON-RPC 2.0 Server
+│   ├── src/protocol.rs    # MCP JSON-RPC protocol types, request/response models
+│   ├── src/tools.rs       # 8 MCP tools schema & definitions
+│   └── src/server.rs      # McpServer: in-process tool dispatch and stdio stream loop
 └── voxforg-cli
-    └── src/main.rs        # CLI entry point (serve, synth, probe, bench)
+    └── src/main.rs        # CLI entry point (serve, synth, probe, bench, mcp)
 ```
 
 ---

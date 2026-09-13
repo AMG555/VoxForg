@@ -1,0 +1,30 @@
+[package]
+name = "voxforg-mcp"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Model Context Protocol (MCP) server implementation for VoxForg"
+
+[dependencies]
+voxforg-core          = { workspace = true }
+voxforg-engine        = { workspace = true }
+voxforg-hardware      = { workspace = true }
+voxforg-audio         = { workspace = true }
+voxforg-asr           = { workspace = true }
+voxforg-catalog       = { workspace = true }
+voxforg-pipeline      = { workspace = true }
+voxforg-worker        = { workspace = true }
+async-trait.workspace = true
+tokio                 = { workspace = true, features = ["sync", "rt", "io-util", "macros"] }
+serde.workspace       = true
+serde_json.workspace  = true
+tracing.workspace     = true
+uuid.workspace        = true
+chrono.workspace      = true
+hex.workspace         = true
+thiserror.workspace   = true
+anyhow.workspace      = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "io-util"] }

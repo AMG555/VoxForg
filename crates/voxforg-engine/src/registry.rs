@@ -43,6 +43,12 @@ impl EngineRegistry {
         lock.insert(engine.id().to_string(), engine);
     }
 
+    pub fn register_sync(&self, engine: Arc<dyn TtsEngine>) {
+        if let Ok(mut lock) = self.engines.try_write() {
+            lock.insert(engine.id().to_string(), engine);
+        }
+    }
+
     pub async fn get(&self, engine_id: &str) -> Option<Arc<dyn TtsEngine>> {
         let lock = self.engines.read().await;
         lock.get(engine_id).cloned()

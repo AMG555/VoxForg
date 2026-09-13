@@ -15,6 +15,7 @@ voxforg-hardware = { workspace = true }
 voxforg-audio = { workspace = true }
 voxforg-engine = { workspace = true }
 voxforg-pipeline = { workspace = true }
+voxforg-mcp = { workspace = true }
 voxforg-api = { workspace = true }
 axum.workspace = true
 clap.workspace = true

@@ -47,6 +47,9 @@ enum Commands {
 
     /// Run automated A/B quality comparison between two voices/engines
     AbTest(AbTestArgs),
+
+    /// Start Model Context Protocol (MCP) server over standard I/O
+    Mcp,
 }
 
 #[derive(Args)]
@@ -181,6 +184,7 @@ async fn main() -> Result<()> {
         Commands::Engines => run_engines().await,
         Commands::Bench(args) => run_bench(args).await,
         Commands::AbTest(args) => run_ab_test(args).await,
+        Commands::Mcp => run_mcp().await,
     }
 }
 
@@ -496,5 +500,11 @@ async fn run_ab_test(args: AbTestArgs) -> Result<()> {
     );
     println!("Summary:                {}", comp.summary);
 
+    Ok(())
+}
+
+async fn run_mcp() -> Result<()> {
+    let server = voxforg_mcp::McpServer::with_defaults();
+    server.run_stdio().await?;
     Ok(())
 }

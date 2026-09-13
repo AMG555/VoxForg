@@ -905,6 +905,51 @@ Uninstalls local model weights, freeing host storage. Returns `200 OK` with `sta
 
 ---
 
+## 18. Model Context Protocol (MCP) Server
+
+VoxForg embeds a compliant Model Context Protocol (MCP) server conforming to JSON-RPC 2.0 specifications. LLM agents (e.g. Claude Desktop, Cursor, AI assistants) can connect over standard I/O (`stdio`) to orchestrate speech generation, voice cloning, transcription, DAG pipeline execution, and model catalog inspection natively.
+
+### Launching MCP Server via CLI
+
+```bash
+voxforg mcp
+```
+
+### Supported MCP Protocol Methods
+
+| Method | Description |
+|--------|-------------|
+| `initialize` | Handshake and exchange protocol versions and capabilities |
+| `ping` | Heartbeat probe |
+| `tools/list` | Enumerate available tools with JSON-schema input definitions |
+| `tools/call` | Execute a tool with parameters and receive JSON-RPC structured results |
+
+### Available MCP Tools
+
+1. **`synthesize_speech`**: Generate speech audio directly using any registered voice or cloned identity.
+2. **`clone_voice`**: Zero-shot voice cloning from reference audio samples.
+3. **`transcribe_audio`**: Audio speech recognition (ASR) to text or timestamped segments.
+4. **`execute_pipeline`**: High-performance multi-node audio DAG execution (e.g. `video_dubbing`, `audiobook`).
+5. **`list_voices`**: Query all available voices across local engines, routers, and cloned profiles.
+6. **`list_models`**: Inspect curated model weights in the local catalog.
+7. **`benchmark_engine`**: Profile latency, RTF, and throughput of speech engines.
+8. **`get_cluster_status`**: Query host hardware resources and distributed worker cluster status.
+
+### Example MCP Configuration (`claude_desktop_config.json`)
+
+```json
+{
+  "mcpServers": {
+    "voxforg": {
+      "command": "voxforg",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+---
+
 ## Endpoint Summary
 
 | Method | Path | Description |
