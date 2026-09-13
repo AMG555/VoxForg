@@ -11,6 +11,7 @@ pub struct WhisperAsrEngine {
     id: String,
     name: String,
     model_size: String,
+    upstream_url: Option<String>,
 }
 
 impl Default for WhisperAsrEngine {
@@ -29,7 +30,13 @@ impl WhisperAsrEngine {
             id: id.into(),
             name: name.into(),
             model_size: model_size.into(),
+            upstream_url: std::env::var("VOXFORG_WHISPER_URL").ok(),
         }
+    }
+
+    pub fn with_upstream(mut self, url: impl Into<String>) -> Self {
+        self.upstream_url = Some(url.into());
+        self
     }
 
     /// Analyze audio energy in frames to detect active speech regions (simple VAD).
@@ -124,6 +131,21 @@ impl AsrEngine for WhisperAsrEngine {
                 segments: Vec::new(),
                 words: Vec::new(),
             });
+        }
+
+        if let Some(ref url) = self.upstream_url {
+            let upstream = crate::openai::OpenAiAsrEngine::with_options(
+                self.id.clone(),
+                self.name.clone(),
+                url,
+                None,
+                self.model_size.clone(),
+            );
+            if let Ok(res) = upstream.transcribe(audio_pcm, sample_rate, options).await {
+                if !res.text.contains("offline or unreachable") {
+                    return Ok(res);
+                }
+            }
         }
 
         let regions = self.detect_speech_regions(audio_pcm, sample_rate);

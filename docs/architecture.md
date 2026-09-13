@@ -116,14 +116,16 @@ crates/
 ├── voxforg-asr            # [Phase 6] Automated Speech Recognition layer
 │   ├── src/traits.rs      # AsrEngine trait and AsrEngineInfo metadata
 │   ├── src/types.rs       # TranscriptionOptions, TranscriptionResult, WordTimestamp, SRT/VTT
-│   ├── src/whisper.rs     # WhisperAsrEngine with VAD energy segmentation
+│   ├── src/openai.rs      # OpenAiAsrEngine: HTTP multipart bridge to OpenAI-compatible ASR (Faster-Whisper/WhisperX)
+│   ├── src/whisper.rs     # WhisperAsrEngine with VAD energy segmentation & upstream delegation
 │   ├── src/mock.rs        # MockAsrEngine for deterministic CI testing
 │   └── src/registry.rs    # Thread-safe multi-engine AsrRegistry
 ├── voxforg-audio
 │   ├── src/wav.rs         # Zero-allocation streaming WAV chunker
 │   ├── src/resample.rs    # Sample rate conversion (e.g. 24kHz to 48kHz)
 │   ├── src/normalizer.rs  # EBU R128 loudness normalization
-│   └── src/concat.rs      # Cross-fade and pause insertion
+│   ├── src/concat.rs      # Cross-fade and pause insertion
+│   └── src/media.rs       # MediaProcessor: FFmpeg audio extraction & video container remuxing
 ├── voxforg-pipeline
 │   ├── src/graph.rs       # Directed Acyclic Graph validator and topological sorter
 │   ├── src/context.rs     # ExecutionContext with multi-track audio buffers & timing

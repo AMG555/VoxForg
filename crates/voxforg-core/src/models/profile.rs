@@ -23,9 +23,15 @@ pub struct VoiceProfile {
     /// Base64-encoded reference audio bytes (for API transport).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reference_audio_base64: Option<String>,
+    /// Exact text transcription of the reference audio clip (greatly improves cloning fidelity).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reference_transcript: Option<String>,
     /// Pre-extracted acoustic speaker embedding vector.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub embedding: Option<Vec<f32>>,
+    /// Supported cloning capabilities for this profile (e.g. "cross-lingual", "emotion-transfer").
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub clone_capabilities: Option<Vec<String>>,
     #[serde(default)]
     pub metadata: HashMap<String, String>,
     pub created_at: DateTime<Utc>,
@@ -44,6 +50,9 @@ pub struct CloneVoiceRequest {
     pub reference_audio_base64: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reference_audio_path: Option<String>,
+    /// Optional exact transcript of the reference audio for conditioning.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reference_transcript: Option<String>,
     #[serde(default = "default_language")]
     pub language: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]

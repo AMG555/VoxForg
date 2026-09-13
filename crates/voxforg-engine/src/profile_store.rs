@@ -30,7 +30,9 @@ impl VoiceProfileStore {
             gender: Some(Gender::Female),
             reference_audio_path: None,
             reference_audio_base64: None,
+            reference_transcript: None,
             embedding: Some(vec![0.05f32; 512]),
+            clone_capabilities: Some(vec!["zero-shot".to_string()]),
             metadata: HashMap::new(),
             created_at: Utc::now(),
         };
@@ -44,7 +46,9 @@ impl VoiceProfileStore {
             gender: Some(Gender::Male),
             reference_audio_path: None,
             reference_audio_base64: None,
+            reference_transcript: None,
             embedding: Some(vec![-0.05f32; 512]),
+            clone_capabilities: Some(vec!["zero-shot".to_string()]),
             metadata: HashMap::new(),
             created_at: Utc::now(),
         };

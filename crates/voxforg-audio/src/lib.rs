@@ -1,10 +1,12 @@
 pub mod dsp;
+pub mod media;
 pub mod merge;
 pub mod metrics;
 pub mod normalizer;
 pub mod wav;
 
 pub use dsp::{BrickwallLimiter, DynamicCompressor, ParametricEq, SilenceTrimmer};
+pub use media::MediaProcessor;
 pub use merge::AudioMerger;
 pub use metrics::{AudioAnalyzer, AudioQualityMetrics};
 pub use normalizer::AudioNormalizer;

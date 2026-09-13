@@ -262,6 +262,10 @@ impl McpServer {
                     engine_id: engine_id.to_string(),
                     reference_audio_base64: Some(ref_audio.to_string()),
                     reference_audio_path: None,
+                    reference_transcript: args
+                        .get("reference_transcript")
+                        .and_then(|t| t.as_str())
+                        .map(|s| s.to_string()),
                     language: lang.to_string(),
                     description: desc.map(|d| d.to_string()),
                     gender: None,

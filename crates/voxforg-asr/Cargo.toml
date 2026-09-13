@@ -17,6 +17,7 @@ tracing.workspace = true
 uuid.workspace = true
 chrono.workspace = true
 thiserror.workspace = true
+reqwest = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

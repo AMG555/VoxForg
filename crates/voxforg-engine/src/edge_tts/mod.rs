@@ -162,6 +162,8 @@ impl TtsEngine for EdgeTtsEngine {
                 "ja-JP".to_string(),
             ],
             is_local: false,
+            supports_cloning: false,
+            supports_streaming: true,
         }
     }
 

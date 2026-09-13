@@ -25,6 +25,16 @@ pub struct EngineCapabilities {
     pub languages: Vec<String>,
     /// True when the engine runs locally (no upstream network needed).
     pub is_local: bool,
+    /// True when the engine supports zero-shot voice cloning.
+    #[serde(default)]
+    pub supports_cloning: bool,
+    /// True when the engine supports streaming output chunks.
+    #[serde(default = "default_true")]
+    pub supports_streaming: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 impl Default for EngineCapabilities {
@@ -35,6 +45,8 @@ impl Default for EngineCapabilities {
             quality_score: 0.7,
             languages: vec!["en-US".to_string()],
             is_local: true,
+            supports_cloning: false,
+            supports_streaming: true,
         }
     }
 }

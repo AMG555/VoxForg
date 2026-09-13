@@ -59,6 +59,10 @@ pub fn get_mcp_tools() -> Vec<McpTool> {
                     "description": {
                         "type": "string",
                         "description": "Optional human-readable description of voice characteristics"
+                    },
+                    "reference_transcript": {
+                        "type": "string",
+                        "description": "Optional exact text transcript of reference audio to improve cloning fidelity"
                     }
                 },
                 "required": ["name", "reference_audio_base64"]

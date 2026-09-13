@@ -45,6 +45,14 @@ pub struct SynthesisPolicy {
     #[serde(default)]
     pub style: VoiceStyle,
 
+    /// Enforce voice cloning capability. Candidates without zero-shot cloning are strictly rejected.
+    #[serde(default)]
+    pub require_cloning: bool,
+
+    /// Enforce streaming capability. Candidates without chunked streaming are strictly rejected.
+    #[serde(default)]
+    pub require_streaming: bool,
+
     /// Explicit fallback chain of engine IDs to attempt in order.
     /// Empty = auto-select from all registered engines.
     #[serde(default)]

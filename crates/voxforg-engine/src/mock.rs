@@ -42,6 +42,8 @@ impl TtsEngine for MockTtsEngine {
             quality_score: 0.3, // synthetic tone; low quality
             languages: vec!["en-US".to_string()],
             is_local: true,
+            supports_cloning: true,
+            supports_streaming: true,
         }
     }
 
@@ -157,7 +159,9 @@ impl TtsEngine for MockTtsEngine {
             gender: request.gender.clone(),
             reference_audio_path: request.reference_audio_path.clone(),
             reference_audio_base64: request.reference_audio_base64.clone(),
+            reference_transcript: request.reference_transcript.clone(),
             embedding: Some(vec![0.5f32; 512]),
+            clone_capabilities: Some(vec!["synthetic".to_string()]),
             metadata: request.metadata.clone(),
             created_at: chrono::Utc::now(),
         })

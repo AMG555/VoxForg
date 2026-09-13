@@ -36,6 +36,11 @@ impl AsrRegistry {
         map.insert(whisper.id(), whisper);
         map.insert(mock.id(), mock);
 
+        if let Some(openai_asr) = crate::openai::OpenAiAsrEngine::from_env() {
+            let id = openai_asr.id();
+            map.insert(id, Arc::new(openai_asr));
+        }
+
         Self {
             engines: Arc::new(RwLock::new(map)),
             default_engine_id: "whisper-base".to_string(),

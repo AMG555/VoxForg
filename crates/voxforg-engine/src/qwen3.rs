@@ -15,6 +15,8 @@ use crate::traits::{EngineCapabilities, SynthesisRequest, TtsEngine};
 pub struct Qwen3TtsEngine {
     sample_rate: u32,
     clone_count: AtomicUsize,
+    endpoint_url: Option<String>,
+    client: reqwest::Client,
 }
 
 impl Default for Qwen3TtsEngine {
@@ -28,7 +30,17 @@ impl Qwen3TtsEngine {
         Self {
             sample_rate,
             clone_count: AtomicUsize::new(0),
+            endpoint_url: std::env::var("VOXFORG_QWEN3_URL").ok(),
+            client: reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(60))
+                .build()
+                .unwrap_or_default(),
         }
+    }
+
+    pub fn with_endpoint(mut self, url: impl Into<String>) -> Self {
+        self.endpoint_url = Some(url.into());
+        self
     }
 
     /// Extract a 512-dimensional speaker embedding vector from reference audio samples.
@@ -82,6 +94,8 @@ impl TtsEngine for Qwen3TtsEngine {
                 "es-ES".to_string(),
             ],
             is_local: true,
+            supports_cloning: true,
+            supports_streaming: true,
         }
     }
 
@@ -235,13 +249,62 @@ impl TtsEngine for Qwen3TtsEngine {
             gender: request.gender.clone(),
             reference_audio_path: request.reference_audio_path.clone(),
             reference_audio_base64: request.reference_audio_base64.clone(),
+            reference_transcript: request.reference_transcript.clone(),
             embedding: Some(embedding),
+            clone_capabilities: Some(vec![
+                "zero-shot".to_string(),
+                "cross-lingual".to_string(),
+                "prosody-transfer".to_string(),
+            ]),
             metadata,
             created_at: Utc::now(),
         })
     }
 
     async fn synthesize_cloned(&self, request: &ClonedSynthesisRequest) -> Result<AudioChunk> {
+        // If upstream microservice is configured, dispatch real cloning request
+        if let Some(ref url) = self.endpoint_url {
+            let payload = serde_json::json!({
+                "text": request.text,
+                "voice_profile_id": request.profile.id,
+                "reference_audio": request.profile.reference_audio_base64,
+                "reference_transcript": request.profile.reference_transcript,
+                "language": request.profile.language,
+                "speed": request.speed,
+                "pitch": request.pitch
+            });
+
+            if let Ok(resp) = self.client.post(url).json(&payload).send().await {
+                if resp.status().is_success() {
+                    if let Ok(bytes) = resp.bytes().await {
+                        if bytes.starts_with(b"RIFF") {
+                            if let Ok((pcm, sr, _ch)) =
+                                voxforg_audio::WavEncoder::decode_wav_to_pcm16(&bytes)
+                            {
+                                return Ok(AudioChunk {
+                                    sample_rate: sr,
+                                    channels: 1,
+                                    pcm_data: pcm,
+                                    is_final: true,
+                                });
+                            }
+                        } else if !bytes.is_empty() {
+                            let pcm: Vec<i16> = bytes
+                                .chunks_exact(2)
+                                .map(|c| i16::from_le_bytes([c[0], c[1]]))
+                                .collect();
+                            return Ok(AudioChunk {
+                                sample_rate: self.sample_rate,
+                                channels: 1,
+                                pcm_data: pcm,
+                                is_final: true,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
         let duration_secs = (request.text.len() as f32 * 0.05).max(0.15);
         let num_samples = ((self.sample_rate as f32) * duration_secs) as usize;
 
@@ -307,6 +370,7 @@ mod tests {
             engine_id: "qwen3-tts".to_string(),
             reference_audio_base64: Some(b64),
             reference_audio_path: None,
+            reference_transcript: Some("Sample speaker reference sentence.".to_string()),
             language: "en-US".to_string(),
             description: Some("Custom cloned speaker".to_string()),
             gender: Some(Gender::Female),

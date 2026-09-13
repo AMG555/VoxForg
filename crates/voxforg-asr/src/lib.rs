@@ -4,12 +4,14 @@
 //! types, word-level timestamping, and multi-engine registry routing.
 
 pub mod mock;
+pub mod openai;
 pub mod registry;
 pub mod traits;
 pub mod types;
 pub mod whisper;
 
 pub use mock::MockAsrEngine;
+pub use openai::OpenAiAsrEngine;
 pub use registry::AsrRegistry;
 pub use traits::{AsrEngine, AsrEngineInfo};
 pub use types::{TranscriptionOptions, TranscriptionResult, TranscriptionSegment, WordTimestamp};

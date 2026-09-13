@@ -35,6 +35,12 @@ pub fn score_engine(caps: &EngineCapabilities, policy: &SynthesisPolicy) -> Opti
             return None;
         }
     }
+    if policy.require_cloning && !caps.supports_cloning {
+        return None;
+    }
+    if policy.require_streaming && !caps.supports_streaming {
+        return None;
+    }
 
     // ── Soft scoring ─────────────────────────────────────────────────────────
     const MAX_LATENCY_MS: f32 = 2_000.0;
@@ -68,6 +74,8 @@ mod tests {
             cost_per_1k_chars: cost,
             languages: vec!["en-US".to_string()],
             is_local: cost == 0.0,
+            supports_cloning: false,
+            supports_streaming: true,
         }
     }
 
@@ -132,5 +140,19 @@ mod tests {
         let s_low = score_engine(&low, &policy).unwrap();
         let s_high = score_engine(&high, &policy).unwrap();
         assert!(s_high > s_low);
+    }
+
+    #[test]
+    fn hard_cloning_constraint_rejects_non_cloning_engine() {
+        let mut caps = make_caps(0.9, 100, 0.0);
+        caps.supports_cloning = false;
+        let policy = SynthesisPolicy {
+            require_cloning: true,
+            ..Default::default()
+        };
+        assert!(score_engine(&caps, &policy).is_none());
+
+        caps.supports_cloning = true;
+        assert!(score_engine(&caps, &policy).is_some());
     }
 }

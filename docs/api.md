@@ -734,14 +734,18 @@ Clones a voice by extracting speaker embeddings from a reference audio clip (3â€
   "name": "David Reporter",
   "engine_id": "qwen3-tts",
   "reference_audio_base64": "<base64_encoded_audio>",
+  "reference_transcript": "The quick brown fox jumps over the lazy dog.",
   "language": "en-US",
   "description": "Studio investigative reporter voice",
   "gender": "male"
 }
 ```
 
+- `reference_transcript` *(optional)*: Ground-truth text spoken in the reference audio clip. Essential for cross-lingual zero-shot alignment engines (e.g. Qwen3-TTS microservices).
+- `clone_capabilities` *(optional)*: List of supported capabilities (e.g. `["streaming", "cross-lingual"]`).
+
 #### Response (`201 Created`)
-Returns the newly created `VoiceProfile` containing assigned `id` and extracted `speaker_embedding`.
+Returns the newly created `VoiceProfile` containing assigned `id`, extracted `speaker_embedding`, and reference transcript.
 
 ### `GET /v1/voices/profiles/{id}`
 

@@ -240,6 +240,8 @@ impl TtsEngine for OpenAiRouterEngine {
                 "hi-IN".to_string(),
             ],
             is_local: local,
+            supports_cloning: false,
+            supports_streaming: true,
         }
     }
 

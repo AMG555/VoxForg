@@ -543,9 +543,33 @@ impl PipelineExecutor {
                         AudioMerger::concatenate_with_pause(&refs, ctx.sample_rate, 100);
                 }
 
+                // Check if a background audio file is provided
                 if ctx.background_audio_pcm.is_empty() {
-                    let len = ctx.master_audio_pcm.len();
-                    ctx.background_audio_pcm = (0..len).map(|i| ((i % 80) * 10) as i16).collect();
+                    if let Some(bg_path) = node
+                        .params
+                        .get("background_audio_path")
+                        .and_then(|p| p.as_str())
+                    {
+                        if let Ok(bytes) = std::fs::read(bg_path) {
+                            if bytes.starts_with(b"RIFF") {
+                                if let Ok((pcm, _sr, _ch)) =
+                                    voxforg_audio::WavEncoder::decode_wav_to_pcm16(&bytes)
+                                {
+                                    ctx.background_audio_pcm = pcm;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // If no background audio track is present, cleanly scale master audio without injecting synthetic noise
+                if ctx.background_audio_pcm.is_empty() {
+                    for sample in &mut ctx.master_audio_pcm {
+                        *sample = (*sample as f32 * voice_vol)
+                            .clamp(i16::MIN as f32, i16::MAX as f32)
+                            as i16;
+                    }
+                    return Ok(());
                 }
 
                 let max_len = ctx
