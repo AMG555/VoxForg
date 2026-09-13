@@ -130,12 +130,15 @@ Download the release binary for your platform or build from source:
 cargo build --release --bin voxforg
 
 # Verify hardware environment
-./target/release/voxforg hardware probe
+./target/release/voxforg hardware
 
 # Run automated QA A/B benchmark between voices
 ./target/release/voxforg ab-test --iterations 3
 
-# Launch server
+# Start Model Context Protocol (MCP) server for LLM agents
+./target/release/voxforg mcp
+
+# Launch HTTP/WS server
 ./target/release/voxforg serve --port 8080 --data-dir ./data
 ```
 
@@ -234,13 +237,20 @@ voxforg/
 │   ├── api.md                  # REST & WebSocket API documentation
 │   └── decisions/              # Architecture Decision Records (ADR-001 - 005)
 ├── crates/
-│   ├── voxforg-core/           # Domain models, DataStore trait (SQLite/PostgreSQL)
+│   ├── voxforg-core/           # Domain models, DataStore trait, error taxonomy
 │   ├── voxforg-hardware/       # CPU/GPU hardware detection & tier assignment
-│   ├── voxforg-engine/         # TTS Engine trait, registry & implementations
-│   ├── voxforg-audio/          # Audio manipulation, transcoding, normalization
-│   ├── voxforg-pipeline/       # DAG execution runner & graph solver
-│   ├── voxforg-api/            # Axum 0.8 REST server, security & streaming
-│   └── voxforg-cli/            # Command line binary
+│   ├── voxforg-engine/         # TTS Engine traits, registry, Edge-TTS, Qwen3 zero-shot cloning
+│   ├── voxforg-router/         # SLA policy routing and multi-objective scoring
+│   ├── voxforg-pronunciation/  # Text normalization and custom pronunciation dictionary
+│   ├── voxforg-audio/          # Audio manipulation, transcoding, DSP & metrics
+│   ├── voxforg-pipeline/       # DAG execution engine, time stretch, dubbing/audiobook templates
+│   ├── voxforg-benchmark/      # Engine benchmarking sentence suite & scorecard store
+│   ├── voxforg-worker/         # Distributed cluster worker pool & lease management
+│   ├── voxforg-asr/            # Automated Speech Recognition abstraction, Whisper, VAD
+│   ├── voxforg-catalog/        # Open-weights model catalog & hardware validation
+│   ├── voxforg-mcp/            # Model Context Protocol JSON-RPC 2.0 stdio server
+│   ├── voxforg-api/            # Axum REST & WebSocket server, OpenAPI 3.1, metrics
+│   └── voxforg-cli/            # Unified CLI binary (serve, synth, hardware, bench, ab-test, mcp)
 └── ui/                         # React 19 + TypeScript + Tailwind UI
 ```
 
@@ -256,10 +266,10 @@ voxforg/
 
 ### Running Rust Workspace Tests
 
-The workspace features a comprehensive 38+ automated test suite covering acoustic quality metrics, DAG scheduling, topological sorting, storage isolation, hardware tiering, and REST/WebSocket API endpoints:
+The workspace features a comprehensive 120+ automated test suite covering acoustic quality metrics, DAG scheduling, topological sorting, storage isolation, hardware tiering, voice cloning, ASR transcriptions, model catalogs, MCP protocol, and REST/WebSocket API endpoints:
 
 ```bash
-# Run all unit and integration tests across crates (38+ tests)
+# Run all unit and integration tests across crates (120+ tests)
 cargo test --workspace
 
 # Run dedicated audio metrics and QA benchmark tests

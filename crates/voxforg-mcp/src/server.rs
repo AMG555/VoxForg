@@ -67,7 +67,7 @@ impl McpServer {
 
     /// Process a raw single-line JSON-RPC request and return formatted response string.
     pub async fn handle_message(&self, raw: &str) -> Option<String> {
-        let trimmed = raw.trim();
+        let trimmed = raw.trim().trim_start_matches('\u{feff}');
         if trimmed.is_empty() {
             return None;
         }

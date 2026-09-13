@@ -22,6 +22,7 @@ voxforg <COMMAND> [OPTIONS]
 | `engines` | List registered speech engines and available voices | `voxforg engines` |
 | `bench` | Run synthesis latency benchmark across iterations | `voxforg bench --iterations 10` |
 | `ab-test` | Run automated objective A/B acoustic quality comparison | `voxforg ab-test --voice-a en-US-AriaNeural --voice-b alloy` |
+| `mcp` | Start Model Context Protocol (MCP) JSON-RPC 2.0 stdio server | `voxforg mcp` |
 
 ---
 
@@ -82,6 +83,29 @@ voxforg ab-test \
 - **Peak Amplitude (dBFS)**: Maximum sample level.
 - **RMS Loudness (dBFS)**: Root-mean-square average energy.
 - **Clipping Sample Count**: Number of digital samples hitting or exceeding `0.0 dBFS`.
+ 
+---
+
+### 1.5 `voxforg mcp`
+
+Launches an in-process Model Context Protocol (MCP) server adhering to JSON-RPC 2.0 over standard I/O (`stdio`). This exposes 8 core tools (`synthesize_speech`, `clone_voice`, `transcribe_audio`, `execute_pipeline`, `list_voices`, `list_models`, `benchmark_engine`, `get_cluster_status`) directly to LLM agent workstations like Claude Desktop or Cursor.
+
+```bash
+voxforg mcp
+```
+
+#### Claude Desktop Integration:
+Add to your `claude_desktop_config.json`:
+```json
+{
+  "mcpServers": {
+    "voxforg": {
+      "command": "voxforg",
+      "args": ["mcp"]
+    }
+  }
+}
+```
 
 ---
 
