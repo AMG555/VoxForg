@@ -100,3 +100,28 @@ export interface AbTestScenario {
     pitch?: number;
   };
 }
+
+export interface CatalogItem {
+  id: string;
+  name: string;
+  description: string;
+  model_type: 'tts' | 'asr' | 'vad' | 'diarizer';
+  format: string;
+  size_bytes: number;
+  min_ram_mb: number;
+  requires_gpu: boolean;
+  supported_languages: string[];
+  status: 'Available' | 'Downloading' | 'Installed' | 'Error';
+  installed_at?: string;
+  local_path?: string;
+}
+
+export interface CloneVoicePayload {
+  name: string;
+  engine_id?: string;
+  reference_audio_base64?: string;
+  reference_transcript?: string;
+  language?: string;
+  gender?: 'male' | 'female' | 'neutral';
+  description?: string;
+}

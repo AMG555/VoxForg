@@ -14,7 +14,7 @@ use voxforg_core::models::AudioContainerFormat;
 use voxforg_core::store::memory::MemoryStore;
 use voxforg_engine::{
     AbTestRunner, AbTestScenario, EdgeTtsEngine, EngineRegistry, MockTtsEngine, OpenAiRouterEngine,
-    PiperTtsEngine, Qwen3TtsEngine, SynthesisRequest,
+    PiperTtsEngine, Qwen3TtsEngine, SynthesisRequest, TtsEngine,
 };
 use voxforg_hardware::HardwareProbe;
 
@@ -50,6 +50,15 @@ enum Commands {
 
     /// Start Model Context Protocol (MCP) server over standard I/O
     Mcp,
+
+    /// Transcribe speech audio/video to text or subtitles (SRT/VTT)
+    Transcribe(TranscribeArgs),
+
+    /// Clone a voice from reference audio and generate voice profile
+    Clone(CloneArgs),
+
+    /// Manage local neural model packages
+    Models(ModelsArgs),
 }
 
 #[derive(Args)]
@@ -167,6 +176,79 @@ struct AbTestArgs {
     iterations: usize,
 }
 
+#[derive(Args)]
+struct TranscribeArgs {
+    /// Path to input audio or video file (.wav, .mp3, .mp4, .mkv)
+    input: PathBuf,
+
+    /// Optional target ASR engine or model identifier (e.g. whisper-base, openai-asr)
+    #[arg(short, long)]
+    model: Option<String>,
+
+    /// Language code (e.g. en, es, fr, auto)
+    #[arg(short, long)]
+    language: Option<String>,
+
+    /// Output format: text, json, srt, vtt
+    #[arg(short, long, default_value = "text")]
+    format: String,
+
+    /// Output file path (defaults to stdout)
+    #[arg(short, long)]
+    out: Option<PathBuf>,
+}
+
+#[derive(Args)]
+struct CloneArgs {
+    /// Human-readable display name for the cloned voice
+    #[arg(short, long)]
+    name: String,
+
+    /// Path to reference audio clip (3-10 seconds recommended)
+    #[arg(short, long)]
+    audio: PathBuf,
+
+    /// Optional ground-truth transcript spoken in reference audio
+    #[arg(short, long)]
+    transcript: Option<String>,
+
+    /// Language code (e.g. en-US)
+    #[arg(short, long, default_value = "en-US")]
+    language: String,
+
+    /// Speaker gender: male, female, neutral
+    #[arg(short, long, default_value = "neutral")]
+    gender: String,
+
+    /// Output voice profile JSON file path
+    #[arg(short, long, default_value = "voice_profile.json")]
+    out: PathBuf,
+}
+
+#[derive(Args)]
+struct ModelsArgs {
+    #[command(subcommand)]
+    command: ModelsCommands,
+}
+
+#[derive(Subcommand)]
+enum ModelsCommands {
+    /// List models in local catalogue
+    List {
+        /// Filter by model type (tts, asr, vad, diarizer)
+        #[arg(short, long)]
+        filter: Option<String>,
+        /// Show only installed models
+        #[arg(short, long)]
+        installed_only: bool,
+    },
+    /// Download and install model weights
+    Install {
+        /// Model identifier to install (e.g. kokoro-v0_19, piper-en-lessac-medium)
+        id: String,
+    },
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let subscriber = FmtSubscriber::builder()
@@ -185,6 +267,9 @@ async fn main() -> Result<()> {
         Commands::Bench(args) => run_bench(args).await,
         Commands::AbTest(args) => run_ab_test(args).await,
         Commands::Mcp => run_mcp().await,
+        Commands::Transcribe(args) => run_transcribe(args).await,
+        Commands::Clone(args) => run_clone(args).await,
+        Commands::Models(args) => run_models(args).await,
     }
 }
 
@@ -508,5 +593,201 @@ async fn run_ab_test(args: AbTestArgs) -> Result<()> {
 async fn run_mcp() -> Result<()> {
     let server = voxforg_mcp::McpServer::with_defaults();
     server.run_stdio().await?;
+    Ok(())
+}
+
+async fn run_transcribe(args: TranscribeArgs) -> Result<()> {
+    if !args.input.exists() {
+        anyhow::bail!("Input file '{}' does not exist", args.input.display());
+    }
+
+    let pcm = if let Some(ext) = args.input.extension().and_then(|s| s.to_str()) {
+        let ext_lower = ext.to_lowercase();
+        if ext_lower == "mp4" || ext_lower == "mkv" || ext_lower == "mov" || ext_lower == "webm" {
+            let (pcm, _, _) = voxforg_audio::MediaProcessor::extract_audio_to_pcm(&args.input, 16000)
+                .map_err(|e| anyhow::anyhow!("Failed extracting audio from video: {e}"))?;
+            pcm
+        } else {
+            let bytes = std::fs::read(&args.input)?;
+            let (pcm, _, _) = WavEncoder::decode_wav_to_pcm16(&bytes)?;
+            pcm
+        }
+    } else {
+        let bytes = std::fs::read(&args.input)?;
+        let (pcm, _, _) = WavEncoder::decode_wav_to_pcm16(&bytes)?;
+        pcm
+    };
+
+    let registry = voxforg_asr::AsrRegistry::with_defaults();
+    let engine = if let Some(ref m) = args.model {
+        registry
+            .get(m)
+            .await
+            .ok_or_else(|| anyhow::anyhow!("ASR engine '{m}' not found in registry"))?
+    } else {
+        registry
+            .default_engine()
+            .await
+            .ok_or_else(|| anyhow::anyhow!("No default ASR engine available"))?
+    };
+
+    info!(
+        "Transcribing '{}' using engine '{}'",
+        args.input.display(),
+        engine.info().name
+    );
+    let opts = voxforg_asr::TranscriptionOptions {
+        language: args.language,
+        word_timestamps: args.format == "srt" || args.format == "vtt" || args.format == "json",
+        ..Default::default()
+    };
+
+    let start = Instant::now();
+    let result = engine
+        .transcribe(&pcm, 16000, &opts)
+        .await
+        .map_err(|e| anyhow::anyhow!("Transcription failed: {e}"))?;
+    let elapsed = start.elapsed();
+
+    let output_str = match args.format.to_lowercase().as_str() {
+        "srt" => result.to_srt(),
+        "vtt" => result.to_vtt(),
+        "json" => serde_json::to_string_pretty(&result)?,
+        _ => result.text.clone(),
+    };
+
+    if let Some(ref out_path) = args.out {
+        if let Some(parent) = out_path.parent() {
+            if !parent.as_os_str().is_empty() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+        }
+        std::fs::write(out_path, &output_str)?;
+        info!(
+            "Transcription saved to {:?} in {:.2?} (Audio duration: {:.2}s)",
+            out_path,
+            elapsed,
+            result.duration_seconds
+        );
+    } else {
+        println!("{output_str}");
+    }
+
+    Ok(())
+}
+
+async fn run_clone(args: CloneArgs) -> Result<()> {
+    if !args.audio.exists() {
+        anyhow::bail!("Reference audio file '{}' does not exist", args.audio.display());
+    }
+
+    let bytes = std::fs::read(&args.audio)?;
+    let hex_encoded = hex::encode(&bytes);
+
+    let gender = match args.gender.to_lowercase().as_str() {
+        "male" => voxforg_core::models::Gender::Male,
+        "female" => voxforg_core::models::Gender::Female,
+        _ => voxforg_core::models::Gender::Neutral,
+    };
+
+    let req = voxforg_core::models::CloneVoiceRequest {
+        name: args.name.clone(),
+        engine_id: "qwen3-tts".to_string(),
+        reference_audio_base64: Some(hex_encoded),
+        reference_audio_path: Some(args.audio.to_string_lossy().to_string()),
+        reference_transcript: args.transcript,
+        language: args.language,
+        description: Some(format!("Cloned voice profile for {}", args.name)),
+        gender: Some(gender),
+        metadata: std::collections::HashMap::new(),
+    };
+
+    let engine = Qwen3TtsEngine::default();
+    let profile = engine
+        .clone_voice(&req)
+        .await
+        .map_err(|e| anyhow::anyhow!("Voice cloning failed: {e}"))?;
+
+    let json = serde_json::to_string_pretty(&profile)?;
+    if let Some(parent) = args.out.parent() {
+        if !parent.as_os_str().is_empty() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+    }
+    std::fs::write(&args.out, json)?;
+
+    info!(
+        "Voice profile '{}' created successfully with 512-dim embedding saved to {:?}",
+        args.name,
+        args.out
+    );
+    Ok(())
+}
+
+async fn run_models(args: ModelsArgs) -> Result<()> {
+    let catalog = voxforg_catalog::ModelCatalogStore::with_curated_models();
+    let hardware = HardwareProbe::probe();
+
+    match args.command {
+        ModelsCommands::List {
+            filter,
+            installed_only,
+        } => {
+            let filter_type = filter.and_then(|f| match f.to_lowercase().as_str() {
+                "tts" => Some(voxforg_catalog::ModelType::Tts),
+                "asr" => Some(voxforg_catalog::ModelType::Asr),
+                "vad" => Some(voxforg_catalog::ModelType::Vad),
+                "diarizer" => Some(voxforg_catalog::ModelType::Diarizer),
+                _ => None,
+            });
+
+            let items = catalog.list(filter_type, installed_only).await;
+            println!(
+                "=== VoxForg Model Catalogue (Host RAM: {}MB) ===",
+                hardware.total_memory_mb
+            );
+            println!(
+                "{:<24} | {:<8} | {:<12} | {:<10} | {:<8} | Name",
+                "ID", "Type", "Status", "Size", "Min RAM"
+            );
+            println!("{:-<95}", "");
+            for item in items {
+                let status_str = match item.status {
+                    voxforg_catalog::ModelStatus::Installed => "INSTALLED",
+                    voxforg_catalog::ModelStatus::Downloading => "DOWNLOADING",
+                    voxforg_catalog::ModelStatus::Available => "AVAILABLE",
+                    voxforg_catalog::ModelStatus::Error => "ERROR",
+                };
+                let size_mb = item.size_bytes / (1024 * 1024);
+                let type_str = match item.model_type {
+                    voxforg_catalog::ModelType::Tts => "TTS",
+                    voxforg_catalog::ModelType::Asr => "ASR",
+                    voxforg_catalog::ModelType::Vad => "VAD",
+                    voxforg_catalog::ModelType::Diarizer => "DIAR",
+                };
+                println!(
+                    "{:<24} | {:<8} | {:<12} | {:>7}MB | {:>5}MB | {}",
+                    item.id, type_str, status_str, size_mb, item.min_ram_mb, item.name
+                );
+            }
+        }
+        ModelsCommands::Install { id } => {
+            info!(
+                "Initiating download and installation for model package '{}'...",
+                id
+            );
+            match catalog.install(&id, &hardware).await {
+                Ok(installed) => {
+                    info!(
+                        "Successfully installed model '{}' at {:?}",
+                        installed.id, installed.local_path
+                    );
+                }
+                Err(e) => {
+                    anyhow::bail!("Model installation failed: {e}");
+                }
+            }
+        }
+    }
     Ok(())
 }

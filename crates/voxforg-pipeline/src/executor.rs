@@ -34,12 +34,39 @@ impl PipelineExecutor {
         pipeline: &PipelineDefinition,
         initial_text: Option<String>,
     ) -> Result<Vec<u8>> {
-        let order = GraphValidator::topological_sort(pipeline)?;
         let mut ctx = ExecutionContext::new();
-
         if let Some(text) = initial_text {
             ctx.raw_text = Some(text);
         }
+        self.execute_with_context(pipeline, ctx).await
+    }
+
+    pub async fn execute_with_context(
+        &self,
+        pipeline: &PipelineDefinition,
+        mut ctx: ExecutionContext,
+    ) -> Result<Vec<u8>> {
+        // If input video path provided and input audio is empty, extract audio track from video
+        if let Some(ref video_in) = ctx.input_video_path {
+            if ctx.input_audio_pcm.is_empty() {
+                let v_path = std::path::Path::new(video_in);
+                if v_path.exists() {
+                    match voxforg_audio::MediaProcessor::extract_audio_to_pcm(v_path, ctx.sample_rate.max(16000)) {
+                        Ok((pcm, sr, ch)) => {
+                            ctx.input_audio_pcm = pcm;
+                            ctx.sample_rate = sr;
+                            ctx.channels = ch;
+                            tracing::info!(video = %video_in, "Extracted audio from video container for pipeline processing");
+                        }
+                        Err(e) => {
+                            tracing::warn!(error = %e, video = %video_in, "Failed extracting audio from video container");
+                        }
+                    }
+                }
+            }
+        }
+
+        let order = GraphValidator::topological_sort(pipeline)?;
 
         for node_id in order {
             let node = pipeline
@@ -65,6 +92,20 @@ impl PipelineExecutor {
             ctx.sample_rate.max(8000),
             ctx.channels.max(1),
         )?;
+
+        // If output video path provided, mux master audio into video container
+        if let Some(ref video_out) = ctx.output_video_path {
+            let in_video = ctx.input_video_path.as_deref().unwrap_or(video_out.as_str());
+            let in_path = std::path::Path::new(in_video);
+            let out_path = std::path::Path::new(video_out);
+            if in_path.exists() {
+                if let Err(e) = voxforg_audio::MediaProcessor::mux_video_bytes(in_path, &wav_bytes, out_path) {
+                    tracing::warn!(error = %e, output_video = %video_out, "Failed muxing master audio into video container");
+                } else {
+                    tracing::info!(output_video = %video_out, "Successfully muxed master audio into output video container");
+                }
+            }
+        }
 
         Ok(wav_bytes)
     }

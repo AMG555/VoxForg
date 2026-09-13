@@ -164,6 +164,48 @@ impl MediaProcessor {
 
         Ok(())
     }
+
+    /// Extract audio from video directly into raw PCM16 samples and sample rate.
+    pub fn extract_audio_to_pcm(
+        video_path: impl AsRef<Path>,
+        sample_rate: u32,
+    ) -> Result<(Vec<i16>, u32, u16), VoxForgError> {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let temp_wav = std::env::temp_dir().join(format!("voxforg_demux_{}_{nanos}.wav", std::process::id()));
+
+        Self::extract_audio(video_path, &temp_wav, sample_rate)?;
+        let wav_bytes = std::fs::read(&temp_wav).map_err(|e| {
+            let _ = std::fs::remove_file(&temp_wav);
+            VoxForgError::AudioProcessing(format!("Failed reading extracted audio temp file: {e}"))
+        })?;
+        let _ = std::fs::remove_file(&temp_wav);
+
+        crate::wav::WavEncoder::decode_wav_to_pcm16(&wav_bytes)
+    }
+
+    /// Mux raw WAV bytes into video container using FFmpeg.
+    pub fn mux_video_bytes(
+        video_path: impl AsRef<Path>,
+        wav_bytes: &[u8],
+        out_video_path: impl AsRef<Path>,
+    ) -> Result<(), VoxForgError> {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let temp_wav = std::env::temp_dir().join(format!("voxforg_mux_{}_{nanos}.wav", std::process::id()));
+
+        std::fs::write(&temp_wav, wav_bytes).map_err(|e| {
+            VoxForgError::AudioProcessing(format!("Failed writing temp audio for video mux: {e}"))
+        })?;
+
+        let res = Self::mux_video(video_path, &temp_wav, out_video_path);
+        let _ = std::fs::remove_file(&temp_wav);
+        res
+    }
 }
 
 #[cfg(test)]

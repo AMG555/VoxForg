@@ -15,6 +15,8 @@ voxforg-hardware = { workspace = true }
 voxforg-audio = { workspace = true }
 voxforg-engine = { workspace = true }
 voxforg-pipeline = { workspace = true }
+voxforg-asr = { workspace = true }
+voxforg-catalog = { workspace = true }
 voxforg-mcp = { workspace = true }
 voxforg-api = { workspace = true }
 axum.workspace = true
@@ -24,3 +26,5 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 anyhow.workspace = true
 uuid.workspace = true
+hex.workspace = true
+serde_json.workspace = true

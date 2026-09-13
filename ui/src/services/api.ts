@@ -1,4 +1,12 @@
-import { AbTestComparison, AbTestScenario, HardwareInfo, PipelineDefinition, Voice } from '../types';
+import {
+  AbTestComparison,
+  AbTestScenario,
+  CatalogItem,
+  CloneVoicePayload,
+  HardwareInfo,
+  PipelineDefinition,
+  Voice,
+} from '../types';
 
 const BASE_URL = '';
 
@@ -116,6 +124,44 @@ export const api = {
       throw new Error(err.detail || 'A/B Test failed');
     }
 
+    return res.json();
+  },
+
+  async getCatalogModels(type?: string, installedOnly?: boolean): Promise<CatalogItem[]> {
+    const params = new URLSearchParams();
+    if (type) params.append('type', type);
+    if (installedOnly) params.append('installed_only', 'true');
+
+    const res = await fetch(`${BASE_URL}/v1/catalog/models?${params.toString()}`, {
+      headers: getHeaders(),
+    });
+    if (!res.ok) throw new Error('Failed to fetch catalog models');
+    const data = await res.json();
+    return data.models;
+  },
+
+  async installModel(id: string): Promise<CatalogItem> {
+    const res = await fetch(`${BASE_URL}/v1/catalog/models/${encodeURIComponent(id)}/install`, {
+      method: 'POST',
+      headers: getHeaders({ 'Content-Type': 'application/json' }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Model install failed' }));
+      throw new Error(err.detail || 'Model install failed');
+    }
+    return res.json();
+  },
+
+  async cloneVoice(payload: CloneVoicePayload): Promise<any> {
+    const res = await fetch(`${BASE_URL}/v1/voices/clone`, {
+      method: 'POST',
+      headers: getHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Voice cloning failed' }));
+      throw new Error(err.detail || 'Voice cloning failed');
+    }
     return res.json();
   },
 };

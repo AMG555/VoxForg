@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Play, Loader2, Search } from 'lucide-react';
+import { Play, Loader2, Search, Sparkles, Upload, X, Mic } from 'lucide-react';
 import { Voice } from '../../types';
 import { api } from '../../services/api';
 import { AudioVisualizer } from '../common/AudioVisualizer';
@@ -20,6 +20,15 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices }) => {
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Voice cloning studio state
+  const [showCloneModal, setShowCloneModal] = useState<boolean>(false);
+  const [cloneName, setCloneName] = useState<string>('');
+  const [cloneTranscript, setCloneTranscript] = useState<string>('');
+  const [cloneGender, setCloneGender] = useState<'male' | 'female' | 'neutral'>('neutral');
+  const [cloneAudioBase64, setCloneAudioBase64] = useState<string>('');
+  const [cloneFileName, setCloneFileName] = useState<string>('');
+  const [isCloning, setIsCloning] = useState<boolean>(false);
 
   React.useEffect(() => {
     return () => {
@@ -61,11 +70,70 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices }) => {
     }
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setCloneFileName(file.name);
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        const base64 = result.includes(',') ? result.split(',')[1] : result;
+        setCloneAudioBase64(base64);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleCloneSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!cloneName || !cloneAudioBase64) return;
+    setIsCloning(true);
+    try {
+      const res = await api.cloneVoice({
+        name: cloneName,
+        engine_id: 'qwen3-tts',
+        reference_audio_base64: cloneAudioBase64,
+        reference_transcript: cloneTranscript || undefined,
+        gender: cloneGender,
+        language: 'en-US',
+      });
+      const newVoice: Voice = {
+        id: res.id || `cloned-${Date.now()}`,
+        name: `${cloneName} (Cloned)`,
+        engine_id: 'qwen3-tts',
+        language: 'en-US',
+        gender: cloneGender,
+        sample_rate_hz: 24000,
+        tags: ['cloned', 'zero-shot'],
+        description: 'Zero-shot voice profile generated from reference sample',
+      };
+      voices.unshift(newVoice);
+      setSelectedVoiceId(newVoice.id);
+      setShowCloneModal(false);
+      setCloneName('');
+      setCloneTranscript('');
+      setCloneAudioBase64('');
+      setCloneFileName('');
+    } catch (err: any) {
+      alert(`Cloning failed: ${err.message}`);
+    } finally {
+      setIsCloning(false);
+    }
+  };
+
   return (
-    <div className="flex-1 flex overflow-hidden bg-[#0B0E14]">
+    <div className="flex-1 flex overflow-hidden bg-[#0B0E14] relative">
       {/* Voices List Sidebar */}
       <div className="w-80 border-r border-[#242E3D] bg-[#121820] flex flex-col h-full select-none">
-        <div className="p-3 border-b border-[#242E3D]">
+        <div className="p-3 border-b border-[#242E3D] space-y-2">
+          <button
+            onClick={() => setShowCloneModal(true)}
+            className="w-full flex items-center justify-center space-x-2 py-1.5 px-3 rounded bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-mono font-semibold transition-colors"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>Clone New Voice</span>
+          </button>
+
           <div className="relative">
             <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[#64748B]" />
             <input
@@ -209,6 +277,128 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices }) => {
           </div>
         </div>
       </div>
+
+      {/* Voice Cloning Studio Modal */}
+      {showCloneModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-[#121820] border border-[#242E3D] rounded-xl w-full max-w-lg overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-150">
+            <div className="p-4 border-b border-[#242E3D] flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <div className="p-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400">
+                  <Sparkles className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">Voice Cloning Studio</h3>
+                  <p className="text-[11px] text-[#94A3B8] font-mono">Zero-shot speaker acoustic embedding extraction</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowCloneModal(false)}
+                className="p-1 rounded-lg text-[#64748B] hover:text-white hover:bg-[#1A222D] transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCloneSubmit} className="p-5 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-[#94A3B8] mb-1">
+                  Voice Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={cloneName}
+                  onChange={(e) => setCloneName(e.target.value)}
+                  placeholder="e.g. Rachel Nova (Podcaster)"
+                  className="w-full bg-[#0B0E14] border border-[#242E3D] rounded-lg px-3 py-2 text-white text-xs focus:border-amber-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-[#94A3B8] mb-1">
+                  Reference Audio Sample *
+                </label>
+                <label className="flex flex-col items-center justify-center border border-dashed border-[#242E3D] hover:border-amber-500/50 bg-[#0B0E14] rounded-lg p-4 cursor-pointer transition-colors group">
+                  <Upload className="w-6 h-6 text-[#64748B] group-hover:text-amber-400 mb-2 transition-colors" />
+                  <span className="text-xs text-[#94A3B8] group-hover:text-white">
+                    {cloneFileName ? cloneFileName : 'Select WAV, MP3, or FLAC reference audio'}
+                  </span>
+                  <span className="text-[10px] text-[#64748B] font-mono mt-1">3 - 15 seconds clean speech recommended</span>
+                  <input
+                    type="file"
+                    accept="audio/*"
+                    onChange={handleFileChange}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-[#94A3B8] mb-1">
+                  Reference Transcript <span className="text-[#64748B] lowercase">(optional, improves alignment)</span>
+                </label>
+                <textarea
+                  rows={2}
+                  value={cloneTranscript}
+                  onChange={(e) => setCloneTranscript(e.target.value)}
+                  placeholder="What was spoken in the reference audio sample..."
+                  className="w-full bg-[#0B0E14] border border-[#242E3D] rounded-lg p-2 text-white text-xs focus:border-amber-500 focus:outline-none resize-none leading-relaxed"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-[#94A3B8] mb-1">
+                  Gender Target
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(['neutral', 'female', 'male'] as const).map((g) => (
+                    <button
+                      key={g}
+                      type="button"
+                      onClick={() => setCloneGender(g)}
+                      className={`py-1.5 px-3 rounded-lg text-xs font-mono capitalize border transition-all ${
+                        cloneGender === g
+                          ? 'bg-amber-500/10 border-amber-500 text-amber-400'
+                          : 'bg-[#0B0E14] border-[#242E3D] text-[#94A3B8] hover:border-[#3B485C]'
+                      }`}
+                    >
+                      {g}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="pt-2 flex items-center justify-end space-x-3 border-t border-[#242E3D]">
+                <button
+                  type="button"
+                  onClick={() => setShowCloneModal(false)}
+                  className="px-4 py-2 rounded-lg bg-[#1A222D] hover:bg-[#242E3D] text-[#94A3B8] hover:text-white text-xs font-semibold transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isCloning || !cloneName || !cloneAudioBase64}
+                  className="flex items-center space-x-2 px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-black text-xs font-semibold transition-colors disabled:opacity-50"
+                >
+                  {isCloning ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Extracting Profile...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Mic className="w-3.5 h-3.5" />
+                      <span>Clone Profile</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

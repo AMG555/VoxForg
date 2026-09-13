@@ -1,10 +1,10 @@
 import React from 'react';
-import { Activity, Cpu, GitFork, Mic, Scale, Volume2 } from 'lucide-react';
+import { Activity, Cpu, GitFork, Layers, Mic, Scale, Volume2 } from 'lucide-react';
 import { HardwareInfo } from '../types';
 
 interface NavigationProps {
-  activeTab: 'canvas' | 'voices' | 'hardware' | 'qa';
-  setActiveTab: (tab: 'canvas' | 'voices' | 'hardware' | 'qa') => void;
+  activeTab: 'canvas' | 'voices' | 'catalog' | 'hardware' | 'qa';
+  setActiveTab: (tab: 'canvas' | 'voices' | 'catalog' | 'hardware' | 'qa') => void;
   hardware: HardwareInfo | null;
 }
 
@@ -45,6 +45,18 @@ export const Navigation: React.FC<NavigationProps> = ({ activeTab, setActiveTab,
           >
             <Mic className="w-3.5 h-3.5" />
             <span>Voice Lab</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('catalog')}
+            className={`flex items-center space-x-2 px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+              activeTab === 'catalog'
+                ? 'bg-[#1A222D] text-white border border-[#3B485C]'
+                : 'text-[#94A3B8] hover:text-white hover:bg-[#1A222D]/50'
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5" />
+            <span>Model Catalog</span>
           </button>
 
           <button
