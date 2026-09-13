@@ -193,6 +193,56 @@ async fn resolve_engine_and_voice(
     }
 }
 
+fn encode_chunk_to_response(
+    audio_chunk: voxforg_core::models::AudioChunk,
+    format: AudioContainerFormat,
+) -> Result<Response, (StatusCode, Json<ProblemDetails>)> {
+    let (audio_bytes, content_type) = match format {
+        AudioContainerFormat::Pcm => {
+            let bytes: Vec<u8> = audio_chunk
+                .pcm_data
+                .iter()
+                .flat_map(|s| s.to_le_bytes())
+                .collect();
+            (bytes, "audio/pcm")
+        }
+        _ => {
+            let wav_bytes = WavEncoder::encode_pcm16_to_wav(
+                &audio_chunk.pcm_data,
+                audio_chunk.sample_rate,
+                audio_chunk.channels,
+            )
+            .map_err(|e| {
+                let err = ProblemDetails {
+                    problem_type: "https://voxforg.org/errors/encoding-failure".to_string(),
+                    title: "Audio Encoding Error".to_string(),
+                    status: StatusCode::INTERNAL_SERVER_ERROR.as_u16(),
+                    detail: e.to_string(),
+                    instance: "/v1/audio/speech".to_string(),
+                };
+                (StatusCode::INTERNAL_SERVER_ERROR, Json(err))
+            })?;
+            (wav_bytes, "audio/wav")
+        }
+    };
+
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, HeaderValue::from_static(content_type))
+        .header(header::CACHE_CONTROL, HeaderValue::from_static("no-cache"))
+        .body(Body::from(audio_bytes))
+        .map_err(|e| {
+            let err = ProblemDetails {
+                problem_type: "https://voxforg.org/errors/internal".to_string(),
+                title: "Internal Error".to_string(),
+                status: StatusCode::INTERNAL_SERVER_ERROR.as_u16(),
+                detail: e.to_string(),
+                instance: "/v1/audio/speech".to_string(),
+            };
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(err))
+        })
+}
+
 pub async fn synthesize_speech(
     State(state): State<AppState>,
     Json(payload): Json<OpenAiSpeechRequest>,
@@ -279,6 +329,34 @@ pub async fn synthesize_speech(
         }
     }
 
+    // ── Cloned voice profile synthesis path ──────────────────────────────
+    if let Some(profile) = state.voice_profiles.get(&payload.voice).await {
+        if let Some(engine) = state.engine_registry.get(&profile.engine_id).await {
+            if engine.supports_cloning() {
+                let cloned_req = voxforg_core::models::ClonedSynthesisRequest {
+                    text: state.pronunciation.process(&payload.input),
+                    profile,
+                    speed: payload.speed,
+                    pitch: payload.pitch.unwrap_or(0.0),
+                    format: payload.response_format,
+                };
+                let audio_chunk = engine.synthesize_cloned(&cloned_req).await.map_err(|e| {
+                    let err = ProblemDetails {
+                        problem_type: "https://voxforg.org/errors/cloned-synthesis-failure"
+                            .to_string(),
+                        title: "Cloned Synthesis Error".to_string(),
+                        status: StatusCode::INTERNAL_SERVER_ERROR.as_u16(),
+                        detail: e.to_string(),
+                        instance: "/v1/audio/speech".to_string(),
+                    };
+                    (StatusCode::INTERNAL_SERVER_ERROR, Json(err))
+                })?;
+
+                return encode_chunk_to_response(audio_chunk, payload.response_format);
+            }
+        }
+    }
+
     let (engine, voice) = resolve_engine_and_voice(&state, &payload).await?;
 
     let synth_req = SynthesisRequest {
@@ -312,52 +390,7 @@ pub async fn synthesize_speech(
         .metrics
         .record_synthesis(elapsed.as_millis() as u64, audio_chunk.pcm_data.len());
 
-    let (audio_bytes, content_type) = match payload.response_format {
-        AudioContainerFormat::Pcm => {
-            let bytes: Vec<u8> = audio_chunk
-                .pcm_data
-                .iter()
-                .flat_map(|s| s.to_le_bytes())
-                .collect();
-            (bytes, "audio/pcm")
-        }
-        _ => {
-            let wav_bytes = WavEncoder::encode_pcm16_to_wav(
-                &audio_chunk.pcm_data,
-                audio_chunk.sample_rate,
-                audio_chunk.channels,
-            )
-            .map_err(|e| {
-                let err = ProblemDetails {
-                    problem_type: "https://voxforg.org/errors/encoding-failure".to_string(),
-                    title: "Audio Encoding Error".to_string(),
-                    status: StatusCode::INTERNAL_SERVER_ERROR.as_u16(),
-                    detail: e.to_string(),
-                    instance: "/v1/audio/speech".to_string(),
-                };
-                (StatusCode::INTERNAL_SERVER_ERROR, Json(err))
-            })?;
-            (wav_bytes, "audio/wav")
-        }
-    };
-
-    let response = Response::builder()
-        .status(StatusCode::OK)
-        .header(header::CONTENT_TYPE, HeaderValue::from_static(content_type))
-        .header(header::CACHE_CONTROL, HeaderValue::from_static("no-cache"))
-        .body(Body::from(audio_bytes))
-        .map_err(|e| {
-            let err = ProblemDetails {
-                problem_type: "https://voxforg.org/errors/internal".to_string(),
-                title: "Internal Error".to_string(),
-                status: StatusCode::INTERNAL_SERVER_ERROR.as_u16(),
-                detail: e.to_string(),
-                instance: "/v1/audio/speech".to_string(),
-            };
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(err))
-        })?;
-
-    Ok(response)
+    encode_chunk_to_response(audio_chunk, payload.response_format)
 }
 
 pub async fn synthesize_speech_stream(

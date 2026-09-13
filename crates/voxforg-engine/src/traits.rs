@@ -1,8 +1,11 @@
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
-use voxforg_core::error::Result;
-use voxforg_core::models::{AudioChunk, AudioContainerFormat, Voice};
+use voxforg_core::error::{Result, VoxForgError};
+use voxforg_core::models::{
+    AudioChunk, AudioContainerFormat, CloneVoiceRequest, ClonedSynthesisRequest, Voice,
+    VoiceProfile,
+};
 
 fn default_speed() -> f32 {
     1.0
@@ -75,4 +78,25 @@ pub trait TtsEngine: Send + Sync {
         request: &SynthesisRequest,
     ) -> Result<mpsc::Receiver<Result<AudioChunk>>>;
     async fn health_check(&self) -> Result<bool>;
+
+    /// Whether this engine supports reference-audio zero-shot voice cloning.
+    fn supports_cloning(&self) -> bool {
+        false
+    }
+
+    /// Extract an acoustic embedding and register a new cloned voice profile.
+    async fn clone_voice(&self, _request: &CloneVoiceRequest) -> Result<VoiceProfile> {
+        Err(VoxForgError::Engine(format!(
+            "Engine '{}' does not support voice cloning",
+            self.id()
+        )))
+    }
+
+    /// Synthesize speech conditioned on a cloned voice profile.
+    async fn synthesize_cloned(&self, _request: &ClonedSynthesisRequest) -> Result<AudioChunk> {
+        Err(VoxForgError::Engine(format!(
+            "Engine '{}' does not support cloned voice synthesis",
+            self.id()
+        )))
+    }
 }

@@ -80,7 +80,7 @@ The daemon is structured into clean, decoupled Rust crates inside a virtual work
 ```
 crates/
 ├── voxforg-core
-│   ├── src/models/        # Domain entities: Voice, Engine, Pipeline, Node, Edge
+│   ├── src/models/        # Domain entities: Voice, Engine, Pipeline, Node, Edge, VoiceProfile
 │   ├── src/store/         # DataStore trait, SqliteStore, PostgresStore
 │   ├── src/error/         # Unified VoxForgError with RFC 7807 problem details
 │   └── src/auth/          # API key validation, token bucket rate limiter
@@ -89,9 +89,11 @@ crates/
 │   ├── src/profile.rs     # HardwareProfile and HardwareTier definitions
 │   └── src/allocator.rs   # Engine recommendation matrix
 ├── voxforg-engine
-│   ├── src/traits.rs      # TtsEngine trait & EngineCapabilities for routing
+│   ├── src/traits.rs      # TtsEngine trait (supports_cloning, clone_voice, synthesize_cloned)
 │   ├── src/registry.rs    # Thread-safe EngineRegistry with LRU audio cache
 │   ├── src/identity.rs    # [Phase 2B] VoiceIdentityResolver: portable voices across engines
+│   ├── src/profile_store.rs # [Phase 5] VoiceProfileStore: persistent voice cloning profiles
+│   ├── src/qwen3.rs       # [Phase 5] Qwen3TtsEngine: zero-shot speaker embedding cloning
 │   ├── src/edge_tts/      # Microsoft Edge TTS WebSocket client
 │   ├── src/router.rs      # OpenAI-compatible pass-through engine
 │   └── src/mock.rs        # Deterministic synthetic engine for tests
@@ -123,7 +125,8 @@ crates/
 ├── voxforg-api
 │   ├── src/routes/        # /v1/audio/speech, /v1/models, /v1/voices, /v1/pipeline,
 │   │                      # /v1/pronunciation/dictionary, /v1/voice-identities,
-│   │                      # /v1/benchmark, /v1/voice-ci, /v1/workers
+│   │                      # /v1/benchmark, /v1/voice-ci, /v1/workers,
+│   │                      # /v1/voices/profiles, /v1/voices/clone [Phase 5]
 │   ├── src/middleware/    # Strict CORS, security headers, rate limiting
 │   └── src/server.rs      # Axum HTTP/WS server bootstrap
 └── voxforg-cli

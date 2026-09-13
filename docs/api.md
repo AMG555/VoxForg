@@ -694,16 +694,89 @@ Deregister a worker node from the cluster. Returns `204 No Content`.
 
 Update worker liveness and timestamp. If worker was offline, restores status to `ready`.
 
+
+---
+
+## 15. Voice Cloning & Persistent Voice Profiles
+
+VoxForg enables zero-shot voice cloning and persistent profile management. Engines supporting zero-shot speaker conditioning (such as `qwen3-tts`) extract high-dimensional speaker embeddings from reference audio (raw PCM/WAV encoded in base64 or file path) and condition synthesis dynamically.
+
+### `GET /v1/voices/profiles`
+
+Returns all stored persistent voice profiles, including built-in defaults.
+
+#### Response
+```json
+{
+  "count": 2,
+  "profiles": [
+    {
+      "id": "profile-narrator-alex",
+      "name": "Alex Narrator",
+      "engine_id": "qwen3-tts",
+      "speaker_embedding": [0.012, -0.045, 0.088],
+      "gender": "neutral",
+      "language": "en-US",
+      "description": "Crisp documentary narration voice",
+      "created_at": "2026-09-13T07:00:00Z"
+    }
+  ]
+}
+```
+
+### `POST /v1/voices/clone`
+
+Clones a voice by extracting speaker embeddings from a reference audio clip (3–10 seconds of 16kHz audio recommended).
+
+#### Request Body
+```json
+{
+  "name": "David Reporter",
+  "engine_id": "qwen3-tts",
+  "reference_audio_base64": "<base64_encoded_audio>",
+  "language": "en-US",
+  "description": "Studio investigative reporter voice",
+  "gender": "male"
+}
+```
+
+#### Response (`201 Created`)
+Returns the newly created `VoiceProfile` containing assigned `id` and extracted `speaker_embedding`.
+
+### `GET /v1/voices/profiles/{id}`
+
+Retrieves metadata and speaker embedding for a specific voice profile.
+
+### `DELETE /v1/voices/profiles/{id}`
+
+Deletes a stored voice profile. Returns `204 No Content`.
+
+### Using Cloned Profiles in Synthesis
+
+Any persistent profile ID or name can be passed directly to `POST /v1/audio/speech`:
+
+```json
+{
+  "voice": "profile-narrator-alex",
+  "input": "This audio is synthesized using cloned speaker embeddings.",
+  "response_format": "wav"
+}
+```
+
 ---
 
 ## Endpoint Summary
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/v1/audio/speech` | Synthesize speech (supports `policy`, `voice_id`, or `worker:` routing) |
+| POST | `/v1/audio/speech` | Synthesize speech (supports `policy`, `voice_id`, `worker:`, or cloned profile) |
 | POST | `/v1/audio/speech/stream` | Streaming speech synthesis (chunked) |
 | GET  | `/v1/audio/speech/ws` | WebSocket real-time streaming |
 | GET  | `/v1/voices` | List all voices from all engines |
+| GET  | `/v1/voices/profiles` | List all stored voice profiles |
+| POST | `/v1/voices/clone` | Clone a voice from reference audio |
+| GET  | `/v1/voices/profiles/{id}` | Get voice profile by ID |
+| DELETE | `/v1/voices/profiles/{id}` | Delete voice profile |
 | GET  | `/v1/models` | List all registered engines |
 | POST | `/v1/pipeline/execute` | Execute a DAG synthesis pipeline |
 | POST | `/v1/qa/ab-test` | A/B compare two synthesis variants |

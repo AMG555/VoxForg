@@ -138,4 +138,42 @@ impl TtsEngine for MockTtsEngine {
     async fn health_check(&self) -> Result<bool> {
         Ok(true)
     }
+
+    fn supports_cloning(&self) -> bool {
+        true
+    }
+
+    async fn clone_voice(
+        &self,
+        request: &voxforg_core::models::CloneVoiceRequest,
+    ) -> Result<voxforg_core::models::VoiceProfile> {
+        let profile_id = format!("mock-cloned-{}", uuid::Uuid::new_v4());
+        Ok(voxforg_core::models::VoiceProfile {
+            id: profile_id,
+            name: request.name.clone(),
+            engine_id: self.id().to_string(),
+            description: request.description.clone(),
+            language: request.language.clone(),
+            gender: request.gender.clone(),
+            reference_audio_path: request.reference_audio_path.clone(),
+            reference_audio_base64: request.reference_audio_base64.clone(),
+            embedding: Some(vec![0.5f32; 512]),
+            metadata: request.metadata.clone(),
+            created_at: chrono::Utc::now(),
+        })
+    }
+
+    async fn synthesize_cloned(
+        &self,
+        request: &voxforg_core::models::ClonedSynthesisRequest,
+    ) -> Result<AudioChunk> {
+        let synth_req = SynthesisRequest {
+            text: request.text.clone(),
+            voice_id: request.profile.id.clone(),
+            speed: request.speed,
+            pitch: request.pitch,
+            format: request.format,
+        };
+        self.synthesize(&synth_req).await
+    }
 }

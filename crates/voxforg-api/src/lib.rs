@@ -760,4 +760,84 @@ mod tests {
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(json["title"], "No Worker Available");
     }
+
+    #[tokio::test]
+    async fn test_voice_cloning_and_profile_crud() {
+        let state = setup_test_state(None).await;
+        let app = create_app(state);
+
+        // 1. List initial profiles (has seeded base profiles)
+        let req = Request::builder()
+            .uri("/v1/voices/profiles")
+            .body(Body::empty())
+            .unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+        let body = res.into_body().collect().await.unwrap().to_bytes();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert!(json["count"].as_u64().unwrap() >= 2);
+
+        // 2. Clone a new voice using mock-tts engine
+        let fake_pcm: Vec<i16> = (0..1600).map(|i| ((i % 50) * 200) as i16).collect();
+        let bytes: Vec<u8> = fake_pcm.iter().flat_map(|s| s.to_le_bytes()).collect();
+        let b64 = hex::encode(bytes);
+
+        let clone_payload = serde_json::json!({
+            "name": "David Reporter",
+            "engine_id": "mock-tts",
+            "reference_audio_base64": b64,
+            "language": "en-US",
+            "description": "Studio investigative reporter voice",
+            "gender": "male"
+        });
+
+        let req = Request::builder()
+            .method("POST")
+            .uri("/v1/voices/clone")
+            .header("content-type", "application/json")
+            .body(Body::from(clone_payload.to_string()))
+            .unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::CREATED);
+        let body = res.into_body().collect().await.unwrap().to_bytes();
+        let created: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        let profile_id = created["id"].as_str().unwrap();
+        assert_eq!(created["name"], "David Reporter");
+
+        // 3. Retrieve created profile
+        let req = Request::builder()
+            .uri(format!("/v1/voices/profiles/{profile_id}"))
+            .body(Body::empty())
+            .unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+
+        // 4. Synthesize speech using the cloned profile ID
+        let synth_payload = serde_json::json!({
+            "model": "auto",
+            "voice": profile_id,
+            "input": "Synthesizing audio conditioned on cloned voice profile"
+        });
+
+        let req = Request::builder()
+            .method("POST")
+            .uri("/v1/audio/speech")
+            .header("content-type", "application/json")
+            .body(Body::from(synth_payload.to_string()))
+            .unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(res.headers().get("content-type").unwrap(), "audio/wav");
+        let audio_bytes = res.into_body().collect().await.unwrap().to_bytes();
+        assert!(!audio_bytes.is_empty());
+
+        // 5. Delete profile
+        let req = Request::builder()
+            .method("DELETE")
+            .uri(format!("/v1/voices/profiles/{profile_id}"))
+            .body(Body::empty())
+            .unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::NO_CONTENT);
+    }
 }

@@ -31,3 +31,4 @@ futures.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 reqwest = { workspace = true, features = ["json"] }
 http-body-util = { workspace = true }
+hex.workspace = true

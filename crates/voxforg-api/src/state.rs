@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use voxforg_benchmark::store::BenchmarkStore;
 use voxforg_core::store::DataStore;
-use voxforg_engine::{EngineRegistry, VoiceIdentityResolver};
+use voxforg_engine::{EngineRegistry, VoiceIdentityResolver, VoiceProfileStore};
 use voxforg_hardware::HardwareProfile;
 use voxforg_pipeline::PipelineExecutor;
 use voxforg_pronunciation::{ProcessorConfig, PronunciationProcessor};
@@ -16,6 +16,7 @@ pub struct AppState {
     pub engine_registry: Arc<EngineRegistry>,
     pub voice_router: Arc<VoiceRouter>,
     pub voice_identities: Arc<VoiceIdentityResolver>,
+    pub voice_profiles: Arc<VoiceProfileStore>,
     pub pronunciation: Arc<PronunciationProcessor>,
     pub benchmark_store: Arc<BenchmarkStore>,
     pub voice_ci_store: ProfileStore,
@@ -39,6 +40,7 @@ impl AppState {
         let metrics = Arc::new(MetricsCollector::new());
         let voice_router = Arc::new(VoiceRouter::new((*engine_registry).clone()));
         let voice_identities = Arc::new(VoiceIdentityResolver::with_defaults());
+        let voice_profiles = Arc::new(VoiceProfileStore::with_defaults());
         let pronunciation = Arc::new(PronunciationProcessor::new(ProcessorConfig::default()));
         let benchmark_store = Arc::new(BenchmarkStore::new());
         let voice_ci_store = ProfileStore::new();
@@ -48,6 +50,7 @@ impl AppState {
             engine_registry,
             voice_router,
             voice_identities,
+            voice_profiles,
             pronunciation,
             benchmark_store,
             voice_ci_store,

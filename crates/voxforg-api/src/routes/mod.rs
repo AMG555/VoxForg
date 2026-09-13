@@ -1,4 +1,5 @@
 pub mod benchmark;
+pub mod cloning;
 pub mod docs;
 pub mod health;
 pub mod metrics;
@@ -52,6 +53,13 @@ pub fn build_api_router() -> Router<AppState> {
         .route(
             "/v1/voice-identities/:id",
             get(voice_identity::get_identity).delete(voice_identity::delete_identity),
+        )
+        // Voice cloning and persistent profiles
+        .route("/v1/voices/profiles", get(cloning::list_profiles))
+        .route("/v1/voices/clone", post(cloning::clone_voice))
+        .route(
+            "/v1/voices/profiles/:id",
+            get(cloning::get_profile).delete(cloning::delete_profile),
         )
         // Engine benchmarking
         .route("/v1/benchmark/results", get(benchmark::list_results))
