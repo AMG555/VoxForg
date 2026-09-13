@@ -34,6 +34,11 @@ VoxForg eliminates vendor lock-in by abstracting 10+ local and cloud speech engi
 ### Key Capabilities
 
 - **Unified Multi-Engine Orchestration**: Support for ultra-fast local engines (Piper, KittenTTS, Kokoro-82M), heavy neural synthesizers (Qwen3-TTS, ChatTTS, StyleTTS2), and zero-cost cloud relays (Edge-TTS) without code changes.
+- **Automated Speech Recognition (ASR)**: Native Whisper inference engine with sliding-window VAD energy segmentation, generating OpenAI-compatible transcriptions, word timestamps, and SRT/VTT subtitle files (`POST /v1/audio/transcriptions`).
+- **Zero-Shot Voice Cloning & Persistent Profiles**: Extract 512-dimensional speaker embeddings from reference audio samples using Qwen3-TTS conditioning and save persistent, reusable `VoiceProfile` presets (`POST /v1/voices/clone`).
+- **Production Video Dubbing & Audiobook DAG Workflows**: Turnkey DAG templates chaining ASR, Speaker Diarization, Voice Mapping, Time-Stretch tempo alignment, and Audio Muxing for video tracks and multi-chapter audiobook publishing.
+- **Model Catalog & Weights Manager**: Built-in weights manager validating host RAM and GPU VRAM constraints before installing curated open weights (Kokoro, Piper, Whisper, Qwen3, Silero) with cryptographic SHA-256 verification (`/v1/catalog/models`).
+- **Model Context Protocol (MCP) Server**: Native JSON-RPC 2.0 stdio server (`voxforg mcp`) exposing 8 speech tools directly to Claude Desktop, Cursor, and autonomous LLM agent workstations.
 - **Hardware-Aware Adaptive Dispatch**: Automated hardware probe detecting CPU vector extensions (AVX2, AVX-512, NEON) and GPU accelerators (NVIDIA CUDA, Apple MPS, DirectML) to dynamically allocate optimal engine models.
 - **Visual Pipeline Canvas**: Node-based directed acyclic graph (DAG) builder to visually compose multi-speaker scripts, insert pause markers, apply audio filters, and batch render podcast-length narratives.
 - **Tri-Tier Storage Architecture**:
