@@ -1,0 +1,23 @@
+[package]
+name = "voxforg-asr"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Automated Speech Recognition (ASR) engine layer for VoxForg"
+
+[dependencies]
+voxforg-core   = { workspace = true }
+voxforg-audio  = { workspace = true }
+async-trait.workspace = true
+tokio          = { workspace = true, features = ["sync", "rt"] }
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+hound.workspace = true

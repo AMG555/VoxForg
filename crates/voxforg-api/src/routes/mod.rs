@@ -1,3 +1,4 @@
+pub mod asr;
 pub mod benchmark;
 pub mod cloning;
 pub mod docs;
@@ -34,6 +35,9 @@ pub fn build_api_router() -> Router<AppState> {
             post(speech::synthesize_speech_stream),
         )
         .route("/v1/audio/speech/ws", get(speech::speech_websocket))
+        // ASR Speech Recognition
+        .route("/v1/audio/transcriptions", post(asr::transcribe_audio))
+        .route("/v1/asr/engines", get(asr::list_asr_engines))
         .route("/v1/pipeline/execute", post(pipeline::execute_pipeline))
         .route("/v1/qa/ab-test", post(qa::run_ab_test))
         // Pronunciation dictionary management

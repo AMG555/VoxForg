@@ -113,6 +113,12 @@ crates/
 │   ├── src/types.rs       # WorkerRegistration, WorkerNode, WorkerStatus
 │   ├── src/pool.rs        # WorkerPool: load-balanced worker selection, leases, stale detection
 │   └── src/client.rs      # WorkerClient: HTTP dispatch to remote worker cluster nodes
+├── voxforg-asr            # [Phase 6] Automated Speech Recognition layer
+│   ├── src/traits.rs      # AsrEngine trait and AsrEngineInfo metadata
+│   ├── src/types.rs       # TranscriptionOptions, TranscriptionResult, WordTimestamp, SRT/VTT
+│   ├── src/whisper.rs     # WhisperAsrEngine with VAD energy segmentation
+│   ├── src/mock.rs        # MockAsrEngine for deterministic CI testing
+│   └── src/registry.rs    # Thread-safe multi-engine AsrRegistry
 ├── voxforg-audio
 │   ├── src/wav.rs         # Zero-allocation streaming WAV chunker
 │   ├── src/resample.rs    # Sample rate conversion (e.g. 24kHz to 48kHz)
@@ -126,7 +132,8 @@ crates/
 │   ├── src/routes/        # /v1/audio/speech, /v1/models, /v1/voices, /v1/pipeline,
 │   │                      # /v1/pronunciation/dictionary, /v1/voice-identities,
 │   │                      # /v1/benchmark, /v1/voice-ci, /v1/workers,
-│   │                      # /v1/voices/profiles, /v1/voices/clone [Phase 5]
+│   │                      # /v1/voices/profiles, /v1/voices/clone [Phase 5],
+│   │                      # /v1/audio/transcriptions, /v1/asr/engines [Phase 6]
 │   ├── src/middleware/    # Strict CORS, security headers, rate limiting
 │   └── src/server.rs      # Axum HTTP/WS server bootstrap
 └── voxforg-cli

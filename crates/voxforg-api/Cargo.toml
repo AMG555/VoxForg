@@ -15,6 +15,7 @@ voxforg-router        = { workspace = true }
 voxforg-pronunciation = { workspace = true }
 voxforg-benchmark     = { workspace = true }
 voxforg-worker        = { workspace = true }
+voxforg-asr           = { workspace = true }
 axum.workspace = true
 tower.workspace = true
 tower-http.workspace = true
@@ -26,6 +27,8 @@ uuid.workspace = true
 chrono.workspace = true
 subtle.workspace = true
 futures.workspace = true
+hex.workspace = true
+hound.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

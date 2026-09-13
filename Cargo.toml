@@ -10,6 +10,7 @@ members = [
     "crates/voxforg-pipeline",
     "crates/voxforg-benchmark",
     "crates/voxforg-worker",
+    "crates/voxforg-asr",
     "crates/voxforg-api",
     "crates/voxforg-cli",
 ]
@@ -59,6 +60,7 @@ voxforg-pronunciation = { path = "crates/voxforg-pronunciation" }
 voxforg-pipeline      = { path = "crates/voxforg-pipeline" }
 voxforg-benchmark     = { path = "crates/voxforg-benchmark" }
 voxforg-worker        = { path = "crates/voxforg-worker" }
+voxforg-asr           = { path = "crates/voxforg-asr" }
 voxforg-api           = { path = "crates/voxforg-api" }
 
 [profile.dev]

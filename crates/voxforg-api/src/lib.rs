@@ -840,4 +840,101 @@ mod tests {
         let res = app.clone().oneshot(req).await.unwrap();
         assert_eq!(res.status(), StatusCode::NO_CONTENT);
     }
+
+    #[tokio::test]
+    async fn test_asr_transcription_endpoints() {
+        let state = setup_test_state(None).await;
+        let app = create_app(state);
+
+        // 1. List registered ASR engines
+        let req = Request::builder()
+            .uri("/v1/asr/engines")
+            .body(Body::empty())
+            .unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+        let body = res.into_body().collect().await.unwrap().to_bytes();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert!(json["count"].as_u64().unwrap() >= 2);
+
+        // 2. Synthesize test PCM audio
+        let fake_pcm: Vec<i16> = (0..16000).map(|i| ((i % 50) * 150) as i16).collect();
+        let bytes: Vec<u8> = fake_pcm.iter().flat_map(|s| s.to_le_bytes()).collect();
+        let hex_audio = hex::encode(bytes);
+
+        // 3. Simple JSON transcription with default engine
+        let payload = serde_json::json!({
+            "audio_base64": hex_audio,
+            "prompt": "Testing speech recognition pipeline",
+            "response_format": "json"
+        });
+
+        let req = Request::builder()
+            .method("POST")
+            .uri("/v1/audio/transcriptions")
+            .header("content-type", "application/json")
+            .body(Body::from(payload.to_string()))
+            .unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+        let body = res.into_body().collect().await.unwrap().to_bytes();
+        let res_json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert!(!res_json["text"].as_str().unwrap().is_empty());
+
+        // 4. Verbose JSON with word and segment timestamps
+        let payload = serde_json::json!({
+            "audio_base64": hex_audio,
+            "model": "mock-asr",
+            "response_format": "verbose_json",
+            "timestamp_granularities": ["word", "segment"]
+        });
+
+        let req = Request::builder()
+            .method("POST")
+            .uri("/v1/audio/transcriptions")
+            .header("content-type", "application/json")
+            .body(Body::from(payload.to_string()))
+            .unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+        let body = res.into_body().collect().await.unwrap().to_bytes();
+        let verbose: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(verbose["task"], "transcribe");
+        assert!(verbose["duration_seconds"].as_f64().unwrap() > 0.0);
+        assert!(!verbose["segments"].as_array().unwrap().is_empty());
+        assert!(!verbose["words"].as_array().unwrap().is_empty());
+
+        // 5. SubRip (.srt) subtitle formatting
+        let payload = serde_json::json!({
+            "audio_base64": hex_audio,
+            "response_format": "srt"
+        });
+
+        let req = Request::builder()
+            .method("POST")
+            .uri("/v1/audio/transcriptions")
+            .header("content-type", "application/json")
+            .body(Body::from(payload.to_string()))
+            .unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+        let body = res.into_body().collect().await.unwrap().to_bytes();
+        let srt_text = String::from_utf8(body.to_vec()).unwrap();
+        assert!(srt_text.contains("-->"));
+
+        // 6. Non-existent engine returns 404
+        let payload = serde_json::json!({
+            "audio_base64": hex_audio,
+            "model": "non-existent-asr"
+        });
+
+        let req = Request::builder()
+            .method("POST")
+            .uri("/v1/audio/transcriptions")
+            .header("content-type", "application/json")
+            .body(Body::from(payload.to_string()))
+            .unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::NOT_FOUND);
+    }
 }

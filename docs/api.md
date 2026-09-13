@@ -763,6 +763,91 @@ Any persistent profile ID or name can be passed directly to `POST /v1/audio/spee
 }
 ```
 
+
+---
+
+## 16. Automated Speech Recognition (ASR) Layer
+
+VoxForg provides an OpenAI-compatible speech-to-text transcription engine layer supporting both Whisper-compatible neural ASR engines and custom speech inference runtimes.
+
+### `GET /v1/asr/engines`
+
+Lists all registered ASR inference engines and their supported languages.
+
+#### Response
+```json
+{
+  "count": 2,
+  "engines": [
+    {
+      "id": "whisper-base",
+      "name": "Whisper Base Multilingual (base)",
+      "description": "Neural Whisper multi-lingual speech-to-text inference engine",
+      "supported_languages": ["en", "es", "fr", "de", "it", "ja", "zh", "pt"],
+      "is_local": true,
+      "sample_rate": 16000
+    }
+  ]
+}
+```
+
+### `POST /v1/audio/transcriptions`
+
+Transcribes speech audio into text or timed subtitles (SRT/VTT). Fully compatible with OpenAI Whisper API parameters.
+
+#### Request Body
+```json
+{
+  "audio_base64": "<base64_or_hex_encoded_pcm_or_wav>",
+  "model": "whisper-base",
+  "language": "en",
+  "response_format": "verbose_json",
+  "timestamp_granularities": ["word", "segment"]
+}
+```
+
+#### Parameters
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `audio_base64` | `string` | Conditional | - | Base64 or hex-encoded 16-bit PCM or WAV container. |
+| `audio_path` | `string` | Conditional | - | Path to local WAV file on host disk. |
+| `model` | `string` | No | `whisper-base` | Target ASR model ID or name. |
+| `language` | `string` | No | `en` | ISO-639-1 language code. |
+| `prompt` | `string` | No | `null` | Contextual guidance prompt. |
+| `response_format` | `string` | No | `json` | Format: `json`, `text`, `srt`, `vtt`, `verbose_json`. |
+| `temperature` | `number` | No | `0.0` | Sampling temperature between 0.0 and 1.0. |
+| `timestamp_granularities` | `array` | No | `["word"]` | List of granularities: `"word"`, `"segment"`. |
+
+#### Response (`response_format: "verbose_json"`)
+```json
+{
+  "text": "Welcome to VoxForg intelligent voice system.",
+  "task": "transcribe",
+  "language": "en",
+  "duration_seconds": 2.45,
+  "segments": [
+    {
+      "id": 0,
+      "seek": 0,
+      "start_ms": 0,
+      "end_ms": 2450,
+      "text": "Welcome to VoxForg intelligent voice system.",
+      "tokens": [50364, 1000, 50424],
+      "temperature": 0.0,
+      "avg_logprob": -0.18,
+      "compression_ratio": 1.12,
+      "no_speech_prob": 0.002,
+      "speaker": "SPEAKER_00",
+      "words": [
+        { "word": "Welcome", "start_ms": 0, "end_ms": 490, "probability": 0.96 },
+        { "word": "to", "start_ms": 490, "end_ms": 980, "probability": 0.96 }
+      ]
+    }
+  ],
+  "words": [ ... ]
+}
+```
+
 ---
 
 ## Endpoint Summary
@@ -772,6 +857,8 @@ Any persistent profile ID or name can be passed directly to `POST /v1/audio/spee
 | POST | `/v1/audio/speech` | Synthesize speech (supports `policy`, `voice_id`, `worker:`, or cloned profile) |
 | POST | `/v1/audio/speech/stream` | Streaming speech synthesis (chunked) |
 | GET  | `/v1/audio/speech/ws` | WebSocket real-time streaming |
+| POST | `/v1/audio/transcriptions` | Transcribe speech audio into text or subtitles (OpenAI-compatible) |
+| GET  | `/v1/asr/engines` | List registered ASR inference engines |
 | GET  | `/v1/voices` | List all voices from all engines |
 | GET  | `/v1/voices/profiles` | List all stored voice profiles |
 | POST | `/v1/voices/clone` | Clone a voice from reference audio |
