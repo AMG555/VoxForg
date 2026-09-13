@@ -848,6 +848,61 @@ Transcribes speech audio into text or timed subtitles (SRT/VTT). Fully compatibl
 }
 ```
 
+
+---
+
+## 17. Model Catalog & Local Weights Manager
+
+VoxForg provides local lifecycle management for open-weights TTS, ASR, and VAD models. It validates host hardware constraints (RAM, GPU accelerators) and verifies cryptographic checksums (SHA-256) upon installation.
+
+### `GET /v1/catalog/models`
+
+Browse the model catalog with optional filters.
+
+#### Query Parameters
+- `type`: Filter by functional model domain: `tts`, `asr`, `vad`, `diarizer`.
+- `installed_only`: Boolean (`true` / `false`). Returns only downloaded weights when true.
+
+#### Response
+```json
+{
+  "count": 6,
+  "models": [
+    {
+      "id": "kokoro-v0_19",
+      "name": "Kokoro 82M Multilingual",
+      "description": "State-of-the-art 82M parameter lightweight text-to-speech model",
+      "model_type": "tts",
+      "format": "onnx",
+      "size_bytes": 335544320,
+      "sha256": "b2c3d4e5f6a10718...",
+      "download_url": "https://huggingface.co/hexgrad/Kokoro-82M/resolve/main/kokoro-v0_19.onnx",
+      "min_ram_mb": 2048,
+      "requires_gpu": false,
+      "supported_languages": ["en", "es", "fr", "ja", "zh"],
+      "status": "installed",
+      "installed_at": "2026-09-13T07:30:00Z",
+      "local_path": "models/kokoro-v0_19.onnx"
+    }
+  ]
+}
+```
+
+### `GET /v1/catalog/models/{id}`
+
+Retrieves details and local installation status for a specific model package.
+
+### `POST /v1/catalog/models/{id}/install`
+
+Downloads, verifies, and installs model weights. Validates that host memory and GPU accelerator meet minimum hardware constraints.
+
+#### Response (`200 OK`)
+Returns the updated `CatalogItem` with `status: "installed"` and assigned `local_path`.
+
+### `DELETE /v1/catalog/models/{id}`
+
+Uninstalls local model weights, freeing host storage. Returns `200 OK` with `status: "available"`.
+
 ---
 
 ## Endpoint Summary
@@ -859,6 +914,10 @@ Transcribes speech audio into text or timed subtitles (SRT/VTT). Fully compatibl
 | GET  | `/v1/audio/speech/ws` | WebSocket real-time streaming |
 | POST | `/v1/audio/transcriptions` | Transcribe speech audio into text or subtitles (OpenAI-compatible) |
 | GET  | `/v1/asr/engines` | List registered ASR inference engines |
+| GET  | `/v1/catalog/models` | Browse model weights catalog (supports `?type=` and `?installed_only=`) |
+| GET  | `/v1/catalog/models/{id}` | Get model package details and install status |
+| POST | `/v1/catalog/models/{id}/install` | Download and install model weights with hardware validation |
+| DELETE | `/v1/catalog/models/{id}` | Uninstall model weights from local disk |
 | GET  | `/v1/voices` | List all voices from all engines |
 | GET  | `/v1/voices/profiles` | List all stored voice profiles |
 | POST | `/v1/voices/clone` | Clone a voice from reference audio |

@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use voxforg_asr::AsrRegistry;
 use voxforg_benchmark::store::BenchmarkStore;
+use voxforg_catalog::ModelCatalogStore;
 use voxforg_core::store::DataStore;
 use voxforg_engine::{EngineRegistry, VoiceIdentityResolver, VoiceProfileStore};
 use voxforg_hardware::HardwareProfile;
@@ -19,6 +20,7 @@ pub struct AppState {
     pub voice_identities: Arc<VoiceIdentityResolver>,
     pub voice_profiles: Arc<VoiceProfileStore>,
     pub asr_registry: Arc<AsrRegistry>,
+    pub model_catalog: Arc<ModelCatalogStore>,
     pub pronunciation: Arc<PronunciationProcessor>,
     pub benchmark_store: Arc<BenchmarkStore>,
     pub voice_ci_store: ProfileStore,
@@ -46,6 +48,7 @@ impl AppState {
         let voice_router = Arc::new(VoiceRouter::new((*engine_registry).clone()));
         let voice_identities = Arc::new(VoiceIdentityResolver::with_defaults());
         let voice_profiles = Arc::new(VoiceProfileStore::with_defaults());
+        let model_catalog = Arc::new(ModelCatalogStore::with_curated_models());
         let pronunciation = Arc::new(PronunciationProcessor::new(ProcessorConfig::default()));
         let benchmark_store = Arc::new(BenchmarkStore::new());
         let voice_ci_store = ProfileStore::new();
@@ -57,6 +60,7 @@ impl AppState {
             voice_identities,
             voice_profiles,
             asr_registry,
+            model_catalog,
             pronunciation,
             benchmark_store,
             voice_ci_store,

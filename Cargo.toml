@@ -11,6 +11,7 @@ members = [
     "crates/voxforg-benchmark",
     "crates/voxforg-worker",
     "crates/voxforg-asr",
+    "crates/voxforg-catalog",
     "crates/voxforg-api",
     "crates/voxforg-cli",
 ]
@@ -61,6 +62,7 @@ voxforg-pipeline      = { path = "crates/voxforg-pipeline" }
 voxforg-benchmark     = { path = "crates/voxforg-benchmark" }
 voxforg-worker        = { path = "crates/voxforg-worker" }
 voxforg-asr           = { path = "crates/voxforg-asr" }
+voxforg-catalog       = { path = "crates/voxforg-catalog" }
 voxforg-api           = { path = "crates/voxforg-api" }
 
 [profile.dev]

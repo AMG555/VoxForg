@@ -937,4 +937,78 @@ mod tests {
         let res = app.clone().oneshot(req).await.unwrap();
         assert_eq!(res.status(), StatusCode::NOT_FOUND);
     }
+
+    #[tokio::test]
+    async fn test_catalog_management_endpoints() {
+        let state = setup_test_state(None).await;
+        let app = create_app(state);
+
+        // 1. List all catalog models
+        let req = Request::builder()
+            .uri("/v1/catalog/models")
+            .body(Body::empty())
+            .unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+        let body = res.into_body().collect().await.unwrap().to_bytes();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert!(json["count"].as_u64().unwrap() >= 6);
+
+        // 2. Filter by type=tts
+        let req = Request::builder()
+            .uri("/v1/catalog/models?type=tts")
+            .body(Body::empty())
+            .unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+        let body = res.into_body().collect().await.unwrap().to_bytes();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        for m in json["models"].as_array().unwrap() {
+            assert_eq!(m["model_type"], "tts");
+        }
+
+        // 3. Install kokoro-v0_19
+        let req = Request::builder()
+            .method("POST")
+            .uri("/v1/catalog/models/kokoro-v0_19/install")
+            .body(Body::empty())
+            .unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+        let body = res.into_body().collect().await.unwrap().to_bytes();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["status"], "installed");
+        assert!(json["local_path"].as_str().is_some());
+
+        // 4. Retrieve single model
+        let req = Request::builder()
+            .uri("/v1/catalog/models/kokoro-v0_19")
+            .body(Body::empty())
+            .unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+        let body = res.into_body().collect().await.unwrap().to_bytes();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["status"], "installed");
+
+        // 5. Uninstall model
+        let req = Request::builder()
+            .method("DELETE")
+            .uri("/v1/catalog/models/kokoro-v0_19")
+            .body(Body::empty())
+            .unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+        let body = res.into_body().collect().await.unwrap().to_bytes();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["status"], "available");
+
+        // 6. Non-existent model returns 404
+        let req = Request::builder()
+            .uri("/v1/catalog/models/non-existent-model")
+            .body(Body::empty())
+            .unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::NOT_FOUND);
+    }
 }

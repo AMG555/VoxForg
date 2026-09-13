@@ -129,12 +129,16 @@ crates/
 │   ├── src/context.rs     # ExecutionContext with multi-track audio buffers & timing
 │   ├── src/templates.rs   # [Phase 7] Video dubbing and audiobook production DAG templates
 │   └── src/executor.rs    # PipelineExecutor (ASR, Diarization, Chunker, TimeStretch, Mux, Filter)
+├── voxforg-catalog       # [Phase 8] Model weights catalogue & manager
+│   ├── src/models.rs      # CatalogItem, ModelType, ModelFormat, ModelStatus
+│   └── src/store.rs       # ModelCatalogStore with hardware constraint validation
 ├── voxforg-api
 │   ├── src/routes/        # /v1/audio/speech, /v1/models, /v1/voices, /v1/pipeline,
 │   │                      # /v1/pronunciation/dictionary, /v1/voice-identities,
 │   │                      # /v1/benchmark, /v1/voice-ci, /v1/workers,
 │   │                      # /v1/voices/profiles, /v1/voices/clone [Phase 5],
-│   │                      # /v1/audio/transcriptions, /v1/asr/engines [Phase 6]
+│   │                      # /v1/audio/transcriptions, /v1/asr/engines [Phase 6],
+│   │                      # /v1/catalog/models [Phase 8]
 │   ├── src/middleware/    # Strict CORS, security headers, rate limiting
 │   └── src/server.rs      # Axum HTTP/WS server bootstrap
 └── voxforg-cli

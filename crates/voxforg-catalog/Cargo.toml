@@ -1,0 +1,24 @@
+[package]
+name = "voxforg-catalog"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Model catalog and local weights lifecycle manager for VoxForg"
+
+[dependencies]
+voxforg-core     = { workspace = true }
+voxforg-hardware = { workspace = true }
+async-trait.workspace = true
+tokio            = { workspace = true, features = ["sync", "rt", "fs"] }
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+sha2.workspace = true
+hex.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

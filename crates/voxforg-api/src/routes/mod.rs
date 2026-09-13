@@ -1,5 +1,6 @@
 pub mod asr;
 pub mod benchmark;
+pub mod catalog;
 pub mod cloning;
 pub mod docs;
 pub mod health;
@@ -82,4 +83,14 @@ pub fn build_api_router() -> Router<AppState> {
             get(workers::get_worker).delete(workers::delete_worker),
         )
         .route("/v1/workers/:id/heartbeat", post(workers::worker_heartbeat))
+        // Model Catalog & local weights management
+        .route("/v1/catalog/models", get(catalog::list_catalog_models))
+        .route(
+            "/v1/catalog/models/:id",
+            get(catalog::get_catalog_model).delete(catalog::uninstall_catalog_model),
+        )
+        .route(
+            "/v1/catalog/models/:id/install",
+            post(catalog::install_catalog_model),
+        )
 }

@@ -16,6 +16,7 @@ voxforg-pronunciation = { workspace = true }
 voxforg-benchmark     = { workspace = true }
 voxforg-worker        = { workspace = true }
 voxforg-asr           = { workspace = true }
+voxforg-catalog       = { workspace = true }
 axum.workspace = true
 tower.workspace = true
 tower-http.workspace = true
