@@ -94,6 +94,7 @@ crates/
 │   ├── src/identity.rs    # [Phase 2B] VoiceIdentityResolver: portable voices across engines
 │   ├── src/profile_store.rs # [Phase 5] VoiceProfileStore: persistent voice cloning profiles
 │   ├── src/qwen3.rs       # [Phase 5] Qwen3TtsEngine: zero-shot speaker embedding cloning
+│   ├── src/piper.rs       # [Phase 10] PiperTtsEngine: offline Piper neural ONNX engine & sidecar
 │   ├── src/edge_tts/      # Microsoft Edge TTS WebSocket client
 │   ├── src/router.rs      # OpenAI-compatible pass-through engine
 │   └── src/mock.rs        # Deterministic synthetic engine for tests

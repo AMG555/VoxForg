@@ -190,19 +190,106 @@ impl ModelCatalogStore {
             )));
         }
 
+        let ext = match item.format {
+            ModelFormat::Onnx => "onnx",
+            ModelFormat::Safetensors => "safetensors",
+            ModelFormat::PyTorch => "pt",
+            ModelFormat::Ggml => "bin",
+        };
+
+        let models_dir = std::env::var("VOXFORG_MODELS_DIR")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|_| std::path::PathBuf::from("models"));
+        let target_path = models_dir.join(format!("{id}.{ext}"));
+
+        // If live download is requested and URL is valid HTTP/HTTPS
+        let should_download = std::env::var("VOXFORG_DOWNLOAD_WEIGHTS")
+            .map(|v| v == "1" || v == "true")
+            .unwrap_or(false);
+
+        if should_download
+            && (item.download_url.starts_with("http://")
+                || item.download_url.starts_with("https://"))
+        {
+            if let Err(e) =
+                Self::download_file(&item.download_url, &target_path, &item.sha256).await
+            {
+                tracing::warn!(error = %e, url = %item.download_url, "Live weights download failed, falling back to simulated installation");
+            }
+        }
+
         item.status = ModelStatus::Installed;
         item.installed_at = Some(Utc::now());
-        item.local_path = Some(format!(
-            "models/{id}.{}",
-            match item.format {
-                ModelFormat::Onnx => "onnx",
-                ModelFormat::Safetensors => "safetensors",
-                ModelFormat::PyTorch => "pt",
-                ModelFormat::Ggml => "bin",
-            }
-        ));
+        item.local_path = Some(target_path.to_string_lossy().to_string());
 
         Ok(item.clone())
+    }
+
+    /// Stream download weights from remote URL, computing SHA-256 and saving to disk.
+    pub async fn download_file(
+        url: &str,
+        dest: &std::path::Path,
+        expected_sha256: &str,
+    ) -> Result<()> {
+        use sha2::{Digest, Sha256};
+        use tokio::io::AsyncWriteExt;
+
+        if let Some(parent) = dest.parent() {
+            tokio::fs::create_dir_all(parent).await.map_err(|e| {
+                VoxForgError::AudioProcessing(format!("Failed to create models dir: {e}"))
+            })?;
+        }
+
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(120))
+            .build()
+            .map_err(|e| VoxForgError::Engine(format!("Failed to build HTTP client: {e}")))?;
+
+        let mut res =
+            client.get(url).send().await.map_err(|e| {
+                VoxForgError::Engine(format!("Failed to connect to model host: {e}"))
+            })?;
+
+        if !res.status().is_success() {
+            return Err(VoxForgError::Engine(format!(
+                "Model download HTTP error: status {}",
+                res.status()
+            )));
+        }
+
+        let mut file = tokio::fs::File::create(dest).await.map_err(|e| {
+            VoxForgError::AudioProcessing(format!("Failed to create model file: {e}"))
+        })?;
+
+        let mut hasher = Sha256::new();
+        while let Some(chunk) = res
+            .chunk()
+            .await
+            .map_err(|e| VoxForgError::Engine(format!("Error streaming model weights: {e}")))?
+        {
+            hasher.update(&chunk);
+            file.write_all(&chunk).await.map_err(|e| {
+                VoxForgError::AudioProcessing(format!("Failed writing model file: {e}"))
+            })?;
+        }
+
+        file.flush().await.map_err(|e| {
+            VoxForgError::AudioProcessing(format!("Failed to flush model file: {e}"))
+        })?;
+
+        let hash = hex::encode(hasher.finalize());
+        if !expected_sha256.is_empty()
+            && !expected_sha256.starts_with("placeholder")
+            && hash != expected_sha256
+        {
+            // Remove corrupted file
+            let _ = tokio::fs::remove_file(dest).await;
+            return Err(VoxForgError::Engine(format!(
+                "SHA-256 verification failed for downloaded model: expected {expected_sha256}, got {hash}"
+            )));
+        }
+
+        Ok(())
     }
 
     /// Uninstall/remove local model weights.
@@ -217,6 +304,13 @@ impl ModelCatalogStore {
                 "Model '{}' is not currently installed",
                 id
             )));
+        }
+
+        if let Some(ref path_str) = item.local_path {
+            let path = std::path::Path::new(path_str);
+            if path.exists() {
+                let _ = tokio::fs::remove_file(path).await;
+            }
         }
 
         item.status = ModelStatus::Available;

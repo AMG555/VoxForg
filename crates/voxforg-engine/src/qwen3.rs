@@ -27,10 +27,18 @@ impl Default for Qwen3TtsEngine {
 
 impl Qwen3TtsEngine {
     pub fn new(sample_rate: u32) -> Self {
+        let endpoint_url = std::env::var("VOXFORG_QWEN3_URL").ok().or_else(|| {
+            if auto_detect_local_port(9000) {
+                Some("http://127.0.0.1:9000".to_string())
+            } else {
+                None
+            }
+        });
+
         Self {
             sample_rate,
             clone_count: AtomicUsize::new(0),
-            endpoint_url: std::env::var("VOXFORG_QWEN3_URL").ok(),
+            endpoint_url,
             client: reqwest::Client::builder()
                 .timeout(std::time::Duration::from_secs(60))
                 .build()
@@ -349,6 +357,13 @@ impl TtsEngine for Qwen3TtsEngine {
             is_final: true,
         })
     }
+}
+
+fn auto_detect_local_port(port: u16) -> bool {
+    use std::net::{SocketAddr, TcpStream};
+    use std::time::Duration;
+    let addr = SocketAddr::from(([127, 0, 0, 1], port));
+    TcpStream::connect_timeout(&addr, Duration::from_millis(50)).is_ok()
 }
 
 #[cfg(test)]

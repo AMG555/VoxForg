@@ -58,7 +58,16 @@ impl OpenAiAsrEngine {
     }
 
     pub fn from_env() -> Option<Self> {
-        let url = std::env::var("VOXFORG_ASR_URL").ok()?;
+        let url = std::env::var("VOXFORG_ASR_URL")
+            .ok()
+            .or_else(|| std::env::var("VOXFORG_WHISPER_URL").ok())
+            .or_else(|| {
+                if auto_detect_local_port(8000) {
+                    Some("http://127.0.0.1:8000/v1".to_string())
+                } else {
+                    None
+                }
+            })?;
         let key = std::env::var("VOXFORG_ASR_API_KEY").ok();
         let model = std::env::var("VOXFORG_ASR_MODEL").unwrap_or_else(|_| "whisper-1".to_string());
         Some(Self::with_options(
@@ -69,6 +78,13 @@ impl OpenAiAsrEngine {
             model,
         ))
     }
+}
+
+fn auto_detect_local_port(port: u16) -> bool {
+    use std::net::{SocketAddr, TcpStream};
+    use std::time::Duration;
+    let addr = SocketAddr::from(([127, 0, 0, 1], port));
+    TcpStream::connect_timeout(&addr, Duration::from_millis(50)).is_ok()
 }
 
 #[async_trait]

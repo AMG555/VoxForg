@@ -120,8 +120,11 @@ The fastest way to launch VoxForg with the Web UI and SQLite persistence:
 git clone https://github.com/your-org/voxforg.git
 cd voxforg
 
-# Start the services
+# Start standard services (Daemon + Database)
 docker compose up -d
+
+# Or launch complete turnkey neural stack (Faster-Whisper ASR + Kokoro Neural TTS + Daemon)
+docker compose -f docker-compose.neural.yml up -d
 ```
 
 Open `http://localhost:3000` to access the visual pipeline builder. The API server listens at `http://localhost:8080`.

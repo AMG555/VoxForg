@@ -10,7 +10,8 @@ description = "Model catalog and local weights lifecycle manager for VoxForg"
 voxforg-core     = { workspace = true }
 voxforg-hardware = { workspace = true }
 async-trait.workspace = true
-tokio            = { workspace = true, features = ["sync", "rt", "fs"] }
+tokio            = { workspace = true, features = ["sync", "rt", "fs", "io-util"] }
+reqwest          = { workspace = true }
 serde.workspace = true
 serde_json.workspace = true
 tracing.workspace = true

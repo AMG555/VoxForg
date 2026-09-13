@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  voxforg-daemon:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: voxforg-daemon
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - VOXFORG_PORT=8080
+      - VOXFORG_HOST=0.0.0.0
+      - VOXFORG_ASR_URL=http://faster-whisper:8000/v1
+      - VOXFORG_PIPER_URL=http://kokoro-tts:8880
+      - VOXFORG_QWEN3_URL=http://qwen3-cloning:9000
+      - VOXFORG_MODELS_DIR=/app/models
+      - VOXFORG_API_KEY=${VOXFORG_API_KEY:-}
+      - RUST_LOG=info
+    volumes:
+      - voxforg-data:/app/data
+      - voxforg-models:/app/models
+    depends_on:
+      faster-whisper:
+        condition: service_started
+      kokoro-tts:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  faster-whisper:
+    image: fedirz/faster-whisper-server:latest-cpu
+    container_name: voxforg-faster-whisper
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - WHISPER_MODEL=base
+    volumes:
+      - whisper-cache:/root/.cache/huggingface
+
+  kokoro-tts:
+    image: ghcr.io/remsky/kokoro-fastapi:latest
+    container_name: voxforg-kokoro-tts
+    restart: unless-stopped
+    ports:
+      - "8880:8880"
+    volumes:
+      - kokoro-cache:/app/api/src/weights
+
+volumes:
+  voxforg-data:
+  voxforg-models:
+  whisper-cache:
+  kokoro-cache:

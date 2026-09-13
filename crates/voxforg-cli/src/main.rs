@@ -14,7 +14,7 @@ use voxforg_core::models::AudioContainerFormat;
 use voxforg_core::store::memory::MemoryStore;
 use voxforg_engine::{
     AbTestRunner, AbTestScenario, EdgeTtsEngine, EngineRegistry, MockTtsEngine, OpenAiRouterEngine,
-    SynthesisRequest,
+    PiperTtsEngine, Qwen3TtsEngine, SynthesisRequest,
 };
 use voxforg_hardware::HardwareProbe;
 
@@ -196,6 +196,8 @@ async fn initialize_registry(
     let registry = Arc::new(EngineRegistry::new());
     registry.register(Arc::new(EdgeTtsEngine::new())).await;
     registry.register(Arc::new(MockTtsEngine::default())).await;
+    registry.register(Arc::new(Qwen3TtsEngine::default())).await;
+    registry.register(Arc::new(PiperTtsEngine::new())).await;
 
     let r_url = router_url.or_else(|| std::env::var("VOXFORG_ROUTER_URL").ok());
     let r_key = router_api_key.or_else(|| std::env::var("VOXFORG_ROUTER_API_KEY").ok());
