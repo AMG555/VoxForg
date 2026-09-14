@@ -174,7 +174,8 @@ impl MediaProcessor {
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_nanos())
             .unwrap_or(0);
-        let temp_wav = std::env::temp_dir().join(format!("voxforg_demux_{}_{nanos}.wav", std::process::id()));
+        let temp_wav =
+            std::env::temp_dir().join(format!("voxforg_demux_{}_{nanos}.wav", std::process::id()));
 
         Self::extract_audio(video_path, &temp_wav, sample_rate)?;
         let wav_bytes = std::fs::read(&temp_wav).map_err(|e| {
@@ -196,7 +197,8 @@ impl MediaProcessor {
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_nanos())
             .unwrap_or(0);
-        let temp_wav = std::env::temp_dir().join(format!("voxforg_mux_{}_{nanos}.wav", std::process::id()));
+        let temp_wav =
+            std::env::temp_dir().join(format!("voxforg_mux_{}_{nanos}.wav", std::process::id()));
 
         std::fs::write(&temp_wav, wav_bytes).map_err(|e| {
             VoxForgError::AudioProcessing(format!("Failed writing temp audio for video mux: {e}"))

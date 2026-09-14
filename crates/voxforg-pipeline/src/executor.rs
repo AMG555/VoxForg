@@ -51,7 +51,10 @@ impl PipelineExecutor {
             if ctx.input_audio_pcm.is_empty() {
                 let v_path = std::path::Path::new(video_in);
                 if v_path.exists() {
-                    match voxforg_audio::MediaProcessor::extract_audio_to_pcm(v_path, ctx.sample_rate.max(16000)) {
+                    match voxforg_audio::MediaProcessor::extract_audio_to_pcm(
+                        v_path,
+                        ctx.sample_rate.max(16000),
+                    ) {
                         Ok((pcm, sr, ch)) => {
                             ctx.input_audio_pcm = pcm;
                             ctx.sample_rate = sr;
@@ -95,11 +98,16 @@ impl PipelineExecutor {
 
         // If output video path provided, mux master audio into video container
         if let Some(ref video_out) = ctx.output_video_path {
-            let in_video = ctx.input_video_path.as_deref().unwrap_or(video_out.as_str());
+            let in_video = ctx
+                .input_video_path
+                .as_deref()
+                .unwrap_or(video_out.as_str());
             let in_path = std::path::Path::new(in_video);
             let out_path = std::path::Path::new(video_out);
             if in_path.exists() {
-                if let Err(e) = voxforg_audio::MediaProcessor::mux_video_bytes(in_path, &wav_bytes, out_path) {
+                if let Err(e) =
+                    voxforg_audio::MediaProcessor::mux_video_bytes(in_path, &wav_bytes, out_path)
+                {
                     tracing::warn!(error = %e, output_video = %video_out, "Failed muxing master audio into video container");
                 } else {
                     tracing::info!(output_video = %video_out, "Successfully muxed master audio into output video container");

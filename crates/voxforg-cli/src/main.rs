@@ -341,7 +341,10 @@ async fn run_serve(args: ServeArgs) -> Result<()> {
     };
 
     if args.open {
-        info!("Opening visual workstation in default browser: {}", browser_url);
+        info!(
+            "Opening visual workstation in default browser: {}",
+            browser_url
+        );
         open_browser(&browser_url);
     }
 
@@ -361,15 +364,11 @@ fn open_browser(url: &str) {
     }
     #[cfg(target_os = "macos")]
     {
-        let _ = std::process::Command::new("open")
-            .arg(url)
-            .spawn();
+        let _ = std::process::Command::new("open").arg(url).spawn();
     }
     #[cfg(all(unix, not(target_os = "macos")))]
     {
-        let _ = std::process::Command::new("xdg-open")
-            .arg(url)
-            .spawn();
+        let _ = std::process::Command::new("xdg-open").arg(url).spawn();
     }
 }
 
@@ -641,8 +640,9 @@ async fn run_transcribe(args: TranscribeArgs) -> Result<()> {
     let pcm = if let Some(ext) = args.input.extension().and_then(|s| s.to_str()) {
         let ext_lower = ext.to_lowercase();
         if ext_lower == "mp4" || ext_lower == "mkv" || ext_lower == "mov" || ext_lower == "webm" {
-            let (pcm, _, _) = voxforg_audio::MediaProcessor::extract_audio_to_pcm(&args.input, 16000)
-                .map_err(|e| anyhow::anyhow!("Failed extracting audio from video: {e}"))?;
+            let (pcm, _, _) =
+                voxforg_audio::MediaProcessor::extract_audio_to_pcm(&args.input, 16000)
+                    .map_err(|e| anyhow::anyhow!("Failed extracting audio from video: {e}"))?;
             pcm
         } else {
             let bytes = std::fs::read(&args.input)?;
@@ -702,9 +702,7 @@ async fn run_transcribe(args: TranscribeArgs) -> Result<()> {
         std::fs::write(out_path, &output_str)?;
         info!(
             "Transcription saved to {:?} in {:.2?} (Audio duration: {:.2}s)",
-            out_path,
-            elapsed,
-            result.duration_seconds
+            out_path, elapsed, result.duration_seconds
         );
     } else {
         println!("{output_str}");
@@ -715,7 +713,10 @@ async fn run_transcribe(args: TranscribeArgs) -> Result<()> {
 
 async fn run_clone(args: CloneArgs) -> Result<()> {
     if !args.audio.exists() {
-        anyhow::bail!("Reference audio file '{}' does not exist", args.audio.display());
+        anyhow::bail!(
+            "Reference audio file '{}' does not exist",
+            args.audio.display()
+        );
     }
 
     let bytes = std::fs::read(&args.audio)?;
@@ -755,8 +756,7 @@ async fn run_clone(args: CloneArgs) -> Result<()> {
 
     info!(
         "Voice profile '{}' created successfully with 512-dim embedding saved to {:?}",
-        args.name,
-        args.out
+        args.name, args.out
     );
     Ok(())
 }

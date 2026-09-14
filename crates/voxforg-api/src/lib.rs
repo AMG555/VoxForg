@@ -1026,7 +1026,9 @@ mod tests {
         assert!(ct.contains("text/html"));
         let body = res.into_body().collect().await.unwrap().to_bytes();
         let html_str = String::from_utf8_lossy(&body);
-        assert!(html_str.contains("root") || html_str.contains("VoxForg") || html_str.contains("html"));
+        assert!(
+            html_str.contains("root") || html_str.contains("VoxForg") || html_str.contains("html")
+        );
 
         // 2. SPA client route (/canvas) serves index.html via fallback
         let req = Request::builder()
@@ -1049,4 +1051,3 @@ mod tests {
         assert!(ct.contains("application/json"));
     }
 }
-
