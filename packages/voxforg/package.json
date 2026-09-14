@@ -1,0 +1,34 @@
+{
+  "name": "voxforg",
+  "version": "0.1.0",
+  "description": "Unified hardware-adaptive speech synthesis workstation & pipeline engine",
+  "bin": {
+    "voxforg": "./bin/voxforg.js"
+  },
+  "files": [
+    "bin",
+    "README.md"
+  ],
+  "scripts": {
+    "start": "node ./bin/voxforg.js serve --open"
+  },
+  "keywords": [
+    "tts",
+    "speech-synthesis",
+    "voice-cloning",
+    "asr",
+    "whisper",
+    "audiobook",
+    "audio-pipeline",
+    "ai"
+  ],
+  "author": "VoxForg Core Contributors",
+  "license": "Apache-2.0 OR MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AMG555/VoxForg.git"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}

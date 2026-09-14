@@ -1,29 +1,40 @@
-# Multi-stage Dockerfile for VoxForg Workstation Daemon
+# Multi-stage Dockerfile for VoxForg Self-Contained Workstation
+# Single container serves REST API, WebSocket streams, and embedded React UI.
 
-FROM rust:1.80-bullseye AS builder
+# 1. UI Build Stage
+FROM node:20-bullseye-slim AS ui-builder
+WORKDIR /app/ui
+COPY ui/package*.json ./
+RUN npm ci --prefer-offline --no-audit
+COPY ui/ ./
+RUN npm run build
 
+# 2. Rust Compile Stage
+FROM rust:1.80-bullseye AS rust-builder
 WORKDIR /usr/src/voxforg
-
-# Copy manifests
 COPY Cargo.toml ./
 COPY crates ./crates
 
-# Build release binary
+# Copy freshly compiled UI assets into voxforg-api embedded location
+COPY --from=ui-builder /app/ui/dist ./crates/voxforg-api/ui_dist
+
+# Build unified standalone binary
 RUN cargo build --release --bin voxforg
 
-# Runtime image
+# 3. Minimal Runtime Stage
 FROM debian:bullseye-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
     libasound2 \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Copy binary from builder
-COPY --from=builder /usr/src/voxforg/target/release/voxforg /usr/local/bin/voxforg
+# Copy standalone binary
+COPY --from=rust-builder /usr/src/voxforg/target/release/voxforg /usr/local/bin/voxforg
 
 RUN mkdir -p /app/data /app/models
 

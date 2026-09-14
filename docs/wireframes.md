@@ -1,7 +1,7 @@
 # VoxForg UI/UX Design System & Wireframes
 
 **Design Direction:** High-density, dark engineering workstation.  
-**Inspiration:** Ableton Live meets n8n — responsive, tactile, high contrast, zero unnecessary fluff.  
+**Inspiration:** Professional Digital Audio Workstation (DAW) and modular graph interfaces — responsive, tactile, high contrast, zero unnecessary fluff.  
 **Target Breakpoints:** Desktop primary (`1440px` and `1920px`), Laptop (`1024px`), Tablet minimum (`768px`).
 
 ---

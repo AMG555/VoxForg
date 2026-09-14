@@ -3,6 +3,7 @@ pub mod benchmark;
 pub mod catalog;
 pub mod cloning;
 pub mod docs;
+pub mod embedded_ui;
 pub mod health;
 pub mod metrics;
 pub mod models;

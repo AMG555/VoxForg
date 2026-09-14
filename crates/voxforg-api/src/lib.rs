@@ -30,6 +30,7 @@ pub fn create_app(state: AppState) -> Router {
         .layer(DefaultBodyLimit::max(2 * 1024 * 1024))
         .layer(cors)
         .layer(TraceLayer::new_for_http())
+        .fallback(routes::embedded_ui::static_handler)
         .with_state(state)
 }
 
@@ -1011,4 +1012,41 @@ mod tests {
         let res = app.clone().oneshot(req).await.unwrap();
         assert_eq!(res.status(), StatusCode::NOT_FOUND);
     }
+
+    #[tokio::test]
+    async fn test_embedded_ui_serving_and_spa_fallback() {
+        let state = setup_test_state(None).await;
+        let app = create_app(state);
+
+        // 1. Root path serves HTML
+        let req = Request::builder().uri("/").body(Body::empty()).unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+        let ct = res.headers().get("content-type").unwrap().to_str().unwrap();
+        assert!(ct.contains("text/html"));
+        let body = res.into_body().collect().await.unwrap().to_bytes();
+        let html_str = String::from_utf8_lossy(&body);
+        assert!(html_str.contains("root") || html_str.contains("VoxForg") || html_str.contains("html"));
+
+        // 2. SPA client route (/canvas) serves index.html via fallback
+        let req = Request::builder()
+            .uri("/canvas")
+            .body(Body::empty())
+            .unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+        let ct = res.headers().get("content-type").unwrap().to_str().unwrap();
+        assert!(ct.contains("text/html"));
+
+        // 3. API route precedence (/v1/voices returns JSON, not SPA)
+        let req = Request::builder()
+            .uri("/v1/voices")
+            .body(Body::empty())
+            .unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+        let ct = res.headers().get("content-type").unwrap().to_str().unwrap();
+        assert!(ct.contains("application/json"));
+    }
 }
+

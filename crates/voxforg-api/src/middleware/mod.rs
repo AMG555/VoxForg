@@ -68,7 +68,9 @@ pub async fn security_headers(req: Request, next: Next) -> Response {
                 "default-src 'self' https://cdn.jsdelivr.net; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https:; connect-src 'self' https:;"
             )
         } else {
-            HeaderValue::from_static("default-src 'self'")
+            HeaderValue::from_static(
+                "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; media-src 'self' blob: data:; connect-src 'self' ws: wss: http: https:; img-src 'self' data: https:;"
+            )
         },
     );
     headers.insert(
@@ -90,12 +92,8 @@ pub async fn auth_middleware(
     };
 
     let path = req.uri().path();
-    if path == "/health"
-        || path == "/health/ready"
-        || path == "/docs"
-        || path == "/openapi.json"
-        || path == "/metrics"
-    {
+    // Allow static UI assets, health checks, metrics, and documentation without API key
+    if !path.starts_with("/v1/") {
         return Ok(next.run(req).await);
     }
 

@@ -90,6 +90,10 @@ struct ServeArgs {
     /// Optional upstream model router default TTS model (e.g. tts-1, kokoro)
     #[arg(long, env = "VOXFORG_ROUTER_MODEL")]
     router_model: Option<String>,
+
+    /// Automatically open web browser to workstation interface on startup
+    #[arg(long, default_value_t = false)]
+    open: bool,
 }
 
 #[derive(Args)]
@@ -329,11 +333,44 @@ async fn run_serve(args: ServeArgs) -> Result<()> {
     }
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
+
+    let browser_url = if args.host == "0.0.0.0" {
+        format!("http://localhost:{}", args.port)
+    } else {
+        format!("http://{}", addr)
+    };
+
+    if args.open {
+        info!("Opening visual workstation in default browser: {}", browser_url);
+        open_browser(&browser_url);
+    }
+
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())
         .await?;
     info!("VoxForg Server shut down cleanly.");
     Ok(())
+}
+
+fn open_browser(url: &str) {
+    #[cfg(target_os = "windows")]
+    {
+        let _ = std::process::Command::new("cmd")
+            .args(["/C", "start", "", url])
+            .spawn();
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let _ = std::process::Command::new("open")
+            .arg(url)
+            .spawn();
+    }
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        let _ = std::process::Command::new("xdg-open")
+            .arg(url)
+            .spawn();
+    }
 }
 
 async fn shutdown_signal() {

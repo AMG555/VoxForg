@@ -27,7 +27,7 @@
 
 ## Overview
 
-**VoxForg** is a unified, hardware-adaptive speech synthesis server and visual workflow builder. Think of it as **"n8n for speech"**: a modular engine that allows developers and creators to design sophisticated audio pipelines—from chunking multi-page documents to assigning emotional prosody and dynamic voice-swapping across different TTS engines—all behind an OpenAI-compatible API.
+**VoxForg** is a unified, hardware-adaptive speech synthesis server and visual workflow builder: a modular node-based engine that allows developers and creators to design sophisticated audio pipelines—from chunking multi-page documents to assigning emotional prosody and dynamic voice-swapping across different TTS engines—all behind an OpenAI-compatible API.
 
 VoxForg eliminates vendor lock-in by abstracting 10+ local and cloud speech engines behind a unified Rust core with zero-latency streaming.
 
@@ -54,7 +54,7 @@ VoxForg eliminates vendor lock-in by abstracting 10+ local and cloud speech engi
   - Granular API key permissions (`tts:read`, `tts:write`, `pipeline:admin`).
   - Strict CORS validation, rate-limiting (token bucket), and RFC 7807 problem details.
 - **Cross-Platform Delivery**:
-  - Standalone single binary (`voxforg-cli`).
+  - Standalone single binary (`voxforg-cli`) with embedded workstation UI.
   - Official multi-arch Docker containers (`linux/amd64`, `linux/arm64`).
   - Native desktop application built on Tauri v2 (Windows `.msi`, macOS `.dmg`, Linux `.AppImage`).
 
@@ -111,14 +111,57 @@ For complete technical specifications, sequence diagrams, and lifecycle document
 
 ## Quick Start
 
-### 1. Run via Docker Compose (Recommended)
+### 1. Instant Run via NPX (No Installation)
 
-The fastest way to launch VoxForg with the Web UI and SQLite persistence:
+Launch the full visual workstation and local server with one command:
+
+```bash
+npx voxforg
+```
+*Auto-detects platform, fetches matching binary with embedded UI, starts server, and opens your browser to `http://localhost:8080`.*
+
+---
+
+### 2. One-Line Terminal Installers
+
+Install the standalone binary into your system PATH:
+
+**Linux & macOS:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/AMG555/VoxForg/main/scripts/install.sh | sh
+```
+
+**Windows PowerShell:**
+```powershell
+irm https://raw.githubusercontent.com/AMG555/VoxForg/main/scripts/install.ps1 | iex
+```
+
+Start the visual workstation:
+```bash
+voxforg serve --open
+```
+
+---
+
+### 3. Single Docker Container (All-in-One)
+
+Launch the unified container (backend + embedded visual UI):
+
+```bash
+docker run -d -p 8080:8080 -v voxforg-data:/app/data ghcr.io/amg555/voxforg
+```
+Open `http://localhost:8080` in your browser.
+
+---
+
+### 4. Run via Docker Compose (Multi-Service Stack)
+
+The fastest way to launch VoxForg with database persistence or dedicated neural microservices:
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/voxforg.git
-cd voxforg
+git clone https://github.com/AMG555/VoxForg.git
+cd VoxForg
 
 # Start standard services (Daemon + Database)
 docker compose up -d
@@ -127,9 +170,9 @@ docker compose up -d
 docker compose -f docker-compose.neural.yml up -d
 ```
 
-Open `http://localhost:3000` to access the visual pipeline builder. The API server listens at `http://localhost:8080`.
+---
 
-### 2. Run Single Binary (CLI)
+### 5. Run Single Binary (CLI)
 
 Download the release binary for your platform or build from source:
 
