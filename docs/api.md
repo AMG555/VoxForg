@@ -954,10 +954,41 @@ voxforg mcp
 
 ---
 
+## 19. Embedded Webstation Static Assets & SPA Fallback
+
+When running `voxforg serve`, the API server automatically mounts the embedded React/TypeScript Webstation frontend. Requests matching API routes, health checks, metrics, or OpenAPI documentation are handled by Axum REST services, while all other requests stream static web assets or fall back to client-side application routing.
+
+### `GET /`
+
+Serves the Webstation root `index.html` document with appropriate `Content-Type: text/html; charset=utf-8` and security headers.
+
+### `GET /assets/{path}`
+
+Serves bundled Vite frontend assets (JavaScript bundles, CSS stylesheets, SVGs, WOFF2 fonts). Returns appropriate MIME types with client-side caching headers:
+- `Content-Type`: Automatically detected (`application/javascript`, `text/css`, `image/svg+xml`, `font/woff2`).
+- `Cache-Control: public, max-age=31536000, immutable` for hashed asset bundles.
+
+### `GET /{path}` (SPA Fallback Routing)
+
+Any path that does not match an API prefix (`/v1/`, `/health`, `/metrics`, `/docs`, `/api-docs`) and does not resolve to a static asset file automatically streams `index.html`. This powers HTML5 client-side navigation without server-side 404 errors across all Webstation studio tabs:
+- `/studio` - Text-to-Speech playground and DAW multitrack inspector
+- `/voices` - Voice browser and engine capability explorer
+- `/cloning` - Zero-shot speaker cloning studio
+- `/transcribe` - Automated speech recognition (ASR) tool
+- `/pipeline` - Visual DAG pipeline editor
+- `/catalog` - Model weights downloader and hardware validator
+- `/benchmarks` - Latency and RTF engine benchmark suite
+- `/settings` - Audio hardware and worker cluster configuration
+
+---
+
 ## Endpoint Summary
 
 | Method | Path | Description |
 |--------|------|-------------|
+| GET  | `/` | Serves embedded Webstation studio SPA `index.html` |
+| GET  | `/assets/*` | Serves static Vite frontend assets (JS, CSS, fonts) |
+| GET  | `/*` | SPA client-side fallback router (serves `index.html` for frontend routes) |
 | POST | `/v1/audio/speech` | Synthesize speech (supports `policy`, `voice_id`, `worker:`, or cloned profile) |
 | POST | `/v1/audio/speech/stream` | Streaming speech synthesis (chunked) |
 | GET  | `/v1/audio/speech/ws` | WebSocket real-time streaming |
@@ -997,3 +1028,4 @@ voxforg mcp
 | GET  | `/metrics` | Prometheus-style metrics |
 | GET  | `/docs` | Scalar API documentation UI |
 | GET  | `/openapi.json` | OpenAPI 3.1 spec |
+

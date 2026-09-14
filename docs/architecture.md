@@ -141,7 +141,8 @@ crates/
 │   │                      # /v1/benchmark, /v1/voice-ci, /v1/workers,
 │   │                      # /v1/voices/profiles, /v1/voices/clone [Phase 5],
 │   │                      # /v1/audio/transcriptions, /v1/asr/engines [Phase 6],
-│   │                      # /v1/catalog/models [Phase 8]
+│   │                      # /v1/catalog/models [Phase 8],
+│   │                      # src/routes/embedded_ui.rs (RustEmbed SPA fallback router)
 │   ├── src/middleware/    # Strict CORS, security headers, rate limiting
 │   └── src/server.rs      # Axum HTTP/WS server bootstrap
 ├── voxforg-mcp            # [Phase 9] Model Context Protocol JSON-RPC 2.0 Server
@@ -149,7 +150,7 @@ crates/
 │   ├── src/tools.rs       # 8 MCP tools schema & definitions
 │   └── src/server.rs      # McpServer: in-process tool dispatch and stdio stream loop
 └── voxforg-cli
-    └── src/main.rs        # CLI entry point (serve, synth, probe, bench, mcp)
+    └── src/main.rs        # CLI entry point (serve [--open], synth, hardware, engines, bench, ab-test, mcp, transcribe, clone, models)
 ```
 
 ---
@@ -330,4 +331,39 @@ flowchart TD
 2. **Zero-Dependency Prometheus Exporter (`GET /metrics`)**:
    - Reports `voxforg_requests_total{endpoint, status}`, `voxforg_synthesis_duration_seconds_total`, `voxforg_audio_samples_total`, `voxforg_cache_hits_total`, `voxforg_cache_misses_total`, and `voxforg_active_requests`.
    - Fully compatible with Prometheus, VictoriaMetrics, and Datadog agents.
+
+---
+
+## 8. Turnkey Distribution & Embedded Webstation Architecture
+
+VoxForg provides a zero-friction distribution pipeline where the full React/TypeScript Webstation frontend is embedded directly inside the compiled Rust binary:
+
+```mermaid
+flowchart TD
+    Build["UI Build Stage (ui/dist)"] --> Embed["rust-embed in voxforg-api"]
+    Embed --> Binary["Single Executable (voxforg)"]
+    
+    Binary --> WebstationRouter{"HTTP Request Router"}
+    WebstationRouter -->|"/v1/*, /health, /metrics, /docs"| ApiHandlers["Axum REST/WS Handlers"]
+    WebstationRouter -->|"/assets/*"| AssetHandler["Static Asset Mime Streamer (Cached)"]
+    WebstationRouter -->|"/"| IndexHandler["Embedded index.html Streamer"]
+    WebstationRouter -->|"Other paths (*)"| FallbackHandler["SPA HTML5 History Fallback (index.html)"]
+
+    Binary --> CLI["CLI Subcommands (10 Tools)"]
+    CLI --> Serve["voxforg serve --open"]
+    Serve --> WebBrowser["System Default Browser (http://localhost:8080)"]
+```
+
+1. **Compile-Time Asset Inlining (`rust-embed`)**:
+   - The compiled SPA bundle in `ui/dist` is embedded into the `voxforg-api` crate via `RustEmbed`.
+   - In single-binary release mode, zero external node dependencies or web servers (e.g. Nginx, Caddy) are required.
+
+2. **SPA History Fallback Router**:
+   - Routes not matching API prefixes (`/v1/`, `/health`, `/metrics`, `/docs`, `/api-docs`) return `index.html` with HTTP 200, enabling clean client-side routing across Webstation tabs (`/studio`, `/voices`, `/cloning`, `/transcribe`, `/pipeline`, `/catalog`, `/benchmarks`, `/settings`).
+
+3. **Multi-Channel Distribution**:
+   - **`npx voxforg`**: Zero-install runner downloading architecture-specific binaries directly to cache.
+   - **`curl | sh` / `irm | iex`**: Automated shell installers detecting host OS and architecture.
+   - **Single-Container Docker**: Multi-stage Docker image packaging native binary and embedded frontend in a self-contained container.
+
 

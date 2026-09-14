@@ -193,7 +193,7 @@ cargo build --release --bin voxforg
 ./target/release/voxforg serve --port 8080 --data-dir ./data
 ```
 
-### 3. OpenAI Drop-In Replacement
+### 6. OpenAI Drop-In Replacement
 
 VoxForg provides a drop-in replacement for the OpenAI Audio Speech API (`/v1/audio/speech`).
 
