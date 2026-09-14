@@ -232,7 +232,9 @@ impl TtsEngine for Qwen3TtsEngine {
         let embedding = if let Some(ref b64) = request.reference_audio_base64 {
             let bytes = hex::decode(b64.as_bytes()).unwrap_or_else(|_| b64.as_bytes().to_vec());
             let pcm: Vec<i16> = bytes
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .map(|c| i16::from_le_bytes([c[0], c[1]]))
                 .collect();
             Self::extract_speaker_embedding(&pcm)
@@ -298,7 +300,9 @@ impl TtsEngine for Qwen3TtsEngine {
                             }
                         } else if !bytes.is_empty() {
                             let pcm: Vec<i16> = bytes
-                                .chunks_exact(2)
+                                .as_chunks::<2>()
+                                .0
+                                .iter()
                                 .map(|c| i16::from_le_bytes([c[0], c[1]]))
                                 .collect();
                             return Ok(AudioChunk {

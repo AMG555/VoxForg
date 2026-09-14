@@ -228,8 +228,8 @@ fn decode_audio_input(payload: &TranscriptionRequestPayload) -> Result<(Vec<i16>
 
         // Fallback: parse 16-bit little-endian samples at 16000Hz
         let mut samples = Vec::with_capacity(bytes.len() / 2);
-        for chunk in bytes.chunks_exact(2) {
-            samples.push(i16::from_le_bytes([chunk[0], chunk[1]]));
+        for &[b0, b1] in bytes.as_chunks::<2>().0 {
+            samples.push(i16::from_le_bytes([b0, b1]));
         }
 
         if samples.is_empty() {

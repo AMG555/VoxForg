@@ -309,8 +309,8 @@ impl McpServer {
                 let bytes =
                     hex::decode(audio_raw.trim()).unwrap_or_else(|_| audio_raw.as_bytes().to_vec());
                 let mut samples = Vec::with_capacity(bytes.len() / 2);
-                for chunk in bytes.chunks_exact(2) {
-                    samples.push(i16::from_le_bytes([chunk[0], chunk[1]]));
+                for &[b0, b1] in bytes.as_chunks::<2>().0 {
+                    samples.push(i16::from_le_bytes([b0, b1]));
                 }
 
                 let engine = if let Some(m) = model {
