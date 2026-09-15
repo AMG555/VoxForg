@@ -109,6 +109,18 @@ async function main() {
   const cacheDir = path.join(os.homedir(), '.voxforg', 'bin');
   const binaryPath = path.join(cacheDir, `voxforg${ext}`);
 
+  // 1. Check if running inside or near repository with local build
+  const localRepoBuild = path.resolve(__dirname, '../../target/release', `voxforg${ext}`);
+  const cwdBuild = path.resolve(process.cwd(), 'target/release', `voxforg${ext}`);
+  if (fs.existsSync(localRepoBuild)) {
+    runBinary(localRepoBuild);
+    return;
+  }
+  if (fs.existsSync(cwdBuild)) {
+    runBinary(cwdBuild);
+    return;
+  }
+
   if (!fs.existsSync(binaryPath)) {
     fs.mkdirSync(cacheDir, { recursive: true });
     const downloadUrl = `https://github.com/${REPO}/releases/download/${DEFAULT_VERSION}/${binaryName}`;
