@@ -97,7 +97,24 @@ case ":$PATH:" in
         ;;
 esac
 
-# 5. Verify system hardware profile
+# 5. Create Desktop application launcher entry for non-developers
+if [ "$OS" = "linux" ] && [ -d "$HOME/.local/share/applications" ]; then
+    DESKTOP_ENTRY="$HOME/.local/share/applications/voxforg.desktop"
+    cat <<EOF > "$DESKTOP_ENTRY"
+[Desktop Entry]
+Name=VoxForg Studio
+Comment=Neural Speech Synthesis & Voice Workstation
+Exec=$TARGET_FILE serve --open
+Icon=audio-card
+Terminal=false
+Type=Application
+Categories=AudioVideo;Audio;Development;
+EOF
+    chmod +x "$DESKTOP_ENTRY"
+    printf "Created desktop application entry: \033[1;36m%s\033[0m\n" "$DESKTOP_ENTRY"
+fi
+
+# 6. Verify system hardware profile
 printf "\nValidating installation...\n"
 "$TARGET_FILE" hardware || true
 

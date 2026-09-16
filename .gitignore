@@ -51,5 +51,4 @@ run_tests.bat
 build_release.bat
 clean.bat
 \$null
-$null
-
+*.exe

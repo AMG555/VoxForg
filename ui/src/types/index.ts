@@ -111,9 +111,19 @@ export interface CatalogItem {
   min_ram_mb: number;
   requires_gpu: boolean;
   supported_languages: string[];
-  status: 'Available' | 'Downloading' | 'Installed' | 'Error';
+  status: 'available' | 'downloading' | 'installed' | 'error' | 'Available' | 'Downloading' | 'Installed' | 'Error' | string;
   installed_at?: string;
   local_path?: string;
+}
+
+export interface EngineHealthInfo {
+  id: string;
+  name: string;
+  status: 'ready' | 'weights_required' | 'key_required' | 'mock' | 'error';
+  status_label: string;
+  description: string;
+  action_type?: 'none' | 'install_model' | 'configure_key';
+  action_target?: string;
 }
 
 export interface CloneVoicePayload {

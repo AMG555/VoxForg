@@ -152,6 +152,18 @@ export const api = {
     return res.json();
   },
 
+  async uninstallModel(id: string): Promise<CatalogItem> {
+    const res = await fetch(`${BASE_URL}/v1/catalog/models/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      headers: getHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Model uninstall failed' }));
+      throw new Error(err.detail || 'Model uninstall failed');
+    }
+    return res.json();
+  },
+
   async cloneVoice(payload: CloneVoicePayload): Promise<any> {
     const res = await fetch(`${BASE_URL}/v1/voices/clone`, {
       method: 'POST',

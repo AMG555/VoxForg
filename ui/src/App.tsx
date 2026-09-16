@@ -73,7 +73,7 @@ export const App: React.FC = () => {
         {activeTab === 'canvas' && <PipelineCanvas voices={voices} />}
         {activeTab === 'voices' && <VoiceLab voices={voices} />}
         {activeTab === 'catalog' && <ModelCatalog />}
-        {activeTab === 'hardware' && <HardwareInspector hardware={hardware} />}
+        {activeTab === 'hardware' && <HardwareInspector hardware={hardware} onNavigateTab={setActiveTab} />}
         {activeTab === 'qa' && <AbTestLab voices={voices} />}
       </main>
     </div>

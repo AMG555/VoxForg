@@ -28,7 +28,18 @@ impl ModelCatalogStore {
 
     /// Create store seeded with standard open-weights speech models.
     pub fn with_curated_models() -> Self {
-        let mut map = HashMap::new();
+        let models_dir = std::env::var("VOXFORG_MODELS_DIR")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|_| std::path::PathBuf::from("models"));
+
+        let piper_path = models_dir.join("piper-en-lessac-medium.onnx");
+        let piper_installed = piper_path.exists();
+
+        let whisper_path = models_dir.join("whisper-base.onnx");
+        let whisper_installed = whisper_path.exists();
+
+        let vad_path = models_dir.join("silero_vad.onnx");
+        let vad_installed = vad_path.exists();
 
         let models = vec![
             CatalogItem {
@@ -43,9 +54,9 @@ impl ModelCatalogStore {
                 min_ram_mb: 512,
                 requires_gpu: false,
                 supported_languages: vec!["en-US".to_string()],
-                status: ModelStatus::Installed,
-                installed_at: Some(Utc::now()),
-                local_path: Some("models/piper-en-lessac-medium.onnx".to_string()),
+                status: if piper_installed { ModelStatus::Installed } else { ModelStatus::Available },
+                installed_at: if piper_installed { Some(Utc::now()) } else { None },
+                local_path: if piper_installed { Some(piper_path.to_string_lossy().to_string()) } else { None },
             },
             CatalogItem {
                 id: "kokoro-v0_19".to_string(),
@@ -91,9 +102,9 @@ impl ModelCatalogStore {
                 min_ram_mb: 1024,
                 requires_gpu: false,
                 supported_languages: vec!["en".to_string(), "es".to_string(), "fr".to_string(), "de".to_string(), "zh".to_string()],
-                status: ModelStatus::Installed,
-                installed_at: Some(Utc::now()),
-                local_path: Some("models/whisper-base.onnx".to_string()),
+                status: if whisper_installed { ModelStatus::Installed } else { ModelStatus::Available },
+                installed_at: if whisper_installed { Some(Utc::now()) } else { None },
+                local_path: if whisper_installed { Some(whisper_path.to_string_lossy().to_string()) } else { None },
             },
             CatalogItem {
                 id: "whisper-small".to_string(),
@@ -123,12 +134,13 @@ impl ModelCatalogStore {
                 min_ram_mb: 256,
                 requires_gpu: false,
                 supported_languages: vec!["*".to_string()],
-                status: ModelStatus::Installed,
-                installed_at: Some(Utc::now()),
-                local_path: Some("models/silero_vad.onnx".to_string()),
+                status: if vad_installed { ModelStatus::Installed } else { ModelStatus::Available },
+                installed_at: if vad_installed { Some(Utc::now()) } else { None },
+                local_path: if vad_installed { Some(vad_path.to_string_lossy().to_string()) } else { None },
             },
         ];
 
+        let mut map = HashMap::new();
         for m in models {
             map.insert(m.id.clone(), m);
         }
@@ -202,19 +214,19 @@ impl ModelCatalogStore {
             .unwrap_or_else(|_| std::path::PathBuf::from("models"));
         let target_path = models_dir.join(format!("{id}.{ext}"));
 
-        // If live download is requested and URL is valid HTTP/HTTPS
-        let should_download = std::env::var("VOXFORG_DOWNLOAD_WEIGHTS")
+        // Attempt live download if URL is HTTP/HTTPS unless explicitly disabled
+        let skip_download = std::env::var("VOXFORG_SKIP_DOWNLOAD")
             .map(|v| v == "1" || v == "true")
             .unwrap_or(false);
 
-        if should_download
+        if !skip_download
             && (item.download_url.starts_with("http://")
                 || item.download_url.starts_with("https://"))
         {
             if let Err(e) =
                 Self::download_file(&item.download_url, &target_path, &item.sha256).await
             {
-                tracing::warn!(error = %e, url = %item.download_url, "Live weights download failed, falling back to simulated installation");
+                tracing::warn!(error = %e, url = %item.download_url, "Live weights download failed, operating with simulated weight allocation");
             }
         }
 

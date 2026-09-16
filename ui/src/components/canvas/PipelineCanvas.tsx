@@ -97,26 +97,46 @@ const PRESETS: Record<string, PipelineDefinition> = {
   },
   podcast: {
     id: 'preset-podcast',
-    name: 'Studio Podcast Mastering',
+    name: 'Multi-Voice Studio Podcast',
     nodes: [
       {
         id: 'p-1',
-        name: 'Podcast Host Script',
+        name: 'Podcast Interview Script',
         node_type: 'text_input',
         params: {
-          text: 'Welcome back to Quantum Wave. Today we dive into neural speech synthesis architectures in high-concurrency environments.',
+          text: "Host: Welcome back to Quantum Wave! Today we dive into multi-voice neural speech synthesis in high-concurrency environments.\nGuest: Thanks for having me, Alex! Combining distinct voices on a single directed canvas is a massive leap for studio production.\nHost: Absolutely. With inter-speaker crossfades and dynamic audio mastering, creators can build full podcast episodes in seconds.",
         },
         position: { x: 60, y: 120 },
       },
       {
         id: 'p-2',
-        name: 'Neural Synthesizer',
-        node_type: 'synthesizer',
-        params: { voice: 'en-US-JennyNeural' },
+        name: 'Speaker Script Parser',
+        node_type: 'speaker_parser',
+        params: {},
         position: { x: 380, y: 120 },
       },
       {
         id: 'p-3',
+        name: 'Podcast Voice Assigner',
+        node_type: 'voice_assigner',
+        params: {
+          default_voice: 'en-US-JennyNeural',
+          speaker_map: {
+            Host: 'en-US-JennyNeural',
+            Guest: 'en-US-GuyNeural',
+          },
+        },
+        position: { x: 700, y: 120 },
+      },
+      {
+        id: 'p-4',
+        name: 'Neural Synthesizer',
+        node_type: 'synthesizer',
+        params: { speed: 1.0, pitch: 0.0 },
+        position: { x: 1020, y: 120 },
+      },
+      {
+        id: 'p-5',
         name: 'Studio DSP Mastering',
         node_type: 'audio_filter',
         params: {
@@ -134,20 +154,116 @@ const PRESETS: Record<string, PipelineDefinition> = {
           limiter_ceiling_db: -0.8,
           normalize: true,
         },
-        position: { x: 700, y: 120 },
+        position: { x: 1340, y: 120 },
       },
       {
-        id: 'p-4',
-        name: 'Broadcast Sink',
+        id: 'p-6',
+        name: 'Audio Merge & Crossfade',
+        node_type: 'audio_merge',
+        params: { pause_ms: 220 },
+        position: { x: 1660, y: 120 },
+      },
+      {
+        id: 'p-7',
+        name: 'Broadcast Master Sink',
         node_type: 'output_sink',
         params: {},
-        position: { x: 1020, y: 120 },
+        position: { x: 1980, y: 120 },
       },
     ],
     edges: [
       { id: 'pe1', from_node: 'p-1', to_node: 'p-2' },
       { id: 'pe2', from_node: 'p-2', to_node: 'p-3' },
       { id: 'pe3', from_node: 'p-3', to_node: 'p-4' },
+      { id: 'pe4', from_node: 'p-4', to_node: 'p-5' },
+      { id: 'pe5', from_node: 'p-5', to_node: 'p-6' },
+      { id: 'pe6', from_node: 'p-6', to_node: 'p-7' },
+    ],
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  communications: {
+    id: 'preset-comms',
+    name: 'Tactical Communications Studio',
+    nodes: [
+      {
+        id: 'c-1',
+        name: 'Comms Dispatch Script',
+        node_type: 'text_input',
+        params: {
+          text: "Dispatch: Control to Falcon-1, radar contact lost at vector zero-four-zero. Confirm visual status.\nPilot: Falcon-1 copy. Heavy static layer at ten thousand feet, switching auxiliary frequency now.\nDispatch: Roger Falcon-1. Maintain designated corridor and report telemetry link.",
+        },
+        position: { x: 60, y: 120 },
+      },
+      {
+        id: 'c-2',
+        name: 'Speaker Script Parser',
+        node_type: 'speaker_parser',
+        params: {},
+        position: { x: 380, y: 120 },
+      },
+      {
+        id: 'c-3',
+        name: 'Tactical Voice Allocation',
+        node_type: 'voice_assigner',
+        params: {
+          default_voice: 'en-US-AriaNeural',
+          speaker_map: {
+            Dispatch: 'en-US-AriaNeural',
+            Pilot: 'en-US-GuyNeural',
+          },
+        },
+        position: { x: 700, y: 120 },
+      },
+      {
+        id: 'c-4',
+        name: 'Comms Synthesizer',
+        node_type: 'synthesizer',
+        params: { speed: 1.05, pitch: 0.0 },
+        position: { x: 1020, y: 120 },
+      },
+      {
+        id: 'c-5',
+        name: 'Radio Bandpass DSP',
+        node_type: 'audio_filter',
+        params: {
+          trim_silence: true,
+          silence_threshold_db: -36.0,
+          enable_eq: true,
+          eq_low_gain_db: -3.0,
+          eq_mid_gain_db: 3.5,
+          eq_high_gain_db: 2.0,
+          enable_compressor: true,
+          compressor_threshold_db: -14.0,
+          compressor_ratio: 4.0,
+          enable_limiter: true,
+          limiter_ceiling_db: -0.3,
+          normalize: true,
+        },
+        position: { x: 1340, y: 120 },
+      },
+      {
+        id: 'c-6',
+        name: 'Radio Audio Merge',
+        node_type: 'audio_merge',
+        params: { pause_ms: 140 },
+        position: { x: 1660, y: 120 },
+      },
+      {
+        id: 'c-7',
+        name: 'Mission Comms Sink',
+        node_type: 'output_sink',
+        params: {},
+        position: { x: 1980, y: 120 },
+      },
+    ],
+    edges: [
+      { id: 'ce1', from_node: 'c-1', to_node: 'c-2' },
+      { id: 'ce2', from_node: 'c-2', to_node: 'c-3' },
+      { id: 'ce3', from_node: 'c-3', to_node: 'c-4' },
+      { id: 'ce4', from_node: 'c-4', to_node: 'c-5' },
+      { id: 'ce5', from_node: 'c-5', to_node: 'c-6' },
+      { id: 'ce6', from_node: 'c-6', to_node: 'c-7' },
     ],
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
@@ -158,22 +274,42 @@ const PRESETS: Record<string, PipelineDefinition> = {
     nodes: [
       {
         id: 'r-1',
-        name: 'Station Jingle & Announcement',
+        name: 'Station Jingle & Dialogue',
         node_type: 'text_input',
         params: {
-          text: 'You are listening to 104.7 VoxFM. Up next: non-stop neural audio streams with zero latency.',
+          text: "DJ: You are listening to 104.7 VoxFM! Taking our first live caller on the neural hotline.\nCaller: Hey DJ! The audio quality on this station is crystal clear, loving the mix!\nDJ: Appreciate the love, caller! Cranking up non-stop neural audio with zero latency.",
         },
         position: { x: 60, y: 120 },
       },
       {
         id: 'r-2',
-        name: 'Resonant Synthesizer',
-        node_type: 'synthesizer',
-        params: { voice: 'en-US-GuyNeural' },
+        name: 'Speaker Script Parser',
+        node_type: 'speaker_parser',
+        params: {},
         position: { x: 380, y: 120 },
       },
       {
         id: 'r-3',
+        name: 'Station Voice Assigner',
+        node_type: 'voice_assigner',
+        params: {
+          default_voice: 'en-US-GuyNeural',
+          speaker_map: {
+            DJ: 'en-US-GuyNeural',
+            Caller: 'en-US-JennyNeural',
+          },
+        },
+        position: { x: 700, y: 120 },
+      },
+      {
+        id: 'r-4',
+        name: 'Resonant Synthesizer',
+        node_type: 'synthesizer',
+        params: { voice: 'en-US-GuyNeural' },
+        position: { x: 1020, y: 120 },
+      },
+      {
+        id: 'r-5',
         name: 'Aggressive Radio DSP',
         node_type: 'audio_filter',
         params: {
@@ -190,20 +326,30 @@ const PRESETS: Record<string, PipelineDefinition> = {
           limiter_ceiling_db: -0.3,
           normalize: true,
         },
-        position: { x: 700, y: 120 },
+        position: { x: 1340, y: 120 },
       },
       {
-        id: 'r-4',
+        id: 'r-6',
+        name: 'Audio Merge & Crossfade',
+        node_type: 'audio_merge',
+        params: { pause_ms: 100 },
+        position: { x: 1660, y: 120 },
+      },
+      {
+        id: 'r-7',
         name: 'Transmitter Sink',
         node_type: 'output_sink',
         params: {},
-        position: { x: 1020, y: 120 },
+        position: { x: 1980, y: 120 },
       },
     ],
     edges: [
       { id: 're1', from_node: 'r-1', to_node: 'r-2' },
       { id: 're2', from_node: 'r-2', to_node: 'r-3' },
       { id: 're3', from_node: 'r-3', to_node: 'r-4' },
+      { id: 're4', from_node: 'r-4', to_node: 'r-5' },
+      { id: 're5', from_node: 'r-5', to_node: 'r-6' },
+      { id: 're6', from_node: 'r-6', to_node: 'r-7' },
     ],
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
@@ -289,6 +435,10 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
     startNodeY: number;
   } | null>(null);
 
+  // Wire Connection Dragging State
+  const [connectingFrom, setConnectingFrom] = useState<string | null>(null);
+  const [pointerCanvasPos, setPointerCanvasPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+
   const canvasContainerRef = useRef<HTMLDivElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -319,6 +469,60 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
     if (selectedNodeId === nodeId) {
       setSelectedNodeId(null);
     }
+  };
+
+  const handleDeleteEdge = (edgeId: string) => {
+    setPipeline((prev) => ({
+      ...prev,
+      edges: prev.edges.filter((e) => e.id !== edgeId),
+    }));
+  };
+
+  const handleAutoLayout = () => {
+    const spacingX = 320;
+    const startX = 60;
+    const startY = 120;
+    setPipeline((prev) => ({
+      ...prev,
+      nodes: prev.nodes.map((n, idx) => ({
+        ...n,
+        position: { x: startX + idx * spacingX, y: startY },
+      })),
+    }));
+    setTimeout(handleFitToView, 50);
+  };
+
+  const handleConnectStart = (nodeId: string, e: React.PointerEvent) => {
+    setConnectingFrom(nodeId);
+    if (canvasContainerRef.current) {
+      const rect = canvasContainerRef.current.getBoundingClientRect();
+      setPointerCanvasPos({
+        x: Math.round((e.clientX - rect.left - pan.x) / zoom),
+        y: Math.round((e.clientY - rect.top - pan.y) / zoom),
+      });
+    }
+  };
+
+  const handleConnectEnd = (targetNodeId: string) => {
+    if (connectingFrom && connectingFrom !== targetNodeId) {
+      const exists = pipeline.edges.some(
+        (e) => e.from_node === connectingFrom && e.to_node === targetNodeId
+      );
+      if (!exists) {
+        setPipeline((prev) => ({
+          ...prev,
+          edges: [
+            ...prev.edges,
+            {
+              id: `edge-${Date.now()}`,
+              from_node: connectingFrom,
+              to_node: targetNodeId,
+            },
+          ],
+        }));
+      }
+    }
+    setConnectingFrom(null);
   };
 
   // Canvas Panning Handlers
@@ -358,7 +562,15 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
 
   // Unified Pointer Move
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (dragNodeState) {
+    if (connectingFrom) {
+      if (canvasContainerRef.current) {
+        const rect = canvasContainerRef.current.getBoundingClientRect();
+        setPointerCanvasPos({
+          x: Math.round((e.clientX - rect.left - pan.x) / zoom),
+          y: Math.round((e.clientY - rect.top - pan.y) / zoom),
+        });
+      }
+    } else if (dragNodeState) {
       const dx = (e.clientX - dragNodeState.startMouseX) / zoom;
       const dy = (e.clientY - dragNodeState.startMouseY) / zoom;
 
@@ -388,6 +600,7 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
   const handlePointerUp = () => {
     setIsPanning(false);
     setDragNodeState(null);
+    setConnectingFrom(null);
   };
 
   // Smooth Wheel Zoom Centered at Cursor
@@ -565,7 +778,8 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
                 defaultValue="narrative"
               >
                 <option value="narrative">Preset: Narrative Dialogue</option>
-                <option value="podcast">Preset: Studio Podcast</option>
+                <option value="podcast">Preset: Multi-Voice Podcast</option>
+                <option value="communications">Preset: Tactical Comms</option>
                 <option value="radio">Preset: Punchy Radio</option>
               </select>
             </div>
@@ -603,6 +817,16 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
                 </div>
               )}
             </div>
+
+            {/* Auto-Align studio nodes button */}
+            <button
+              onClick={handleAutoLayout}
+              className="flex items-center space-x-1 px-2.5 py-1 rounded bg-[#1A222D] hover:bg-[#242E3D] text-[#94A3B8] hover:text-white text-xs font-mono border border-[#242E3D] transition-colors ml-2"
+              title="Auto-arrange studio nodes sequentially"
+            >
+              <Move className="w-3.5 h-3.5 text-amber-500" />
+              <span>Auto-Align</span>
+            </button>
           </div>
 
           <div className="flex items-center space-x-2">
@@ -684,20 +908,6 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
               className="absolute inset-0 overflow-visible pointer-events-none"
               style={{ width: '100%', height: '100%' }}
             >
-              <defs>
-                <linearGradient id="wireGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor="#38BDF8" />
-                  <stop offset="100%" stopColor="#34D399" />
-                </linearGradient>
-                <filter id="wireGlowFilter" x="-20%" y="-20%" width="140%" height="140%">
-                  <feGaussianBlur stdDeviation="3" result="glow" />
-                  <feMerge>
-                    <feMergeNode in="glow" />
-                    <feMergeNode in="SourceGraphic" />
-                  </feMerge>
-                </filter>
-              </defs>
-
               {pipeline.edges.map((edge) => {
                 const fromNode = pipeline.nodes.find((n) => n.id === edge.from_node);
                 const toNode = pipeline.nodes.find((n) => n.id === edge.to_node);
@@ -707,63 +917,104 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
                 const toPos = getNodePos(toNode);
                 // Card width is 256px (w-64); connector ports are centered on right and left edges
                 const x1 = fromPos.x + 256;
-                const y1 = fromPos.y + 60;
+                const y1 = fromPos.y + 55;
                 const x2 = toPos.x;
-                const y2 = toPos.y + 60;
+                const y2 = toPos.y + 55;
 
                 const dx = Math.max(Math.abs(x2 - x1) * 0.5, 45);
                 const pathData = `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
+                const midX = Math.round((x1 + x2) / 2);
+                const midY = Math.round((y1 + y2) / 2);
 
                 return (
-                  <g key={edge.id}>
-                    {/* Background glow halo */}
+                  <g key={edge.id} className="group/wire">
+                    {/* Ambient outer glow halo */}
+                    <path
+                      d={pathData}
+                      fill="none"
+                      stroke="#0284C7"
+                      strokeWidth="8"
+                      strokeOpacity="0.3"
+                      strokeLinecap="round"
+                    />
+                    {/* Main smooth cyan bezier curve */}
                     <path
                       d={pathData}
                       fill="none"
                       stroke="#38BDF8"
-                      strokeWidth="6"
-                      strokeOpacity="0.15"
-                      filter="url(#wireGlowFilter)"
-                    />
-                    {/* Main smooth bezier curve */}
-                    <path
-                      d={pathData}
-                      fill="none"
-                      stroke="url(#wireGrad)"
-                      strokeWidth="2.5"
+                      strokeWidth="3"
                       strokeLinecap="round"
                     />
                     {/* Flowing animated pulse marker */}
-                    <circle r="3.5" fill="#F59E0B">
-                      <animateMotion dur="2.8s" repeatCount="indefinite" path={pathData} />
+                    <circle r="4" fill="#F59E0B">
+                      <animateMotion dur="2.4s" repeatCount="indefinite" path={pathData} />
                     </circle>
+                    {/* Edge delete button at midpoint */}
+                    <g
+                      transform={`translate(${midX}, ${midY})`}
+                      className="cursor-pointer pointer-events-auto"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteEdge(edge.id);
+                      }}
+                    >
+                      <title>Click to disconnect wire</title>
+                      <circle r="8" fill="#1E293B" stroke="#EF4444" strokeWidth="1.5" />
+                      <line x1="-2.5" y1="-2.5" x2="2.5" y2="2.5" stroke="#EF4444" strokeWidth="1.5" strokeLinecap="round" />
+                      <line x1="2.5" y1="-2.5" x2="-2.5" y2="2.5" stroke="#EF4444" strokeWidth="1.5" strokeLinecap="round" />
+                    </g>
                   </g>
                 );
               })}
+
+              {/* Active Rubberband Dragging Wire */}
+              {connectingFrom && (() => {
+                const fromNode = pipeline.nodes.find((n) => n.id === connectingFrom);
+                if (!fromNode) return null;
+                const pos = getNodePos(fromNode);
+                const x1 = pos.x + 256;
+                const y1 = pos.y + 55;
+                const x2 = pointerCanvasPos.x;
+                const y2 = pointerCanvasPos.y;
+                const dx = Math.max(Math.abs(x2 - x1) * 0.5, 30);
+                const d = `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
+                return (
+                  <path
+                    d={d}
+                    fill="none"
+                    stroke="#F59E0B"
+                    strokeWidth="3.5"
+                    strokeDasharray="6 4"
+                    strokeLinecap="round"
+                  />
+                );
+              })()}
             </svg>
 
             {/* Draggable Node Cards */}
             {pipeline.nodes.map((node) => {
               const pos = getNodePos(node);
-                return (
-                  <div
-                    key={node.id}
-                    className="pointer-events-auto node-card-interactive"
-                  >
-                    <NodeCard
-                      node={node}
-                      isSelected={node.id === selectedNodeId}
-                      onSelect={setSelectedNodeId}
-                      onDelete={handleDeleteNode}
-                      onPointerDown={handleNodePointerDown}
-                      style={{
-                        left: `${pos.x}px`,
-                        top: `${pos.y}px`,
-                      }}
-                    />
-                  </div>
-                );
-              })}
+              return (
+                <div
+                  key={node.id}
+                  className="pointer-events-auto node-card-interactive"
+                >
+                  <NodeCard
+                    node={node}
+                    isSelected={node.id === selectedNodeId}
+                    onSelect={setSelectedNodeId}
+                    onDelete={handleDeleteNode}
+                    onPointerDown={handleNodePointerDown}
+                    onConnectStart={handleConnectStart}
+                    onConnectEnd={handleConnectEnd}
+                    style={{
+                      left: `${pos.x}px`,
+                      top: `${pos.y}px`,
+                    }}
+                  />
+                </div>
+              );
+            })}
           </div>
 
           {/* Floating Zoom & Pan HUD Controls */}
@@ -827,6 +1078,7 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
       {/* Node Inspector Drawer */}
       <NodeInspector
         node={selectedNode}
+        allNodes={pipeline.nodes}
         voices={voices}
         onClose={() => setSelectedNodeId(null)}
         onUpdateParams={handleUpdateParams}

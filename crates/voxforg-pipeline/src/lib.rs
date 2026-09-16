@@ -466,4 +466,155 @@ mod tests {
         assert!(!wav.is_empty());
         assert_eq!(&wav[0..4], b"RIFF");
     }
+
+    #[tokio::test]
+    async fn test_podcast_multivoice_studio() {
+        let registry = Arc::new(EngineRegistry::new());
+        let mock_engine = Arc::new(MockTtsEngine::new(24000));
+        registry.register(mock_engine).await;
+
+        let executor = PipelineExecutor::new(registry);
+        let pipeline = PipelineDefinition {
+            id: Uuid::new_v4(),
+            name: "Podcast Multi-Voice Studio".to_string(),
+            description: Some("Podcast interview studio".to_string()),
+            nodes: vec![
+                PipelineNode {
+                    id: "script".to_string(),
+                    name: "Script Input".to_string(),
+                    node_type: NodeType::TextInput,
+                    params: serde_json::json!({
+                        "text": "[Host] Welcome to Quantum Wave!\n[Guest] Thrilled to be here, Alex.\n[Host] Let's discuss multi-voice synthesis."
+                    }),
+                    position: None,
+                },
+                PipelineNode {
+                    id: "parser".to_string(),
+                    name: "Speaker Parser".to_string(),
+                    node_type: NodeType::SpeakerParser,
+                    params: serde_json::json!({}),
+                    position: None,
+                },
+                PipelineNode {
+                    id: "voices".to_string(),
+                    name: "Voice Allocation".to_string(),
+                    node_type: NodeType::VoiceAssigner,
+                    params: serde_json::json!({
+                        "default_voice": "mock-en-female",
+                        "speaker_map": {
+                            "host": "mock-en-female",
+                            "guest": "mock-en-male"
+                        }
+                    }),
+                    position: None,
+                },
+                PipelineNode {
+                    id: "synth".to_string(),
+                    name: "Synthesizer".to_string(),
+                    node_type: NodeType::Synthesizer,
+                    params: serde_json::json!({}),
+                    position: None,
+                },
+                PipelineNode {
+                    id: "dsp".to_string(),
+                    name: "Studio DSP Filter".to_string(),
+                    node_type: NodeType::AudioFilter,
+                    params: serde_json::json!({
+                        "enable_eq": true,
+                        "eq_low_gain_db": 1.5,
+                        "eq_high_gain_db": 2.0,
+                        "enable_compressor": true,
+                        "compressor_threshold_db": -16.0,
+                        "enable_limiter": true,
+                        "limiter_ceiling_db": -0.8,
+                        "normalize": true
+                    }),
+                    position: None,
+                },
+                PipelineNode {
+                    id: "merge".to_string(),
+                    name: "Audio Merge".to_string(),
+                    node_type: NodeType::AudioMerge,
+                    params: serde_json::json!({ "pause_ms": 200 }),
+                    position: None,
+                },
+                PipelineNode {
+                    id: "sink".to_string(),
+                    name: "Master Output".to_string(),
+                    node_type: NodeType::OutputSink,
+                    params: serde_json::json!({}),
+                    position: None,
+                },
+            ],
+            edges: vec![
+                PipelineEdge { id: "e1".to_string(), from_node: "script".to_string(), to_node: "parser".to_string(), from_port: None, to_port: None },
+                PipelineEdge { id: "e2".to_string(), from_node: "parser".to_string(), to_node: "voices".to_string(), from_port: None, to_port: None },
+                PipelineEdge { id: "e3".to_string(), from_node: "voices".to_string(), to_node: "synth".to_string(), from_port: None, to_port: None },
+                PipelineEdge { id: "e4".to_string(), from_node: "synth".to_string(), to_node: "dsp".to_string(), from_port: None, to_port: None },
+                PipelineEdge { id: "e5".to_string(), from_node: "dsp".to_string(), to_node: "merge".to_string(), from_port: None, to_port: None },
+                PipelineEdge { id: "e6".to_string(), from_node: "merge".to_string(), to_node: "sink".to_string(), from_port: None, to_port: None },
+            ],
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        };
+
+        let wav = executor
+            .execute(&pipeline, None)
+            .await
+            .expect("Podcast studio pipeline execution must succeed");
+        assert!(!wav.is_empty());
+        assert_eq!(&wav[0..4], b"RIFF");
+    }
+
+    #[tokio::test]
+    async fn test_direct_synthesizer_fallback() {
+        let registry = Arc::new(EngineRegistry::new());
+        let mock_engine = Arc::new(MockTtsEngine::new(24000));
+        registry.register(mock_engine).await;
+
+        let executor = PipelineExecutor::new(registry);
+        let pipeline = PipelineDefinition {
+            id: Uuid::new_v4(),
+            name: "Direct Synthesizer Pipeline".to_string(),
+            description: None,
+            nodes: vec![
+                PipelineNode {
+                    id: "text".to_string(),
+                    name: "Script".to_string(),
+                    node_type: NodeType::TextInput,
+                    params: serde_json::json!({
+                        "text": "Direct line without speaker parser."
+                    }),
+                    position: None,
+                },
+                PipelineNode {
+                    id: "synth".to_string(),
+                    name: "Synthesizer".to_string(),
+                    node_type: NodeType::Synthesizer,
+                    params: serde_json::json!({ "voice": "mock-en-female" }),
+                    position: None,
+                },
+                PipelineNode {
+                    id: "sink".to_string(),
+                    name: "Output".to_string(),
+                    node_type: NodeType::OutputSink,
+                    params: serde_json::json!({}),
+                    position: None,
+                },
+            ],
+            edges: vec![
+                PipelineEdge { id: "e1".to_string(), from_node: "text".to_string(), to_node: "synth".to_string(), from_port: None, to_port: None },
+                PipelineEdge { id: "e2".to_string(), from_node: "synth".to_string(), to_node: "sink".to_string(), from_port: None, to_port: None },
+            ],
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        };
+
+        let wav = executor
+            .execute(&pipeline, None)
+            .await
+            .expect("Direct pipeline execution must succeed");
+        assert!(!wav.is_empty());
+        assert_eq!(&wav[0..4], b"RIFF");
+    }
 }

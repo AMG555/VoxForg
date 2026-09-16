@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Download, CheckCircle2, Cpu, HardDrive, Filter, AlertCircle, RefreshCw, Layers } from 'lucide-react';
+import { Download, CheckCircle2, Cpu, HardDrive, Filter, AlertCircle, RefreshCw, Layers, Trash2 } from 'lucide-react';
 import { CatalogItem } from '../../types';
 import { api } from '../../services/api';
 
@@ -97,13 +97,38 @@ export const ModelCatalog: React.FC = () => {
     setInstallingId(id);
     setMessage(null);
     try {
-      await api.installModel(id);
-      setMessage({ text: `Model '${id}' installed successfully!`, type: 'success' });
+      const res = await api.installModel(id);
+      setModels((prev) =>
+        prev.map((m) =>
+          m.id === id
+            ? {
+                ...m,
+                status: 'installed',
+                local_path: res.local_path || `models/${id}.onnx`,
+              }
+            : m
+        )
+      );
+      setMessage({ text: `Model '${id}' installed successfully and ready!`, type: 'success' });
       await fetchModels();
     } catch (err: any) {
       setMessage({ text: err.message || `Failed to install '${id}'`, type: 'error' });
     } finally {
       setInstallingId(null);
+    }
+  };
+
+  const handleUninstall = async (id: string) => {
+    if (!confirm(`Remove local neural weights for '${id}'?`)) return;
+    try {
+      await api.uninstallModel(id);
+      setModels((prev) =>
+        prev.map((m) => (m.id === id ? { ...m, status: 'available', local_path: undefined } : m))
+      );
+      setMessage({ text: `Model '${id}' uninstalled successfully.`, type: 'success' });
+      await fetchModels();
+    } catch (err: any) {
+      setMessage({ text: err.message || `Failed to uninstall '${id}'`, type: 'error' });
     }
   };
 
@@ -186,7 +211,7 @@ export const ModelCatalog: React.FC = () => {
         {/* Models Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {models.map((model) => {
-            const isInstalled = model.status === 'Installed';
+            const isInstalled = model.status?.toLowerCase() === 'installed';
             const isInstalling = installingId === model.id;
             const sizeMb = Math.round(model.size_bytes / (1024 * 1024));
 
@@ -249,9 +274,18 @@ export const ModelCatalog: React.FC = () => {
 
                 <div className="mt-5 pt-4 border-t border-[#242E3D]">
                   {isInstalled ? (
-                    <div className="text-[11px] font-mono text-emerald-400/80 flex items-center space-x-1">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                      <span className="truncate">Loaded: {model.local_path || 'active'}</span>
+                    <div className="flex items-center justify-between">
+                      <div className="text-[11px] font-mono text-emerald-400/90 flex items-center space-x-1.5 min-w-0">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                        <span className="truncate">{model.local_path || 'active weights'}</span>
+                      </div>
+                      <button
+                        onClick={() => handleUninstall(model.id)}
+                        className="p-1.5 rounded text-[#64748B] hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                        title="Uninstall local weights"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   ) : (
                     <button

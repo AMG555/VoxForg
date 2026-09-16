@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="100%" height="100%">
+  <defs>
+    <linearGradient id="vfForgeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stopColor="#F59E0B" />
+      <stop offset="50%" stopColor="#D97706" />
+      <stop offset="100%" stopColor="#B45309" />
+    </linearGradient>
+    <linearGradient id="vfWaveGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stopColor="#38BDF8" />
+      <stop offset="50%" stopColor="#818CF8" />
+      <stop offset="100%" stopColor="#34D399" />
+    </linearGradient>
+    <linearGradient id="vfBaseGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stopColor="#1E293B" />
+      <stop offset="100%" stopColor="#0F172A" />
+    </linearGradient>
+    <filter id="vfGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="4" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Dark Shield / Icon Backing -->
+  <rect x="8" y="8" width="184" height="184" rx="36" fill="url(#vfBaseGrad)" stroke="#334155" stroke-width="3" />
+
+  <!-- Acoustic Harmonic Soundwaves -->
+  <g filter="url(#vfGlow)">
+    <!-- Ambient glow circle -->
+    <circle cx="100" cy="100" r="68" fill="none" stroke="#38BDF8" stroke-width="1.5" stroke-opacity="0.25" stroke-dasharray="4 6" />
+    <circle cx="100" cy="100" r="54" fill="none" stroke="#F59E0B" stroke-width="1" stroke-opacity="0.2" />
+
+    <!-- Waveform Frequency Bars forming stylized V shape -->
+    <rect x="36" y="88" width="6" height="24" rx="3" fill="url(#vfWaveGrad)" />
+    <rect x="48" y="78" width="6" height="44" rx="3" fill="url(#vfWaveGrad)" />
+    <rect x="60" y="66" width="6" height="68" rx="3" fill="url(#vfWaveGrad)" />
+    <rect x="72" y="54" width="6" height="92" rx="3" fill="url(#vfWaveGrad)" />
+    
+    <rect x="122" y="54" width="6" height="92" rx="3" fill="url(#vfWaveGrad)" />
+    <rect x="134" y="66" width="6" height="68" rx="3" fill="url(#vfWaveGrad)" />
+    <rect x="146" y="78" width="6" height="44" rx="3" fill="url(#vfWaveGrad)" />
+    <rect x="158" y="88" width="6" height="24" rx="3" fill="url(#vfWaveGrad)" />
+  </g>
+
+  <!-- Central Forge Anvil & Horn Silhouette (Gold/Amber) -->
+  <g filter="url(#vfGlow)">
+    <!-- Upper Horn and Anvil Face -->
+    <path d="M 68 84 L 132 84 C 142 84 150 88 152 92 C 150 96 140 98 132 98 L 118 98 L 114 122 L 126 130 L 74 130 L 86 122 L 82 98 L 68 98 C 58 98 52 94 52 91 C 52 87 60 84 68 84 Z" fill="url(#vfForgeGrad)" stroke="#FDE68A" stroke-width="2" stroke-linejoin="round" />
+
+    <!-- Anvil Base / Pedestal -->
+    <path d="M 66 130 L 134 130 L 140 144 L 60 144 Z" fill="#D97706" stroke="#F59E0B" stroke-width="1.5" />
+
+    <!-- Neural Spark / Lightning center -->
+    <polygon points="100,68 106,86 98,92 104,104 94,108 97,94 92,90" fill="#FEF08A" />
+  </g>
+</svg>

@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="favBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stopColor="#1E293B" />
+      <stop offset="100%" stopColor="#0B0E14" />
+    </linearGradient>
+    <linearGradient id="favWave" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stopColor="#38BDF8" />
+      <stop offset="100%" stopColor="#F59E0B" />
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#favBg)" stroke="#38BDF8" stroke-width="2" stroke-opacity="0.4" />
+  <!-- Waveform bars -->
+  <rect x="10" y="26" width="3" height="12" rx="1.5" fill="#38BDF8" />
+  <rect x="16" y="20" width="3" height="24" rx="1.5" fill="#38BDF8" />
+  <rect x="22" y="14" width="3" height="36" rx="1.5" fill="#38BDF8" />
+  <rect x="39" y="14" width="3" height="36" rx="1.5" fill="#F59E0B" />
+  <rect x="45" y="20" width="3" height="24" rx="1.5" fill="#F59E0B" />
+  <rect x="51" y="26" width="3" height="12" rx="1.5" fill="#F59E0B" />
+  <!-- Center Golden Anvil -->
+  <path d="M 23 28 L 41 28 C 45 28 47 30 46 32 C 45 34 42 35 39 35 L 35 35 L 34 42 L 39 45 L 25 45 L 30 42 L 29 35 L 25 35 C 22 35 20 33 21 31 C 21 29 23 28 23 28 Z" fill="#F59E0B" />
+  <polygon points="32,24 34,29 31,31 33,35 29,36 30,31 29,30" fill="#FEF08A" />
+</svg>

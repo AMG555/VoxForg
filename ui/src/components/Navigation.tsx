@@ -1,6 +1,7 @@
 import React from 'react';
-import { Activity, Cpu, GitFork, Layers, Mic, Scale, Volume2 } from 'lucide-react';
+import { Activity, Cpu, GitFork, Layers, Mic, Scale } from 'lucide-react';
 import { HardwareInfo } from '../types';
+import { Logo } from './common/Logo';
 
 interface NavigationProps {
   activeTab: 'canvas' | 'voices' | 'catalog' | 'hardware' | 'qa';
@@ -12,15 +13,7 @@ export const Navigation: React.FC<NavigationProps> = ({ activeTab, setActiveTab,
   return (
     <header className="h-14 border-b border-[#242E3D] bg-[#121820] flex items-center justify-between px-4 select-none">
       <div className="flex items-center space-x-6">
-        <div className="flex items-center space-x-2">
-          <div className="w-8 h-8 rounded bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-500 font-bold">
-            <Volume2 className="w-4 h-4" />
-          </div>
-          <span className="font-bold tracking-wider text-sm font-mono text-white">VOXFORG</span>
-          <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-[#1A222D] text-[#94A3B8] border border-[#242E3D]">
-            v0.1.0
-          </span>
-        </div>
+        <Logo size={32} />
 
         <nav className="flex space-x-1">
           <button

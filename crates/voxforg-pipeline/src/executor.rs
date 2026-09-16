@@ -159,6 +159,24 @@ impl PipelineExecutor {
                             pitch: None,
                             target_duration_ms: None,
                         });
+                    } else if let Some((speaker, utterance)) = line.strip_prefix('[').and_then(|s| s.split_once(']')) {
+                        segments.push(ScriptSegment {
+                            speaker: speaker.trim().to_string(),
+                            text: utterance.trim().to_string(),
+                            voice_id: None,
+                            speed: None,
+                            pitch: None,
+                            target_duration_ms: None,
+                        });
+                    } else if let Some((speaker, utterance)) = line.strip_prefix('(').and_then(|s| s.split_once(')')) {
+                        segments.push(ScriptSegment {
+                            speaker: speaker.trim().to_string(),
+                            text: utterance.trim().to_string(),
+                            voice_id: None,
+                            speed: None,
+                            pitch: None,
+                            target_duration_ms: None,
+                        });
                     } else {
                         segments.push(ScriptSegment {
                             speaker: "Narrator".to_string(),
@@ -200,6 +218,10 @@ impl PipelineExecutor {
                     if let Some(map) = speaker_map.and_then(|m| m.as_object()) {
                         if let Some(v) = map.get(&segment.speaker).and_then(|val| val.as_str()) {
                             assigned = v.to_string();
+                        } else if let Some((_, v)) = map.iter().find(|(k, _)| k.eq_ignore_ascii_case(&segment.speaker)) {
+                            if let Some(val) = v.as_str() {
+                                assigned = val.to_string();
+                            }
                         }
                     }
                     segment.voice_id = Some(assigned);
@@ -208,18 +230,80 @@ impl PipelineExecutor {
             }
 
             NodeType::Synthesizer => {
+                // If ctx.segments is empty, synthesize raw_text directly or create single segment
+                if ctx.segments.is_empty() {
+                    if let Some(ref text) = ctx.raw_text {
+                        let lines: Vec<&str> = text
+                            .lines()
+                            .map(|l| l.trim())
+                            .filter(|l| !l.is_empty())
+                            .collect();
+                        if !lines.is_empty() {
+                            for line in lines {
+                                let (speaker, utterance) = if let Some((s, u)) = line.split_once(':') {
+                                    (s.trim().to_string(), u.trim().to_string())
+                                } else {
+                                    ("Host".to_string(), line.to_string())
+                                };
+                                ctx.segments.push(ScriptSegment {
+                                    speaker,
+                                    text: utterance,
+                                    voice_id: node.params.get("voice").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                                    speed: node.params.get("speed").and_then(|s| s.as_f64()).map(|f| f as f32),
+                                    pitch: node.params.get("pitch").and_then(|p| p.as_f64()).map(|f| f as f32),
+                                    target_duration_ms: None,
+                                });
+                            }
+                        }
+                    }
+                }
+
                 ctx.audio_segments.clear();
                 for segment in &ctx.segments {
-                    let voice_id = segment.voice_id.as_deref().unwrap_or("en-US-AriaNeural");
+                    let voice_id = segment
+                        .voice_id
+                        .as_deref()
+                        .or_else(|| node.params.get("voice").and_then(|v| v.as_str()))
+                        .unwrap_or("en-US-AriaNeural");
 
-                    let (engine, voice) = self.engine_registry.resolve_voice(voice_id).await?;
+                    let (engine, voice) = match self.engine_registry.resolve_voice(voice_id).await {
+                        Ok(pair) => pair,
+                        Err(_) => {
+                            // Fallback to first available registered voice
+                            if let Ok(all) = self.engine_registry.list_all_voices().await {
+                                if let Some(first) = all.first() {
+                                    self.engine_registry.resolve_voice(&first.id).await?
+                                } else {
+                                    return Err(VoxForgError::VoiceNotFound(format!(
+                                        "Voice '{}' not found and no engine voices registered",
+                                        voice_id
+                                    )));
+                                }
+                            } else {
+                                return Err(VoxForgError::VoiceNotFound(format!(
+                                    "Voice '{}' not found",
+                                    voice_id
+                                )));
+                            }
+                        }
+                    };
+                    let actual_voice_id = voice.id.clone();
                     ctx.sample_rate = voice.sample_rate_hz;
+
+                    let speed = segment
+                        .speed
+                        .or_else(|| node.params.get("speed").and_then(|s| s.as_f64()).map(|f| f as f32))
+                        .unwrap_or(1.0);
+                    let pitch = segment
+                        .pitch
+                        .or_else(|| node.params.get("pitch").and_then(|p| p.as_f64()).map(|f| f as f32))
+                        .unwrap_or(0.0);
 
                     let req = SynthesisRequest {
                         text: segment.text.clone(),
-                        voice_id: voice_id.to_string(),
-                        speed: segment.speed.unwrap_or(1.0),
-                        pitch: segment.pitch.unwrap_or(0.0),
+                        voice_id: actual_voice_id,
+                        speed,
+                        pitch,
                         format: voxforg_core::models::AudioContainerFormat::Pcm,
                     };
 
@@ -236,13 +320,19 @@ impl PipelineExecutor {
                     for segment_pcm in &mut ctx.audio_segments {
                         AudioNormalizer::peak_normalize(segment_pcm, target);
                     }
-                } else if node.params.get("filter_type").and_then(|t| t.as_str())
-                    == Some("normalize")
+                    if !ctx.master_audio_pcm.is_empty() {
+                        AudioNormalizer::peak_normalize(&mut ctx.master_audio_pcm, target);
+                    }
+                } else if node.params.get("normalize").and_then(|b| b.as_bool()).unwrap_or(false)
+                    || node.params.get("filter_type").and_then(|t| t.as_str()) == Some("normalize")
                     || node.params.is_null()
                     || node.params.as_object().is_none_or(|o| o.is_empty())
                 {
                     for segment_pcm in &mut ctx.audio_segments {
                         AudioNormalizer::peak_normalize(segment_pcm, 0.95);
+                    }
+                    if !ctx.master_audio_pcm.is_empty() {
+                        AudioNormalizer::peak_normalize(&mut ctx.master_audio_pcm, 0.95);
                     }
                 }
 
@@ -252,76 +342,79 @@ impl PipelineExecutor {
                     for segment_pcm in &mut ctx.audio_segments {
                         AudioNormalizer::apply_gain_db(segment_pcm, gain_db);
                     }
+                    if !ctx.master_audio_pcm.is_empty() {
+                        AudioNormalizer::apply_gain_db(&mut ctx.master_audio_pcm, gain_db);
+                    }
                 }
 
-                // 3. Silence trimmer
-                if let Some(trim_obj) = node.params.get("silence_trim") {
-                    let threshold = trim_obj
-                        .get("threshold_dbfs")
-                        .and_then(|t| t.as_f64())
+                // 3. Silence trimmer (supports both nested object and flat parameters)
+                let trim_enabled = node.params.get("trim_silence").and_then(|b| b.as_bool()).unwrap_or(false)
+                    || node.params.get("silence_trim").is_some();
+                if trim_enabled {
+                    let threshold = node.params.get("silence_trim")
+                        .and_then(|o| o.get("threshold_dbfs").and_then(|t| t.as_f64()))
+                        .or_else(|| node.params.get("silence_threshold_db").and_then(|t| t.as_f64()))
                         .unwrap_or(-45.0) as f32;
-                    let padding = trim_obj
-                        .get("padding_ms")
-                        .and_then(|p| p.as_u64())
+                    let padding = node.params.get("silence_trim")
+                        .and_then(|o| o.get("padding_ms").and_then(|p| p.as_u64()))
+                        .or_else(|| node.params.get("silence_pad_ms").and_then(|p| p.as_u64()))
                         .unwrap_or(30) as u32;
 
                     for segment_pcm in &mut ctx.audio_segments {
                         *segment_pcm =
                             SilenceTrimmer::trim(segment_pcm, ctx.sample_rate, threshold, padding);
                     }
-                } else if node
-                    .params
-                    .get("trim_silence")
-                    .and_then(|b| b.as_bool())
-                    .unwrap_or(false)
-                {
-                    for segment_pcm in &mut ctx.audio_segments {
-                        *segment_pcm =
-                            SilenceTrimmer::trim(segment_pcm, ctx.sample_rate, -45.0, 30);
+                    if !ctx.master_audio_pcm.is_empty() {
+                        ctx.master_audio_pcm =
+                            SilenceTrimmer::trim(&ctx.master_audio_pcm, ctx.sample_rate, threshold, padding);
                     }
                 }
 
-                // 4. 3-Band Parametric Equalizer
-                if let Some(eq_obj) = node.params.get("eq") {
-                    let low = eq_obj
-                        .get("low_gain_db")
-                        .and_then(|v| v.as_f64())
+                // 4. 3-Band Parametric Equalizer (supports both nested object and flat parameters)
+                let eq_enabled = node.params.get("enable_eq").and_then(|b| b.as_bool()).unwrap_or(false)
+                    || node.params.get("eq").is_some();
+                if eq_enabled {
+                    let low = node.params.get("eq")
+                        .and_then(|o| o.get("low_gain_db").and_then(|v| v.as_f64()))
+                        .or_else(|| node.params.get("eq_low_gain_db").and_then(|v| v.as_f64()))
                         .unwrap_or(0.0) as f32;
-                    let mid = eq_obj
-                        .get("mid_gain_db")
-                        .and_then(|v| v.as_f64())
+                    let mid = node.params.get("eq")
+                        .and_then(|o| o.get("mid_gain_db").and_then(|v| v.as_f64()))
+                        .or_else(|| node.params.get("eq_mid_gain_db").and_then(|v| v.as_f64()))
                         .unwrap_or(0.0) as f32;
-                    let high = eq_obj
-                        .get("high_gain_db")
-                        .and_then(|v| v.as_f64())
+                    let high = node.params.get("eq")
+                        .and_then(|o| o.get("high_gain_db").and_then(|v| v.as_f64()))
+                        .or_else(|| node.params.get("eq_high_gain_db").and_then(|v| v.as_f64()))
                         .unwrap_or(0.0) as f32;
 
                     for segment_pcm in &mut ctx.audio_segments {
                         ParametricEq::process_3band(segment_pcm, ctx.sample_rate, low, mid, high);
                     }
+                    if !ctx.master_audio_pcm.is_empty() {
+                        ParametricEq::process_3band(&mut ctx.master_audio_pcm, ctx.sample_rate, low, mid, high);
+                    }
                 }
 
-                // 5. Dynamic Range Compressor
-                if let Some(comp_obj) = node.params.get("compressor") {
-                    let threshold = comp_obj
-                        .get("threshold_dbfs")
-                        .and_then(|v| v.as_f64())
+                // 5. Dynamic Range Compressor (supports both nested object and flat parameters)
+                let comp_enabled = node.params.get("enable_compressor").and_then(|b| b.as_bool()).unwrap_or(false)
+                    || node.params.get("compressor").is_some();
+                if comp_enabled {
+                    let threshold = node.params.get("compressor")
+                        .and_then(|o| o.get("threshold_dbfs").and_then(|v| v.as_f64()))
+                        .or_else(|| node.params.get("compressor_threshold_db").and_then(|v| v.as_f64()))
                         .unwrap_or(-18.0) as f32;
-                    let ratio = comp_obj
-                        .get("ratio")
-                        .and_then(|v| v.as_f64())
+                    let ratio = node.params.get("compressor")
+                        .and_then(|o| o.get("ratio").and_then(|v| v.as_f64()))
+                        .or_else(|| node.params.get("compressor_ratio").and_then(|v| v.as_f64()))
                         .unwrap_or(3.0) as f32;
-                    let attack = comp_obj
-                        .get("attack_ms")
-                        .and_then(|v| v.as_f64())
+                    let attack = node.params.get("compressor")
+                        .and_then(|o| o.get("attack_ms").and_then(|v| v.as_f64()))
                         .unwrap_or(15.0) as f32;
-                    let release = comp_obj
-                        .get("release_ms")
-                        .and_then(|v| v.as_f64())
+                    let release = node.params.get("compressor")
+                        .and_then(|o| o.get("release_ms").and_then(|v| v.as_f64()))
                         .unwrap_or(100.0) as f32;
-                    let makeup = comp_obj
-                        .get("makeup_gain_db")
-                        .and_then(|v| v.as_f64())
+                    let makeup = node.params.get("compressor")
+                        .and_then(|o| o.get("makeup_gain_db").and_then(|v| v.as_f64()))
                         .unwrap_or(0.0) as f32;
 
                     for segment_pcm in &mut ctx.audio_segments {
@@ -335,16 +428,32 @@ impl PipelineExecutor {
                             makeup,
                         );
                     }
+                    if !ctx.master_audio_pcm.is_empty() {
+                        DynamicCompressor::process(
+                            &mut ctx.master_audio_pcm,
+                            ctx.sample_rate,
+                            threshold,
+                            ratio,
+                            attack,
+                            release,
+                            makeup,
+                        );
+                    }
                 }
 
-                // 6. Brickwall Limiter
-                if let Some(limiter_obj) = node.params.get("limiter") {
-                    let ceiling = limiter_obj
-                        .get("ceiling_dbfs")
-                        .and_then(|v| v.as_f64())
+                // 6. Brickwall Limiter (supports both nested object and flat parameters)
+                let limiter_enabled = node.params.get("enable_limiter").and_then(|b| b.as_bool()).unwrap_or(false)
+                    || node.params.get("limiter").is_some();
+                if limiter_enabled {
+                    let ceiling = node.params.get("limiter")
+                        .and_then(|o| o.get("ceiling_dbfs").and_then(|v| v.as_f64()))
+                        .or_else(|| node.params.get("limiter_ceiling_db").and_then(|v| v.as_f64()))
                         .unwrap_or(-0.5) as f32;
                     for segment_pcm in &mut ctx.audio_segments {
                         BrickwallLimiter::process(segment_pcm, ceiling);
+                    }
+                    if !ctx.master_audio_pcm.is_empty() {
+                        BrickwallLimiter::process(&mut ctx.master_audio_pcm, ceiling);
                     }
                 }
 

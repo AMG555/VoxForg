@@ -1,9 +1,10 @@
 import React from 'react';
-import { X, Sliders } from 'lucide-react';
+import { X, Sliders, Trash2, Wand2, Volume2, Mic } from 'lucide-react';
 import { PipelineNode, Voice } from '../../types';
 
 interface NodeInspectorProps {
   node: PipelineNode | null;
+  allNodes?: PipelineNode[];
   voices: Voice[];
   onClose: () => void;
   onUpdateParams: (nodeId: string, params: Record<string, any>) => void;
@@ -11,6 +12,7 @@ interface NodeInspectorProps {
 
 export const NodeInspector: React.FC<NodeInspectorProps> = ({
   node,
+  allNodes,
   voices,
   onClose,
   onUpdateParams,
@@ -22,6 +24,45 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
       ...node.params,
       [key]: value,
     });
+  };
+
+  const handleAutoDetectSpeakers = () => {
+    if (!allNodes) return;
+    const textInputs = allNodes.filter((n) => n.node_type === 'text_input');
+    const discoveredSpeakers = new Set<string>();
+
+    for (const inputNode of textInputs) {
+      const text = inputNode.params.text || '';
+      const lines = text.split('\n');
+      for (const line of lines) {
+        const trimmed = line.trim();
+        let speaker = '';
+        if (trimmed.includes(':')) {
+          speaker = trimmed.split(':')[0].trim();
+        } else if (trimmed.startsWith('[') && trimmed.includes(']')) {
+          speaker = trimmed.substring(1, trimmed.indexOf(']')).trim();
+        } else if (trimmed.startsWith('(') && trimmed.includes(')')) {
+          speaker = trimmed.substring(1, trimmed.indexOf(')')).trim();
+        }
+        if (speaker && speaker.length > 0 && speaker.length < 32) {
+          discoveredSpeakers.add(speaker);
+        }
+      }
+    }
+
+    if (discoveredSpeakers.size > 0) {
+      const currentMap = { ...(node.params.speaker_map || {}) };
+      const speakerList = Array.from(discoveredSpeakers);
+      speakerList.forEach((spk, idx) => {
+        if (!currentMap[spk]) {
+          const assignedVoice = voices[idx % voices.length]?.id || node.params.default_voice || 'en-US-AriaNeural';
+          currentMap[spk] = assignedVoice;
+        }
+      });
+      handleChange('speaker_map', currentMap);
+    } else {
+      alert('No speaker prefixes found in script! Format lines as "Speaker: Line" or "[Speaker] Line".');
+    }
   };
 
   return (
@@ -63,9 +104,30 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
               rows={8}
               value={node.params.text || ''}
               onChange={(e) => handleChange('text', e.target.value)}
-              className="w-full bg-[#0B0E14] border border-[#242E3D] rounded p-2.5 text-white text-xs focus:border-amber-500 focus:outline-none resize-none leading-relaxed"
-              placeholder="Enter narrative or dialog (e.g. Alice: Greetings!)"
+              className="w-full bg-[#0B0E14] border border-[#242E3D] rounded p-2.5 text-white text-xs focus:border-amber-500 focus:outline-none resize-none leading-relaxed font-sans"
+              placeholder="Enter narrative or dialog (e.g. Host: Welcome to the studio! \n Guest: Happy to be here!)"
             />
+            <p className="text-[10px] text-[#64748B] font-mono mt-1.5">
+              Tip: Prefix lines with <code className="text-amber-400 font-bold">Speaker:</code> or <code className="text-amber-400 font-bold">[Speaker]</code> for automatic multi-voice allocation.
+            </p>
+          </div>
+        )}
+
+        {node.node_type === 'speaker_parser' && (
+          <div className="space-y-3 bg-[#0B0E14] p-3 rounded-lg border border-[#242E3D]">
+            <div className="flex items-center space-x-2 text-purple-400 font-semibold text-xs">
+              <Mic className="w-4 h-4" />
+              <span>Speaker Script Parser</span>
+            </div>
+            <p className="text-[11px] text-[#94A3B8] leading-relaxed">
+              Splits incoming narrative text into discrete chronological speaker segments for podcast and comms mastering.
+            </p>
+            <div className="bg-[#121820] p-2.5 rounded border border-[#242E3D] text-[10px] font-mono space-y-1 text-[#64748B]">
+              <div className="text-[#94A3B8] font-bold uppercase text-[9px]">Supported Formats:</div>
+              <div><span className="text-amber-400">Host:</span> Welcome to the show.</div>
+              <div><span className="text-sky-400">[Guest]</span> Great to be here!</div>
+              <div><span className="text-emerald-400">(Dispatch)</span> Radio check complete.</div>
+            </div>
           </div>
         )}
 
@@ -82,10 +144,82 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
               >
                 {voices.map((v) => (
                   <option key={v.id} value={v.id}>
-                    {v.name} ({v.language}) - {v.engine_id}
+                    {v.name} ({v.language})
                   </option>
                 ))}
               </select>
+            </div>
+
+            {/* Multi-Speaker Mapping */}
+            <div className="space-y-2 pt-2 border-t border-[#242E3D]">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-mono uppercase text-[#94A3B8]">
+                  Speaker Voice Mapping
+                </span>
+                <div className="flex items-center space-x-2">
+                  <button
+                    type="button"
+                    onClick={handleAutoDetectSpeakers}
+                    className="flex items-center space-x-1 text-[10px] font-mono text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/30 transition-colors"
+                    title="Auto-scan script nodes and populate all speakers"
+                  >
+                    <Wand2 className="w-3 h-3" />
+                    <span>Auto-Detect</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const speaker = prompt('Enter Speaker Name (e.g. Captain, Nav, Host, Guest):');
+                      if (speaker && speaker.trim()) {
+                        const currentMap = node.params.speaker_map || {};
+                        handleChange('speaker_map', {
+                          ...currentMap,
+                          [speaker.trim()]: voices[0]?.id || 'en-US-AriaNeural',
+                        });
+                      }
+                    }}
+                    className="text-[10px] font-mono text-[#94A3B8] hover:text-white"
+                  >
+                    + Add
+                  </button>
+                </div>
+              </div>
+
+              {node.params.speaker_map &&
+                Object.entries(node.params.speaker_map).map(([speaker, voiceId]) => (
+                  <div key={speaker} className="bg-[#0B0E14] p-2.5 rounded border border-[#242E3D] space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-white text-xs">{speaker}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = { ...node.params.speaker_map };
+                          delete next[speaker];
+                          handleChange('speaker_map', next);
+                        }}
+                        className="text-[#64748B] hover:text-rose-400 transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    <select
+                      value={voiceId as string}
+                      onChange={(e) => {
+                        handleChange('speaker_map', {
+                          ...node.params.speaker_map,
+                          [speaker]: e.target.value,
+                        });
+                      }}
+                      className="w-full bg-[#121820] border border-[#242E3D] rounded px-2 py-1 text-white text-[11px] font-mono"
+                    >
+                      {voices.map((v) => (
+                        <option key={v.id} value={v.id}>
+                          {v.name} ({v.language})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
             </div>
           </div>
         )}
@@ -418,22 +552,128 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
           </div>
         )}
 
-        {node.node_type === 'audio_merge' && (
+        {node.node_type === 'synthesizer' && (
           <div className="space-y-4">
             <div>
-              <div className="flex justify-between text-[11px] font-mono text-[#94A3B8] mb-1">
-                <span>Pause Between Segments</span>
-                <span className="text-white">{node.params.pause_ms || 150} ms</span>
+              <label className="block text-[11px] font-mono uppercase text-[#94A3B8] mb-1">
+                Default Voice Override
+              </label>
+              <select
+                value={node.params.voice || 'en-US-AriaNeural'}
+                onChange={(e) => handleChange('voice', e.target.value)}
+                className="w-full bg-[#0B0E14] border border-[#242E3D] rounded px-3 py-2 text-white text-xs focus:border-amber-500 focus:outline-none font-mono"
+              >
+                {voices.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.name} ({v.language})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="bg-[#0B0E14] p-3 rounded border border-[#242E3D] space-y-2">
+              <div className="flex justify-between text-[11px] font-mono text-[#94A3B8]">
+                <span>Speaking Rate</span>
+                <span className="text-white">{(node.params.speed ?? 1.0).toFixed(2)}x</span>
+              </div>
+              <input
+                type="range"
+                min="0.5"
+                max="2.0"
+                step="0.05"
+                value={node.params.speed ?? 1.0}
+                onChange={(e) => handleChange('speed', parseFloat(e.target.value))}
+                className="w-full accent-amber-500 cursor-pointer"
+              />
+            </div>
+
+            <div className="bg-[#0B0E14] p-3 rounded border border-[#242E3D] space-y-2">
+              <div className="flex justify-between text-[11px] font-mono text-[#94A3B8]">
+                <span>Pitch Shift</span>
+                <span className="text-white">
+                  {(node.params.pitch ?? 0) > 0 ? `+${node.params.pitch}` : node.params.pitch ?? 0} st
+                </span>
+              </div>
+              <input
+                type="range"
+                min="-12"
+                max="12"
+                step="0.5"
+                value={node.params.pitch ?? 0}
+                onChange={(e) => handleChange('pitch', parseFloat(e.target.value))}
+                className="w-full accent-amber-500 cursor-pointer"
+              />
+            </div>
+          </div>
+        )}
+
+        {node.node_type === 'audio_merge' && (
+          <div className="space-y-4">
+            <div className="bg-[#0B0E14] p-3 rounded border border-[#242E3D] space-y-3">
+              <div className="flex justify-between text-[11px] font-mono text-[#94A3B8]">
+                <span className="font-semibold text-white">Inter-Speaker Pause</span>
+                <span className="text-amber-400 font-bold">{node.params.pause_ms ?? 150} ms</span>
               </div>
               <input
                 type="range"
                 min="0"
                 max="1000"
-                step="25"
-                value={node.params.pause_ms || 150}
+                step="20"
+                value={node.params.pause_ms ?? 150}
                 onChange={(e) => handleChange('pause_ms', parseInt(e.target.value, 10))}
                 className="w-full accent-amber-500 cursor-pointer"
               />
+              <div className="grid grid-cols-2 gap-1.5 pt-1">
+                {[
+                  { label: 'Rapid Comms', ms: 80 },
+                  { label: 'Conversational', ms: 150 },
+                  { label: 'Podcast Studio', ms: 220 },
+                  { label: 'Dramatic Pause', ms: 450 },
+                ].map((p) => (
+                  <button
+                    key={p.ms}
+                    type="button"
+                    onClick={() => handleChange('pause_ms', p.ms)}
+                    className={`py-1 px-2 text-[10px] font-mono rounded border transition-colors ${
+                      (node.params.pause_ms ?? 150) === p.ms
+                        ? 'bg-amber-500/10 border-amber-500 text-amber-400 font-bold'
+                        : 'bg-[#121820] border-[#242E3D] text-[#94A3B8] hover:border-[#3B485C]'
+                    }`}
+                  >
+                    {p.label} ({p.ms}ms)
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {node.node_type === 'output_sink' && (
+          <div className="space-y-3 bg-[#0B0E14] p-3 rounded-lg border border-[#242E3D]">
+            <div className="flex items-center space-x-2 text-rose-400 font-semibold text-xs">
+              <Volume2 className="w-4 h-4" />
+              <span>Master Output Audio Sink</span>
+            </div>
+            <p className="text-[11px] text-[#94A3B8] leading-relaxed">
+              Consolidates and encodes all processed multi-speaker branches into the final studio broadcast master.
+            </p>
+            <div className="space-y-1.5 pt-1 text-[11px] font-mono text-[#94A3B8] border-t border-[#1A222D]">
+              <div className="flex justify-between">
+                <span>Container:</span>
+                <span className="text-white">RIFF WAV</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Encoding:</span>
+                <span className="text-white">PCM Linear 16-bit</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Sample Rate:</span>
+                <span className="text-white">24,000 Hz / 48,000 Hz</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Status:</span>
+                <span className="text-emerald-400 font-bold">READY TO RENDER</span>
+              </div>
             </div>
           </div>
         )}

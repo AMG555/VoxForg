@@ -75,7 +75,40 @@ if ($UserPath -notlike "*$BinDir*") {
     Write-Host "PATH updated successfully." -ForegroundColor Green
 }
 
-# 5. Hardware validation
+# 5. Create Desktop & Start Menu Shortcuts for normal desktop users
+try {
+    $WshShell = New-Object -ComObject WScript.Shell
+    $DesktopPath = [Environment]::GetFolderPath("Desktop")
+    $StartMenuPath = [Environment]::GetFolderPath("Programs")
+
+    # Create silent GUI launcher script so non-developers see zero terminal window
+    $VbsLauncher = "$BinDir\voxforg-gui.vbs"
+    Set-Content -Path $VbsLauncher -Value 'CreateObject("Wscript.Shell").Run "cmd /c voxforg serve --open", 0, False' -Force
+
+    # Desktop Shortcut
+    $DesktopShortcut = $WshShell.CreateShortcut("$DesktopPath\VoxForg.lnk")
+    $DesktopShortcut.TargetPath = "wscript.exe"
+    $DesktopShortcut.Arguments = "`"$VbsLauncher`""
+    $DesktopShortcut.WorkingDirectory = "$InstallBase"
+    $DesktopShortcut.Description = "VoxForg Neural Speech Studio"
+    $DesktopShortcut.IconLocation = "$TargetExe,0"
+    $DesktopShortcut.Save()
+
+    # Start Menu Shortcut
+    $StartShortcut = $WshShell.CreateShortcut("$StartMenuPath\VoxForg.lnk")
+    $StartShortcut.TargetPath = "wscript.exe"
+    $StartShortcut.Arguments = "`"$VbsLauncher`""
+    $StartShortcut.WorkingDirectory = "$InstallBase"
+    $StartShortcut.Description = "VoxForg Neural Speech Studio"
+    $StartShortcut.IconLocation = "$TargetExe,0"
+    $StartShortcut.Save()
+
+    Write-Host "Created Desktop and Start Menu shortcuts." -ForegroundColor Green
+} catch {
+    # Non-fatal if shortcut creation is restricted
+}
+
+# 6. Hardware validation
 Write-Host "`nProbing system hardware..." -ForegroundColor Cyan
 & $TargetExe hardware
 
@@ -85,7 +118,8 @@ Write-Host @"
   VoxForg Standalone Workstation Ready!
 ==================================================
 
-Run workstation UI:   voxforg serve --open
+Desktop App:          Double-click 'VoxForg' on your Desktop
+Run via Terminal:     voxforg serve --open
 Direct synthesis:     voxforg synth "Hello from VoxForg"
 Documentation & API:  http://localhost:8080/docs
 

@@ -1,0 +1,36 @@
+{
+  "name": "voxforg",
+  "version": "0.1.0",
+  "description": "Hardware-adaptive neural speech synthesis workstation, voice cloning & visual pipeline engine",
+  "main": "packages/voxforg/bin/voxforg.js",
+  "bin": {
+    "voxforg": "./packages/voxforg/bin/voxforg.js"
+  },
+  "scripts": {
+    "start": "node ./packages/voxforg/bin/voxforg.js serve --open",
+    "voxforg": "node ./packages/voxforg/bin/voxforg.js",
+    "ui:dev": "npm --prefix ui run dev",
+    "ui:build": "npm --prefix ui run build",
+    "build:all": "npm --prefix ui run build && cargo build --release --bin voxforg"
+  },
+  "keywords": [
+    "tts",
+    "speech-synthesis",
+    "voice-cloning",
+    "telephony",
+    "telecaller",
+    "audiobook",
+    "piper",
+    "whisper",
+    "rust"
+  ],
+  "author": "VoxForg Core Contributors",
+  "license": "Apache-2.0 OR MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AMG555/VoxForg.git"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}
