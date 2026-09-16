@@ -3,6 +3,7 @@ import { PipelineNode, Voice } from '../../types';
 
 interface NodeInspectorProps {
   node: PipelineNode | null;
+  selectedNodes?: PipelineNode[];
   allNodes?: PipelineNode[];
   voices: Voice[];
   onClose: () => void;
@@ -10,10 +11,14 @@ interface NodeInspectorProps {
   onDeleteNode?: (nodeId: string) => void;
   onDuplicateNode?: (nodeId: string) => void;
   onCopyNodeJson?: (node: PipelineNode) => void;
+  onDeleteSelected?: () => void;
+  onDuplicateSelected?: () => void;
+  onCopySelectedJson?: () => void;
 }
 
 export const NodeInspector: React.FC<NodeInspectorProps> = ({
   node,
+  selectedNodes,
   allNodes,
   voices,
   onClose,
@@ -21,7 +26,100 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
   onDeleteNode,
   onDuplicateNode,
   onCopyNodeJson,
+  onDeleteSelected,
+  onDuplicateSelected,
+  onCopySelectedJson,
 }) => {
+  if (selectedNodes && selectedNodes.length > 1) {
+    return (
+      <div className="w-80 border-l border-[#242E3D] bg-[#121820]/95 backdrop-blur flex flex-col h-full text-[#F0F4F8] select-none z-30 shadow-2xl">
+        {/* Header */}
+        <div className="p-4 border-b border-[#242E3D] flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <Sliders className="w-4 h-4 text-amber-500" />
+            <span className="font-semibold text-sm">Selection ({selectedNodes.length} nodes)</span>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1 rounded hover:bg-[#1A222D] text-[#94A3B8] hover:text-white transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div className="p-3 rounded-lg bg-[#0B0E14] border border-[#242E3D] text-xs font-mono space-y-2">
+            <div className="text-[#94A3B8] font-sans">
+              {allNodes && selectedNodes.length === allNodes.length
+                ? 'Complete workflow selected.'
+                : `${selectedNodes.length} nodes selected across workflow.`}
+            </div>
+            <div className="text-[11px] text-amber-400">
+              Shortcuts: Del (delete all), Ctrl+C (copy JSON), Ctrl+D (duplicate all).
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <span className="text-[11px] font-mono text-[#64748B] uppercase tracking-wider">
+              Selected Nodes
+            </span>
+            <div className="space-y-1 max-h-60 overflow-y-auto pr-1">
+              {selectedNodes.map((n) => (
+                <div
+                  key={n.id}
+                  className="px-2.5 py-1.5 rounded bg-[#1A222D] border border-[#242E3D] flex items-center justify-between text-xs font-mono"
+                >
+                  <span className="truncate text-white">{n.name}</span>
+                  <span className="text-[10px] text-[#94A3B8] uppercase ml-2">{n.node_type}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Multi-Node Actions Footer */}
+        <div className="p-3 border-t border-[#242E3D] bg-[#0B0E14]/60 flex flex-col space-y-2 text-xs font-mono">
+          <div className="flex items-center space-x-2">
+            {onDuplicateSelected && (
+              <button
+                type="button"
+                onClick={onDuplicateSelected}
+                className="flex-1 flex items-center justify-center space-x-1.5 px-3 py-2 rounded bg-[#1A222D] hover:bg-[#242E3D] text-white transition-colors"
+                title="Duplicate all selected nodes (Ctrl+D)"
+              >
+                <Copy className="w-3.5 h-3.5 text-amber-400" />
+                <span>Duplicate ({selectedNodes.length})</span>
+              </button>
+            )}
+            {onCopySelectedJson && (
+              <button
+                type="button"
+                onClick={onCopySelectedJson}
+                className="flex-1 flex items-center justify-center space-x-1.5 px-3 py-2 rounded bg-[#1A222D] hover:bg-[#242E3D] text-white transition-colors"
+                title="Copy selection JSON (Ctrl+C)"
+              >
+                <Clipboard className="w-3.5 h-3.5 text-sky-400" />
+                <span>Copy JSON</span>
+              </button>
+            )}
+          </div>
+          {onDeleteSelected && (
+            <button
+              type="button"
+              onClick={onDeleteSelected}
+              className="w-full flex items-center justify-center space-x-1.5 px-3 py-2 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 transition-colors"
+              title="Delete all selected nodes (Del / Backspace)"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Delete All Selected ({selectedNodes.length})</span>
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   if (!node) return null;
 
   const handleChange = (key: string, value: any) => {

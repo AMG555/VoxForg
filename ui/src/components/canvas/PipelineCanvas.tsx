@@ -23,6 +23,7 @@ import {
   Trash2,
   Edit2,
   Check,
+  CheckSquare,
   FilePlus,
   X,
   AlertCircle,
@@ -423,7 +424,7 @@ const getNodePos = (node: PipelineNode): { x: number; y: number } => {
 
 export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
   const [pipeline, setPipeline] = useState<PipelineDefinition>(PRESETS.narrative);
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>('node-1');
+  const [selectedNodeIds, setSelectedNodeIds] = useState<Set<string>>(new Set(['node-1']));
   const [isRunning, setIsRunning] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -435,13 +436,11 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
   const [isPanning, setIsPanning] = useState<boolean>(false);
   const [panStart, setPanStart] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
-  // Node Dragging State
+  // Multi-Node Dragging State
   const [dragNodeState, setDragNodeState] = useState<{
-    nodeId: string;
     startMouseX: number;
     startMouseY: number;
-    startNodeX: number;
-    startNodeY: number;
+    nodeStarts: Record<string, { x: number; y: number }>;
   } | null>(null);
 
   // Wire Connection Dragging State
@@ -466,7 +465,7 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  React.useEffect(() => {
+  useEffect(() => {
     return () => {
       if (audioUrl) {
         URL.revokeObjectURL(audioUrl);
@@ -474,7 +473,9 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
     };
   }, [audioUrl]);
 
-  const selectedNode = pipeline.nodes.find((n) => n.id === selectedNodeId) || null;
+  const primarySelectedId = selectedNodeIds.size === 1 ? Array.from(selectedNodeIds)[0] : (selectedNodeIds.size > 0 ? Array.from(selectedNodeIds)[selectedNodeIds.size - 1] : null);
+  const selectedNode = pipeline.nodes.find((n) => n.id === primarySelectedId) || null;
+  const selectedNodes = pipeline.nodes.filter((n) => selectedNodeIds.has(n.id));
 
   const handleUpdateParams = (nodeId: string, params: Record<string, any>) => {
     setPipeline((prev) => ({
@@ -483,14 +484,55 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
     }));
   };
 
+  const handleSelectNode = useCallback((nodeId: string, isMultiToggle = false) => {
+    setSelectedNodeIds((prev) => {
+      if (isMultiToggle) {
+        const next = new Set(prev);
+        if (next.has(nodeId)) {
+          next.delete(nodeId);
+        } else {
+          next.add(nodeId);
+        }
+        return next;
+      }
+      return new Set([nodeId]);
+    });
+  }, []);
+
+  const handleSelectAll = useCallback(() => {
+    if (pipeline.nodes.length === 0) return;
+    const allIds = new Set(pipeline.nodes.map((n) => n.id));
+    setSelectedNodeIds(allIds);
+    showToast(`Selected all ${pipeline.nodes.length} nodes (Del to delete, Ctrl+C to copy, Ctrl+D to duplicate)`, 'info');
+  }, [pipeline.nodes, showToast]);
+
   const handleDeleteNode = useCallback((nodeId: string) => {
     setPipeline((prev) => ({
       ...prev,
       nodes: prev.nodes.filter((n) => n.id !== nodeId),
       edges: prev.edges.filter((e) => e.from_node !== nodeId && e.to_node !== nodeId),
     }));
-    setSelectedNodeId((current) => (current === nodeId ? null : current));
+    setSelectedNodeIds((prev) => {
+      const next = new Set(prev);
+      next.delete(nodeId);
+      return next;
+    });
   }, []);
+
+  const handleDeleteSelected = useCallback(() => {
+    if (selectedNodeIds.size === 0) return;
+    const count = selectedNodeIds.size;
+    const isAll = count === pipeline.nodes.length;
+    setPipeline((prev) => ({
+      ...prev,
+      nodes: prev.nodes.filter((n) => !selectedNodeIds.has(n.id)),
+      edges: prev.edges.filter(
+        (e) => !selectedNodeIds.has(e.from_node) && !selectedNodeIds.has(e.to_node)
+      ),
+    }));
+    setSelectedNodeIds(new Set());
+    showToast(isAll ? 'Deleted complete workflow' : `Deleted ${count} selected nodes`, 'info');
+  }, [selectedNodeIds, pipeline.nodes.length, showToast]);
 
   const handleDeleteEdge = (edgeId: string) => {
     setPipeline((prev) => ({
@@ -516,14 +558,91 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
       ...prev,
       nodes: [...prev.nodes, duplicatedNode],
     }));
-    setSelectedNodeId(freshId);
+    setSelectedNodeIds(new Set([freshId]));
     showToast(`Duplicated ${targetNode.name}`);
   }, [pipeline.nodes, showToast]);
+
+  const handleDuplicateSelected = useCallback(() => {
+    if (selectedNodeIds.size === 0) return;
+    if (selectedNodeIds.size === 1) {
+      handleDuplicateNode(Array.from(selectedNodeIds)[0]);
+      return;
+    }
+
+    const targetNodes = pipeline.nodes.filter((n) => selectedNodeIds.has(n.id));
+    const idMap = new Map<string, string>();
+    const duplicatedNodes: PipelineNode[] = [];
+
+    targetNodes.forEach((node) => {
+      const freshId = `node-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+      idMap.set(node.id, freshId);
+      const pos = getNodePos(node);
+      duplicatedNodes.push({
+        ...node,
+        id: freshId,
+        name: `${node.name} (Copy)`,
+        position: { x: pos.x + 40, y: pos.y + 40 },
+      });
+    });
+
+    // Remap internal edges between selected nodes
+    const internalEdges = pipeline.edges
+      .filter((e) => selectedNodeIds.has(e.from_node) && selectedNodeIds.has(e.to_node))
+      .map((e) => ({
+        id: `edge-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        from_node: idMap.get(e.from_node)!,
+        to_node: idMap.get(e.to_node)!,
+      }));
+
+    setPipeline((prev) => ({
+      ...prev,
+      nodes: [...prev.nodes, ...duplicatedNodes],
+      edges: [...prev.edges, ...internalEdges],
+    }));
+
+    setSelectedNodeIds(new Set(duplicatedNodes.map((n) => n.id)));
+    showToast(`Duplicated ${duplicatedNodes.length} nodes & connections`);
+  }, [selectedNodeIds, pipeline.nodes, pipeline.edges, handleDuplicateNode, showToast]);
 
   const handleCopyNodeJson = useCallback((node: PipelineNode) => {
     navigator.clipboard.writeText(JSON.stringify(node, null, 2));
     showToast(`Node "${node.name}" JSON copied to clipboard!`);
   }, [showToast]);
+
+  const handleCopySelected = useCallback(() => {
+    if (selectedNodeIds.size === 0) return;
+
+    // Complete workflow selected
+    if (selectedNodeIds.size === pipeline.nodes.length) {
+      const workflowJson = JSON.stringify(pipeline, null, 2);
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(workflowJson);
+        showToast(`Copied complete workflow "${pipeline.name}" (${pipeline.nodes.length} nodes) to clipboard`);
+      }
+      return;
+    }
+
+    // Single node selected
+    if (selectedNodeIds.size === 1) {
+      const singleId = Array.from(selectedNodeIds)[0];
+      const node = pipeline.nodes.find((n) => n.id === singleId);
+      if (node) handleCopyNodeJson(node);
+      return;
+    }
+
+    // Subset of nodes selected
+    const subNodes = pipeline.nodes.filter((n) => selectedNodeIds.has(n.id));
+    const subEdges = pipeline.edges.filter((e) => selectedNodeIds.has(e.from_node) && selectedNodeIds.has(e.to_node));
+    const payload = {
+      name: `${pipeline.name} (Selection)`,
+      nodes: subNodes,
+      edges: subEdges,
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+      showToast(`Copied ${subNodes.length} selected nodes & connections to clipboard`);
+    }
+  }, [selectedNodeIds, pipeline, handleCopyNodeJson, showToast]);
 
   const handleCopyWorkflowJson = useCallback(() => {
     navigator.clipboard.writeText(JSON.stringify(pipeline, null, 2));
@@ -554,7 +673,7 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
       updated_at: new Date().toISOString(),
     };
     setPipeline(freshPipeline);
-    setSelectedNodeId(freshId);
+    setSelectedNodeIds(new Set([freshId]));
     if (audioUrl) {
       URL.revokeObjectURL(audioUrl);
       setAudioUrl(null);
@@ -572,7 +691,7 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
       nodes: [],
       edges: [],
     }));
-    setSelectedNodeId(null);
+    setSelectedNodeIds(new Set());
     if (audioUrl) {
       URL.revokeObjectURL(audioUrl);
       setAudioUrl(null);
@@ -647,28 +766,41 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
 
     setIsPanning(true);
     setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
-    setSelectedNodeId(null);
+    setSelectedNodeIds(new Set());
     setShowAddMenu(false);
   };
 
   // Node Drag Start Handler
   const handleNodePointerDown = useCallback((e: React.PointerEvent, nodeId: string) => {
     e.stopPropagation();
-    setSelectedNodeId(nodeId);
     setShowAddMenu(false);
 
-    const node = pipeline.nodes.find((n) => n.id === nodeId);
-    if (!node) return;
+    const isModifier = e.shiftKey || e.ctrlKey || e.metaKey;
+    let currentSelected = selectedNodeIds;
+    if (!selectedNodeIds.has(nodeId)) {
+      if (isModifier) {
+        currentSelected = new Set(selectedNodeIds);
+        currentSelected.add(nodeId);
+      } else {
+        currentSelected = new Set([nodeId]);
+      }
+      setSelectedNodeIds(currentSelected);
+    }
 
-    const pos = getNodePos(node);
+    // Build initial drag positions for all nodes in current selection
+    const nodeStarts: Record<string, { x: number; y: number }> = {};
+    pipeline.nodes.forEach((n) => {
+      if (currentSelected.has(n.id) || n.id === nodeId) {
+        nodeStarts[n.id] = getNodePos(n);
+      }
+    });
+
     setDragNodeState({
-      nodeId,
       startMouseX: e.clientX,
       startMouseY: e.clientY,
-      startNodeX: pos.x,
-      startNodeY: pos.y,
+      nodeStarts,
     });
-  }, [pipeline.nodes]);
+  }, [pipeline.nodes, selectedNodeIds]);
 
   // Unified Pointer Move
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -686,17 +818,19 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
 
       setPipeline((prev) => ({
         ...prev,
-        nodes: prev.nodes.map((n) =>
-          n.id === dragNodeState.nodeId
-            ? {
-                ...n,
-                position: {
-                  x: Math.round(dragNodeState.startNodeX + dx),
-                  y: Math.round(dragNodeState.startNodeY + dy),
-                },
-              }
-            : n
-        ),
+        nodes: prev.nodes.map((n) => {
+          const startPos = dragNodeState.nodeStarts[n.id];
+          if (startPos) {
+            return {
+              ...n,
+              position: {
+                x: Math.round(startPos.x + dx),
+                y: Math.round(startPos.y + dy),
+              },
+            };
+          }
+          return n;
+        }),
       }));
     } else if (isPanning) {
       setPan({
@@ -784,10 +918,11 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
 
     // Auto connect from currently selected node if present
     let newEdges = [...pipeline.edges];
-    if (selectedNodeId && pipeline.nodes.some((n) => n.id === selectedNodeId)) {
+    const primaryId = selectedNodeIds.size === 1 ? Array.from(selectedNodeIds)[0] : null;
+    if (primaryId && pipeline.nodes.some((n) => n.id === primaryId)) {
       newEdges.push({
         id: `edge-${Date.now()}`,
-        from_node: selectedNodeId,
+        from_node: primaryId,
         to_node: newNodeId,
       });
     }
@@ -797,7 +932,7 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
       nodes: [...prev.nodes, newNode],
       edges: newEdges,
     }));
-    setSelectedNodeId(newNodeId);
+    setSelectedNodeIds(new Set([newNodeId]));
     setShowAddMenu(false);
   };
 
@@ -839,7 +974,7 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
         const imported = JSON.parse(content);
         if (Array.isArray(imported.nodes) && Array.isArray(imported.edges)) {
           setPipeline(imported);
-          setSelectedNodeId(imported.nodes[0]?.id || null);
+          setSelectedNodeIds(imported.nodes[0] ? new Set([imported.nodes[0].id]) : new Set());
           setTimeout(handleFitToView, 50);
           showToast(`Imported workflow "${imported.name || 'Custom Workflow'}"`);
         } else {
@@ -861,7 +996,7 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
       // Case 1: Full Workflow Object
       if (parsed && Array.isArray(parsed.nodes) && Array.isArray(parsed.edges)) {
         setPipeline(parsed);
-        setSelectedNodeId(parsed.nodes[0]?.id || null);
+        setSelectedNodeIds(parsed.nodes[0] ? new Set([parsed.nodes[0].id]) : new Set());
         setTimeout(handleFitToView, 50);
         showToast(`Imported workflow "${parsed.name || 'Custom Workflow'}" (${parsed.nodes.length} nodes)`);
         setShowPasteModal(false);
@@ -884,7 +1019,7 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
           ...prev,
           nodes: [...prev.nodes, ...newNodes],
         }));
-        setSelectedNodeId(newNodes[0]?.id || null);
+        setSelectedNodeIds(new Set(newNodes.map((n) => n.id)));
         showToast(`Pasted ${newNodes.length} nodes into canvas`);
         setShowPasteModal(false);
         setPasteJsonInput('');
@@ -911,10 +1046,11 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
 
         setPipeline((prev) => {
           let newEdges = [...prev.edges];
-          if (selectedNodeId && prev.nodes.some((n) => n.id === selectedNodeId)) {
+          const primaryId = selectedNodeIds.size === 1 ? Array.from(selectedNodeIds)[0] : null;
+          if (primaryId && prev.nodes.some((n) => n.id === primaryId)) {
             newEdges.push({
               id: `edge-${Date.now()}`,
-              from_node: selectedNodeId,
+              from_node: primaryId,
               to_node: newNodeId,
             });
           }
@@ -924,7 +1060,7 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
             edges: newEdges,
           };
         });
-        setSelectedNodeId(newNodeId);
+        setSelectedNodeIds(new Set([newNodeId]));
         showToast(`Pasted node "${newNode.name}"`);
         setShowPasteModal(false);
         setPasteJsonInput('');
@@ -935,7 +1071,7 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
     } catch (err: any) {
       showToast(`Invalid JSON: ${err.message}`, 'error');
     }
-  }, [pan, zoom, selectedNodeId, showToast]);
+  }, [pan, zoom, selectedNodeIds, showToast]);
 
   const handlePasteFromClipboard = useCallback(async () => {
     try {
@@ -952,7 +1088,7 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
     }
   }, [applyPastedJson]);
 
-  // Global Keyboard Shortcuts (Delete, Backspace, Ctrl+C, Ctrl+V, Ctrl+D)
+  // Global Keyboard Shortcuts (Ctrl+A, Delete, Backspace, Ctrl+C, Ctrl+V, Ctrl+D)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
@@ -965,28 +1101,31 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
         return;
       }
 
-      // Delete / Backspace: Delete selected node
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedNodeId) {
+      // Ctrl+A / Cmd+A: Select all nodes (complete workflow)
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
         e.preventDefault();
-        handleDeleteNode(selectedNodeId);
-        showToast('Node deleted (Del)', 'info');
+        handleSelectAll();
         return;
       }
 
-      // Ctrl+C / Cmd+C: Copy selected node JSON
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c' && selectedNodeId) {
-        const node = pipeline.nodes.find((n) => n.id === selectedNodeId);
-        if (node) {
-          e.preventDefault();
-          handleCopyNodeJson(node);
-        }
+      // Delete / Backspace: Delete all selected nodes
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedNodeIds.size > 0) {
+        e.preventDefault();
+        handleDeleteSelected();
         return;
       }
 
-      // Ctrl+D / Cmd+D: Duplicate selected node
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd' && selectedNodeId) {
+      // Ctrl+C / Cmd+C: Copy selected (single node, multiple nodes, or full workflow if all selected)
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c' && selectedNodeIds.size > 0) {
         e.preventDefault();
-        handleDuplicateNode(selectedNodeId);
+        handleCopySelected();
+        return;
+      }
+
+      // Ctrl+D / Cmd+D: Duplicate selected nodes
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd' && selectedNodeIds.size > 0) {
+        e.preventDefault();
+        handleDuplicateSelected();
         return;
       }
 
@@ -1000,7 +1139,7 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedNodeId, pipeline.nodes, handleDeleteNode, handleDuplicateNode, handleCopyNodeJson, handlePasteFromClipboard, showToast]);
+  }, [selectedNodeIds, handleSelectAll, handleDeleteSelected, handleCopySelected, handleDuplicateSelected, handlePasteFromClipboard]);
 
   return (
     <div className="flex-1 flex overflow-hidden relative">
@@ -1086,6 +1225,41 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
               <span className="hidden md:inline">Clear</span>
             </button>
 
+            {/* Select All button */}
+            <button
+              onClick={handleSelectAll}
+              className="flex items-center space-x-1 px-2 py-1 rounded bg-[#1A222D] hover:bg-[#242E3D] text-[#94A3B8] hover:text-white text-xs font-mono border border-[#242E3D] transition-colors"
+              title="Select all nodes (Ctrl+A)"
+            >
+              <CheckSquare className="w-3.5 h-3.5 text-amber-400" />
+              <span className="hidden lg:inline">Select All</span>
+            </button>
+
+            {/* Active selection badge & quick actions */}
+            {selectedNodeIds.size > 0 && (
+              <div className="flex items-center space-x-1 bg-[#1A222D] px-2 py-0.5 rounded border border-amber-500/30">
+                <span className="text-amber-300 text-[11px] font-mono font-semibold">
+                  {selectedNodeIds.size === pipeline.nodes.length
+                    ? `All ${pipeline.nodes.length} selected`
+                    : `${selectedNodeIds.size} selected`}
+                </span>
+                <button
+                  onClick={handleDeleteSelected}
+                  className="p-1 rounded hover:bg-rose-500/20 text-[#94A3B8] hover:text-rose-400 text-xs transition-colors"
+                  title="Delete selection (Del / Backspace)"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+                <button
+                  onClick={handleDuplicateSelected}
+                  className="p-1 rounded hover:bg-[#242E3D] text-[#94A3B8] hover:text-white text-xs transition-colors"
+                  title="Duplicate selection (Ctrl+D)"
+                >
+                  <Copy className="w-3 h-3 text-amber-400" />
+                </button>
+              </div>
+            )}
+
             {/* Presets dropdown */}
             <div className="flex items-center space-x-1 pl-2 border-l border-[#242E3D]">
               <Sparkles className="w-3.5 h-3.5 text-amber-500" />
@@ -1094,7 +1268,7 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
                   const preset = PRESETS[e.target.value];
                   if (preset) {
                     setPipeline(preset);
-                    setSelectedNodeId(preset.nodes[0]?.id || null);
+                    setSelectedNodeIds(preset.nodes[0] ? new Set([preset.nodes[0].id]) : new Set());
                     setTimeout(handleFitToView, 50);
                     showToast(`Loaded preset: ${preset.name}`);
                   }
@@ -1348,8 +1522,8 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
                 >
                   <NodeCard
                     node={node}
-                    isSelected={node.id === selectedNodeId}
-                    onSelect={setSelectedNodeId}
+                    isSelected={selectedNodeIds.has(node.id)}
+                    onSelect={handleSelectNode}
                     onDelete={handleDeleteNode}
                     onDuplicate={handleDuplicateNode}
                     onPointerDown={handleNodePointerDown}
@@ -1408,7 +1582,7 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
           {/* Bottom Hint Banner */}
           <div className="absolute bottom-5 left-5 z-10 hidden sm:flex items-center space-x-2 px-3 py-1.5 bg-[#121820]/75 backdrop-blur-sm border border-[#242E3D]/60 rounded-full text-[11px] font-mono text-[#64748B] pointer-events-none">
             <Move className="w-3 h-3 text-amber-500" />
-            <span>Drag canvas to pan • Scroll to zoom • Del to delete • Ctrl+C / Ctrl+V to copy & paste JSON • Ctrl+D to duplicate</span>
+            <span>Drag canvas to pan • Scroll to zoom • Ctrl+A to select all • Del to delete • Ctrl+C / Ctrl+V to copy & paste JSON • Ctrl+D to duplicate</span>
           </div>
         </div>
 
@@ -1493,13 +1667,17 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
       {/* Node Inspector Drawer */}
       <NodeInspector
         node={selectedNode}
+        selectedNodes={selectedNodes}
         allNodes={pipeline.nodes}
         voices={voices}
-        onClose={() => setSelectedNodeId(null)}
+        onClose={() => setSelectedNodeIds(new Set())}
         onUpdateParams={handleUpdateParams}
         onDeleteNode={handleDeleteNode}
         onDuplicateNode={handleDuplicateNode}
         onCopyNodeJson={handleCopyNodeJson}
+        onDeleteSelected={handleDeleteSelected}
+        onDuplicateSelected={handleDuplicateSelected}
+        onCopySelectedJson={handleCopySelected}
       />
     </div>
   );

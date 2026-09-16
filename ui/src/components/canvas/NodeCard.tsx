@@ -15,7 +15,7 @@ import { PipelineNode } from '../../types';
 interface NodeCardProps {
   node: PipelineNode;
   isSelected: boolean;
-  onSelect: (id: string) => void;
+  onSelect: (id: string, isMulti?: boolean) => void;
   onDelete: (id: string) => void;
   onDuplicate?: (id: string) => void;
   onPointerDown?: (e: React.PointerEvent, id: string) => void;
@@ -61,7 +61,7 @@ export const NodeCard: React.FC<NodeCardProps> = ({
       onPointerDown={(e) => onPointerDown?.(e, node.id)}
       onClick={(e) => {
         e.stopPropagation();
-        onSelect(node.id);
+        onSelect(node.id, e.shiftKey || e.ctrlKey || e.metaKey);
       }}
       className={`absolute w-64 rounded-lg bg-[#121820] border cursor-grab active:cursor-grabbing shadow-xl select-none transition-shadow ${
         isSelected
