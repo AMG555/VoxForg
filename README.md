@@ -42,6 +42,19 @@ For creators, studio producers, and desktop users: download the pre-compiled sta
 2. **Portable Bundle**: Download [**`VoxForg-Windows-x64.zip`**](https://github.com/AMG555/VoxForg/releases/latest/download/VoxForg-Windows-x64.zip), extract anywhere, and double-click `VoxForg-Start.bat`.
 3. **Install Desktop & Start Menu Icon**: Run `install-desktop.bat` (or run in PowerShell: `irm https://raw.githubusercontent.com/AMG555/VoxForg/main/scripts/install.ps1 | iex`). Adds `VoxForg` icon directly to your Windows Desktop and Start Menu.
 
+> [!NOTE]
+> **Windows SmartScreen warning?** You may see *"voxforg-windows-x86_64.exe isn't commonly downloaded"* in your browser or *"Windows protected your PC"* on launch. This is normal for any new open-source executable that hasn't yet built download reputation — **VoxForg contains no malware**. The full source code is auditable in this repository.
+>
+> **To bypass in your browser (Edge / Chrome):** Click the download arrow → **Keep** → **Keep anyway**.
+>
+> **To bypass the SmartScreen launch dialog:** Click **More info** → **Run anyway**.
+>
+> **Prefer no warnings at all?** Use the **PowerShell one-liner installer** — it runs entirely in-terminal and bypasses SmartScreen:
+> ```powershell
+> irm https://raw.githubusercontent.com/AMG555/VoxForg/main/scripts/install.ps1 | iex
+> ```
+
+
 ---
 
 ## Quick Start
