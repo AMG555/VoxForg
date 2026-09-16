@@ -45,7 +45,9 @@ For creators, studio producers, and desktop users: download the pre-compiled sta
 > [!NOTE]
 > **Windows SmartScreen warning?** You may see *"voxforg-windows-x86_64.exe isn't commonly downloaded"* in your browser or *"Windows protected your PC"* on launch. This is normal for any new open-source executable that hasn't yet built download reputation — **VoxForg contains no malware**. The full source code is auditable in this repository.
 >
-> **To bypass in your browser (Edge / Chrome):** Click the download arrow → **Keep** → **Keep anyway**.
+> **To bypass in Edge:** In the Downloads panel click **See more** → **Keep anyway**.
+>
+> **To bypass in Chrome:** Click the download arrow → **Keep** → **Keep anyway**.
 >
 > **To bypass the SmartScreen launch dialog:** Click **More info** → **Run anyway**.
 >
