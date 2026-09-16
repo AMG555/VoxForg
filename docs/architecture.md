@@ -366,4 +366,53 @@ flowchart TD
    - **`curl | sh` / `irm | iex`**: Automated shell installers detecting host OS and architecture.
    - **Single-Container Docker**: Multi-stage Docker image packaging native binary and embedded frontend in a self-contained container.
 
+---
+
+## 9. Multi-Voice Audio Studio DAG Pipeline Architecture
+
+VoxForg includes a high-performance Directed Acyclic Graph (DAG) pipeline execution engine (`voxforg-pipeline`) optimized for multi-voice combining workflows (podcasts, tactical communications, radio broadcasting, narrative audiobooks, and video dubbing).
+
+```mermaid
+flowchart TD
+    Script["Script Input (Multi-Speaker Text)"] --> Parser["SpeakerParser Node"]
+    Parser -->|"Discrete Utterances: [Speaker, Text]"| Assigner["VoiceAssigner Node"]
+    Assigner -->|"Case-Insensitive Resolution / Auto-Detect"| Synthesizer["Synthesizer Node"]
+    
+    Synthesizer -->|"Branch 1: Host Audio (en-US-JennyNeural)"| Dsp["Studio DSP Filter Chain"]
+    Synthesizer -->|"Branch 2: Guest Audio (en-US-GuyNeural)"| Dsp
+    
+    subgraph DSP ["Studio DSP Mastering Chain"]
+        Dsp --> Silence["Silence Trimmer (-45 dBFS)"]
+        Silence --> Eq["3-Band Parametric EQ (Low/Mid/High)"]
+        Eq --> Comp["Dynamic Compressor (3:1, -16 dBFS)"]
+        Comp --> Limiter["Brickwall Limiter (-0.5 dBFS)"]
+        Limiter --> Norm["Peak Normalizer (95% / -0.5 dBFS)"]
+    end
+    
+    Norm --> Merger["AudioMerge Node (Custom pause_ms / Crossfade)"]
+    Merger --> Sink["OutputSink Node (Master RIFF WAV 16-bit PCM)"]
+```
+
+### 9.1 Topological Sort & Cycle Detection
+- Validates graph structure using Kahn's algorithm (`GraphValidator::topological_sort`).
+- Enforces strict upper bounds (500 nodes, 2000 edges) to protect against resource exhaustion.
+- Rejects cyclic graphs with RFC 7807 (HTTP 422 Unprocessable Entity).
+
+### 9.2 Flexible Script Speaker Parsing
+- Ingests script text and splits lines into discrete `ScriptSegment` structures:
+  - Colon syntax: `Speaker: utterance`
+  - Bracketed callsigns: `[Callsign] utterance`
+  - Parenthetical syntax: `(Speaker) utterance`
+  - Fallback unlabelled lines: Assigned to `Narrator`.
+
+### 9.3 Robust Voice Resolution with Engine Fallback
+- `VoiceAssigner` maps speaker identities to voice identifiers with case-insensitive matching.
+- **Engine Fallback**: If a requested cloud or neural voice is not registered on the current host, the synthesizer dynamically falls back to the first available local engine voice, guaranteeing pipeline completion even in air-gapped or test environments.
+
+### 9.4 Studio Audio Mastering DSP Chain
+- **Silence Trimming**: Removes lead-in and lead-out dead air with customizable decay padding.
+- **Robert Bristow-Johnson Biquad EQ**: Low-shelf (250Hz), mid-peaking (1kHz), high-shelf (4kHz).
+- **Dynamic Compression**: Smooths level fluctuations across disparate voices and microphone distances.
+- **Brickwall Limiter**: Prevents digital clipping with soft-knee cubic saturation.
+- **Time-Aligned Multiplexing**: Merges processed branches chronologically with customizable inter-speaker pacing (`pause_ms`: 80ms Rapid Comms, 150ms Conversational, 220ms Podcast Studio, 450ms Dramatic).
 

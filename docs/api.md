@@ -982,6 +982,130 @@ Any path that does not match an API prefix (`/v1/`, `/health`, `/metrics`, `/doc
 
 ---
 
+## 20. DAG Pipeline Execution API
+
+### `POST /v1/pipeline/execute`
+
+Executes a Directed Acyclic Graph (DAG) audio processing pipeline. Supports multi-speaker dialogue parsing, discrete voice allocation, neural synthesis, studio DSP mastering (EQ, dynamic compression, brickwall limiting, silence trimming), and chronological audio merging with custom inter-speaker pause durations.
+
+#### Request Headers
+```http
+Content-Type: application/json
+Authorization: Bearer <api_key>
+```
+
+#### Request Schema (`PipelineExecuteRequest`)
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `pipeline` | `object` | Yes | Complete pipeline definition containing nodes and edges. |
+| `pipeline.id` | `string` | No | Unique pipeline identifier (UUID or preset slug, e.g. `preset-podcast`). |
+| `pipeline.name` | `string` | Yes | Human-readable pipeline title. |
+| `pipeline.nodes` | `array` | Yes | List of pipeline nodes to execute in topological order. |
+| `pipeline.edges` | `array` | Yes | Directed connections linking `from_node` to `to_node`. |
+| `input_text` | `string` | No | Optional dynamic text override (up to 50,000 characters). |
+
+#### Supported Node Types & Parameters
+
+| Node Type | Purpose | Parameters |
+|---|---|---|
+| `text_input` | Ingests narrative or dialogue script | `text`: Script content with speaker markers (e.g. `Host: Hello` or `[Dispatch] Falcon-1`) |
+| `speaker_parser` | Splits script into chronological speaker segments | Supports `Speaker: Line`, `[Speaker] Line`, and `(Speaker) Line` formats |
+| `voice_assigner` | Maps speaker identities to specific neural voices | `default_voice`: Fallback voice (e.g. `en-US-JennyNeural`)<br>`speaker_map`: Key-value object mapping speaker names to voice IDs |
+| `synthesizer` | Synthesizes individual speech segments | `voice`: Optional override voice ID<br>`speed`: Rate multiplier (`0.50` to `2.00`)<br>`pitch`: Pitch shift in semitones (`-12.0` to `+12.0`) |
+| `audio_filter` | Studio mastering DSP processing chain | `enable_eq`: Boolean or `eq` object (`low_gain_db`, `mid_gain_db`, `high_gain_db`)<br>`enable_compressor`: Boolean or `compressor` object (`threshold_dbfs`, `ratio`, `attack_ms`, `release_ms`, `makeup_gain_db`)<br>`enable_limiter`: Boolean or `limiter` object (`ceiling_dbfs`)<br>`normalize`: Peak normalization to 95% (-0.5 dBFS)<br>`silence_trim`: Silence trimmer object (`threshold_dbfs`, `padding_ms`) |
+| `audio_merge` | Merges audio segments with crossfade / pause | `pause_ms`: Inter-speaker pause duration in milliseconds (e.g. 80ms, 150ms, 220ms, 450ms) |
+| `output_sink` | Encodes final master studio broadcast track | Formats to 16-bit linear PCM WAV container |
+
+#### Multi-Voice Podcast Example Request
+```json
+{
+  "pipeline": {
+    "id": "preset-podcast",
+    "name": "Studio Podcast Interview",
+    "nodes": [
+      {
+        "id": "node-1",
+        "name": "Podcast Script",
+        "node_type": "text_input",
+        "params": {
+          "text": "Alex: Welcome to Tech Frontiers!\nDr. Vance: Great to be here. Excited to discuss neural audio."
+        }
+      },
+      {
+        "id": "node-2",
+        "name": "Speaker Parser",
+        "node_type": "speaker_parser",
+        "params": {}
+      },
+      {
+        "id": "node-3",
+        "name": "Voice Assigner",
+        "node_type": "voice_assigner",
+        "params": {
+          "default_voice": "en-US-JennyNeural",
+          "speaker_map": {
+            "Alex": "en-US-JennyNeural",
+            "Dr. Vance": "en-US-GuyNeural"
+          }
+        }
+      },
+      {
+        "id": "node-4",
+        "name": "Neural Synthesizer",
+        "node_type": "synthesizer",
+        "params": { "speed": 1.0, "pitch": 0.0 }
+      },
+      {
+        "id": "node-5",
+        "name": "Studio DSP Mastering",
+        "node_type": "audio_filter",
+        "params": {
+          "enable_eq": true,
+          "eq_low_gain_db": 1.5,
+          "eq_high_gain_db": 2.0,
+          "enable_compressor": true,
+          "compressor_threshold_db": -16.0,
+          "enable_limiter": true,
+          "limiter_ceiling_db": -0.8,
+          "normalize": true
+        }
+      },
+      {
+        "id": "node-6",
+        "name": "Audio Merge & Crossfade",
+        "node_type": "audio_merge",
+        "params": { "pause_ms": 220 }
+      },
+      {
+        "id": "node-7",
+        "name": "Master Output",
+        "node_type": "output_sink",
+        "params": {}
+      }
+    ],
+    "edges": [
+      { "id": "e1", "from_node": "node-1", "to_node": "node-2" },
+      { "id": "e2", "from_node": "node-2", "to_node": "node-3" },
+      { "id": "e3", "from_node": "node-3", "to_node": "node-4" },
+      { "id": "e4", "from_node": "node-4", "to_node": "node-5" },
+      { "id": "e5", "from_node": "node-5", "to_node": "node-6" },
+      { "id": "e6", "from_node": "node-6", "to_node": "node-7" }
+    ]
+  }
+}
+```
+
+#### Response (`200 OK`)
+- **`Content-Type`**: `audio/wav`
+- **Body**: Binary RIFF WAV audio stream containing master multi-speaker audio.
+
+#### Error Responses
+- **`400 Bad Request`**: Malformed graph, input text exceeds 50,000 characters, or invalid parameter values.
+- **`422 Unprocessable Entity`**: Graph cycle detected, edge references nonexistent node, node exceeds limit (500 nodes / 2000 edges), or voice resolution error. Returns RFC 7807 `ProblemDetails`.
+
+---
+
 ## Endpoint Summary
 
 | Method | Path | Description |

@@ -40,7 +40,7 @@ VoxForg eliminates vendor lock-in by abstracting 10+ local and cloud speech engi
 - **Model Catalog & Weights Manager**: Built-in weights manager validating host RAM and GPU VRAM constraints before installing curated open weights (Kokoro, Piper, Whisper, Qwen3, Silero) with cryptographic SHA-256 verification (`/v1/catalog/models`).
 - **Model Context Protocol (MCP) Server**: Native JSON-RPC 2.0 stdio server (`voxforg mcp`) exposing 8 speech tools directly to Claude Desktop, Cursor, and autonomous LLM agent workstations.
 - **Hardware-Aware Adaptive Dispatch**: Automated hardware probe detecting CPU vector extensions (AVX2, AVX-512, NEON) and GPU accelerators (NVIDIA CUDA, Apple MPS, DirectML) to dynamically allocate optimal engine models.
-- **Visual Pipeline Canvas**: Node-based directed acyclic graph (DAG) builder to visually compose multi-speaker scripts, insert pause markers, apply audio filters, and batch render podcast-length narratives.
+- **Visual Pipeline Canvas & Multi-Voice Studio**: 2D infinite node-based DAG canvas with smooth cursor zoom (`0.25x` to `2.5x`), pan navigation, freeform node dragging, and dynamic glowing Bezier wires. Purpose-built for multi-voice studio combining (podcasts with Host + Guest, tactical communications with Dispatch + Pilot, radio broadcasting, narrative sci-fi dialogue). Features script speaker auto-detection, studio DSP mastering (3-band parametric EQ, dynamic compression, brickwall limiter, silence trimmer), customizable inter-speaker pacing, and master audio export via `POST /v1/pipeline/execute`.
 - **Tri-Tier Storage Architecture**:
   - **Embedded / Desktop**: Zero-dependency SQLite with WAL mode.
   - **Self-Hosted Docker**: High-concurrency PostgreSQL with connection pooling.

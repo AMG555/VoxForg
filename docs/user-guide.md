@@ -194,17 +194,66 @@ voxforg mcp
 
 The visual workstation interface runs in modern browsers at `http://localhost:8080`.
 
-### 3.1 Pipeline Canvas (Visual Audio DAG Builder)
-- **Node-Based Composition**: Connect `TextInput` → `SpeakerParser` → `VoiceAssigner` → `Synthesizer` → `AudioFilter` → `OutputSink`.
-- **Studio DSP Node**:
-  - **Silence Trimmer**: Windowed energy detector trimming dead air before and after speech.
-  - **3-Band Parametric EQ**: Low Shelf (250Hz), Mid Peaking (1kHz), High Shelf (4kHz).
-  - **Dynamic Compressor**: Envelope follower with configurable threshold, ratio, attack, and release.
-  - **Brickwall Limiter**: Soft-knee saturation preventing clipping above `-0.5 dBFS`.
-  - **Peak Normalizer**: Automatic gain adjustment to target peak dBFS.
-- **Automated Video Dubbing & Audiobook Templates**:
-  - Drag-and-drop templates with automated video container demuxing and remuxing.
-- **JSON Export & Import**: One-click download and upload of DAG graph files (`.voxforg.json`).
+### 3.1 Pipeline Canvas (Multi-Voice Studio DAG Builder)
+
+The Pipeline Canvas is a visual node-based Directed Acyclic Graph (DAG) editor designed for complex multi-voice speech production, including podcasts, tactical communications, radio broadcasting, narrative audiobooks, and video dubbing.
+
+#### Infinite 2D Viewport & Navigation
+- **Pan Navigation**: Click and drag anywhere on the canvas background to pan infinitely in 2D space.
+- **Smooth Cursor-Anchored Zoom**: Scroll the mouse wheel to zoom continuously between `0.25x` and `2.5x`, centered precisely on your cursor position.
+- **Floating HUD Toolbar**:
+  - `+` / `-`: Zoom in and out incrementally.
+  - `100%`: Reset zoom to native scale.
+  - `Fit View`: Automatically frame all pipeline nodes into the viewport.
+  - `Auto-Align`: Neatly organizes all nodes into clean left-to-right topological columns.
+- **Dynamic Wires**: Curved cubic Bezier connection wires (`M x1 y1 C ...`) link node output ports to downstream input ports with animated glowing energy pulses.
+- **Freeform Node Dragging**: Grab and position any node card anywhere on the canvas with real-time wire tracking.
+
+#### Core Node Architecture
+1. **`TextInput` (Script Input)**:
+   - Enter dialogue or monologue text.
+   - Supports standard multi-speaker syntax:
+     - `Host: Welcome to the studio!` / `Guest: Glad to be here!`
+     - `[Dispatch] Falcon-1, report status.` / `[Falcon-1] Waypoint Alpha cleared.`
+     - `(Captain) Status report.` / `(Nav) Hyperdrive ready.`
+2. **`SpeakerParser` (Dialogue Segmenter)**:
+   - Automatically splits multi-speaker script into discrete chronological utterances with speaker labels.
+3. **`VoiceAssigner` (Speaker-to-Voice Router)**:
+   - **Auto-Detect from Script**: Scans all script nodes in the canvas, extracts unique speaker tags, and automatically populates speaker mapping with distinct neural voices.
+   - **Manual Speaker Mapping**: Assign specific voices (e.g. `JennyNeural` for Host, `GuyNeural` for Guest, `AriaNeural` for Dispatch).
+   - **Default Voice Profile**: Fallback voice for unassigned or narrator lines.
+4. **`Synthesizer` (Neural Speech Engine)**:
+   - Synthesizes each speaker segment individually using assigned voices.
+   - Controls speaking rate multiplier (`0.50x` to `2.00x`) and pitch shift (`-12` to `+12` semitones).
+   - Built-in automatic fallback ensures synthesis continues even if a cloud voice is offline.
+5. **`AudioFilter` (Studio DSP Mastering)**:
+   - **3-Band Parametric EQ**: Low Shelf (250Hz), Mid Peaking (1kHz), High Shelf (4kHz) based on Robert Bristow-Johnson biquad filter equations.
+   - **Dynamic Compressor**: Threshold (`-36` to `-6 dBFS`), ratio (`1.5:1` to `8:1`), attack, release, and makeup gain.
+   - **Brickwall Limiter**: Clamps peaks below `-0.5 dBFS` with soft-knee cubic saturation to prevent digital clipping.
+   - **Silence Trimmer**: Windowed energy detector removing dead air at segment start and end.
+   - **Peak Normalizer**: Scales amplitude to 95% (-0.5 dBFS) for broadcast loudness compliance.
+6. **`AudioMerge` (Crossfade & Multiplexing)**:
+   - Sequentially stitches processed speaker segments with customizable inter-speaker pause durations (`pause_ms`).
+   - Quick presets:
+     - **Rapid Comms (80ms)**: Fast-paced tactical transmissions and radio dispatch.
+     - **Conversational (150ms)**: Natural dialogue and casual interviews.
+     - **Podcast Studio (220ms)**: Professional studio interview pacing.
+     - **Dramatic Pause (450ms)**: Cinematic narrative storytelling.
+7. **`OutputSink` (Master Audio Export)**:
+   - Assembles final master broadcast audio buffer into 16-bit linear PCM RIFF WAV format.
+
+#### Built-In Studio Presets
+- **Multi-Voice Studio Podcast**: Host (Alex) and Guest (Dr. Vance) interview, studio broadcast DSP mastering, and 220ms conversational pause.
+- **Tactical Communications Studio**: Dispatch and Falcon-1 pilot callsigns, 1.1x speaking rate, VHF radio bandpass EQ (-6dB low shelf, +4dB high boost), and 140ms channel multiplexing.
+- **Narrative Sci-Fi Dialogue**: Space dialogue between Captain and Navigator with 450ms dramatic pauses.
+- **Punchy Radio Broadcaster**: Fast-paced commercial broadcast pipeline with DJ and Caller.
+
+#### Execution & Live Telemetry
+- Click **"Run Pipeline"** in the top navigation bar to compile and execute the active DAG graph.
+- **Real-Time Audio Telemetry**: Integrated dock featuring HTML5 Web Audio API visualizers:
+  - **FFT Spectrum Analyzer**: 64-band real-time frequency bar graph.
+  - **Oscilloscope Waveform**: Real-time time-domain audio wave rendering.
+  - **Master Playback & Download**: Immediate in-browser playback and one-click master WAV export.
 
 ### 3.2 Voice Lab & Zero-Shot Cloning Studio
 - **Voice Selection & Testing**: Filter 18+ voices across language and engine.
