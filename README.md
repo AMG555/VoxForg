@@ -13,7 +13,7 @@
 
 *An open-source, modular speech synthesis workstation. Self-host high-fidelity neural voices, chain complex multi-speaker audio graphs, and run locally or scale horizontally.*
 
-[Features](#key-features) • [Installation Guide](docs/installation.md) • [User Manual](docs/user-guide.md) • [Architecture](docs/architecture.md) • [API Spec](docs/api.md) • [Wireframes](docs/wireframes.md) • [Hardware Tiers](#hardware-profiler)
+[Download .exe](#direct-downloads-desktop--standalone) • [Features](#key-features) • [Installation Guide](docs/installation.md) • [User Manual](docs/user-guide.md) • [Architecture](docs/architecture.md) • [API Spec](docs/api.md) • [Wireframes](docs/wireframes.md) • [Hardware Tiers](#hardware-profiler)
 
 </div>
 
@@ -25,7 +25,26 @@
 
 ---
 
-## Overview
+## Direct Downloads (Desktop & Standalone)
+
+For creators, studio producers, and desktop users: download the pre-compiled standalone app directly. Zero build tools, Docker, or terminal setup required.
+
+| Platform | Download | Package Format | File Size | Details |
+| :--- | :--- | :--- | :--- | :--- |
+| **Windows 10 / 11 (64-bit)** | [**Download .exe**](https://github.com/AMG555/VoxForg/releases/latest/download/voxforg-windows-x86_64.exe) | Standalone Executable (`.exe`) | ~13 MB | Single binary with server + embedded studio UI + speech engines |
+| **Windows 10 / 11 (64-bit)** | [**Download .zip**](https://github.com/AMG555/VoxForg/releases/latest/download/VoxForg-Windows-x64.zip) | Portable Bundle (`.zip`) | ~5 MB | Includes `voxforg.exe`, 1-click launcher, and desktop installer |
+| **macOS (Apple Silicon & Intel)** | [**Download Universal**](https://github.com/AMG555/VoxForg/releases/latest/download/voxforg-macos-universal) | Standalone Binary | ~14 MB | Universal binary with embedded studio UI |
+| **Linux (x86_64)** | [**Download .tar.gz**](https://github.com/AMG555/VoxForg/releases/latest/download/voxforg-linux-x86_64.tar.gz) | Tarball Archive | ~12 MB | Zero-dependency glibc standalone executable |
+
+### How to Run & Install on Windows:
+
+1. **Direct Run**: Download [**`voxforg-windows-x86_64.exe`**](https://github.com/AMG555/VoxForg/releases/latest/download/voxforg-windows-x86_64.exe) and double-click it. It spins up the neural engine server and opens your web browser to `http://localhost:8080`.
+2. **Portable Bundle**: Download [**`VoxForg-Windows-x64.zip`**](https://github.com/AMG555/VoxForg/releases/latest/download/VoxForg-Windows-x64.zip), extract anywhere, and double-click `VoxForg-Start.bat`.
+3. **Install Desktop & Start Menu Icon**: Run `install-desktop.bat` (or run in PowerShell: `irm https://raw.githubusercontent.com/AMG555/VoxForg/main/scripts/install.ps1 | iex`). Adds `VoxForg` icon directly to your Windows Desktop and Start Menu.
+
+---
+
+## Quick Start
 
 **VoxForg** is a unified, hardware-adaptive speech synthesis server and visual workflow builder: a modular node-based engine that allows developers and creators to design sophisticated audio pipelines—from chunking multi-page documents to assigning emotional prosody and dynamic voice-swapping across different TTS engines—all behind an OpenAI-compatible API.
 

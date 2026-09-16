@@ -55,6 +55,12 @@ $LocalCandidates = @(
     ".\target\release\voxforg.exe"
 )
 
+$LocalIcoCandidates = @(
+    "$PSScriptRoot\..\assets\voxforg.ico",
+    "$PSScriptRoot\voxforg.ico",
+    ".\assets\voxforg.ico"
+)
+
 $FoundLocal = $false
 foreach ($Cand in $LocalCandidates) {
     if (Test-Path $Cand) {
@@ -84,7 +90,25 @@ if (-not $FoundLocal) {
     }
 }
 
-# 4. Persist to User PATH
+# 4. Copy icon file alongside exe for reliable shortcut display
+$IcoTarget = "$BinDir\voxforg.ico"
+foreach ($IcoCand in $LocalIcoCandidates) {
+    if (Test-Path $IcoCand) {
+        Copy-Item -Path $IcoCand -Destination $IcoTarget -Force
+        Write-Host "Icon installed: $IcoTarget" -ForegroundColor Green
+        break
+    }
+}
+# Fallback: fetch from GitHub release if not found locally
+if (-not (Test-Path $IcoTarget)) {
+    try {
+        Invoke-WebRequest -Uri "https://github.com/$Repo/releases/download/$LatestTag/voxforg.ico" -OutFile $IcoTarget -UseBasicParsing -ErrorAction SilentlyContinue
+    } catch { }
+}
+
+$IconSource = if (Test-Path $IcoTarget) { "$IcoTarget,0" } else { "$TargetExe,0" }
+
+# 5. Persist to User PATH
 $UserPath = [Environment]::GetEnvironmentVariable("Path", [EnvironmentVariableTarget]::User)
 if ($UserPath -notlike "*$BinDir*") {
     Write-Host "Adding $BinDir to User PATH..." -ForegroundColor Cyan
@@ -110,7 +134,7 @@ try {
     $DesktopShortcut.Arguments = "`"$VbsLauncher`""
     $DesktopShortcut.WorkingDirectory = "$InstallBase"
     $DesktopShortcut.Description = "VoxForg Neural Speech Studio"
-    $DesktopShortcut.IconLocation = "$TargetExe,0"
+    $DesktopShortcut.IconLocation = $IconSource
     $DesktopShortcut.Save()
 
     # Start Menu Shortcut
@@ -119,7 +143,7 @@ try {
     $StartShortcut.Arguments = "`"$VbsLauncher`""
     $StartShortcut.WorkingDirectory = "$InstallBase"
     $StartShortcut.Description = "VoxForg Neural Speech Studio"
-    $StartShortcut.IconLocation = "$TargetExe,0"
+    $StartShortcut.IconLocation = $IconSource
     $StartShortcut.Save()
 
     Write-Host "Created Desktop and Start Menu shortcuts." -ForegroundColor Green

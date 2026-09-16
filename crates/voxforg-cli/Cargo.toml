@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
+build = "build.rs"
 
 [[bin]]
 name = "voxforg"
@@ -28,3 +29,6 @@ anyhow.workspace = true
 uuid.workspace = true
 hex.workspace = true
 serde_json.workspace = true
+
+[build-dependencies]
+winres = "0.1"

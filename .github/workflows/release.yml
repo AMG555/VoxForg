@@ -1,0 +1,91 @@
+name: Release Packages & Installers
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            artifact_name: voxforg-windows-x86_64.exe
+            zip_name: VoxForg-Windows-x64.zip
+          - os: ubuntu-latest
+            artifact_name: voxforg-linux-x86_64
+            zip_name: voxforg-linux-x86_64.tar.gz
+          - os: macos-latest
+            artifact_name: voxforg-macos-universal
+            zip_name: voxforg-macos-universal.tar.gz
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Build Web UI
+        run: |
+          npm --prefix ui ci
+          npm --prefix ui run build
+
+      - name: Sync UI to Embedded API Crate
+        shell: bash
+        run: |
+          mkdir -p crates/voxforg-api/ui_dist
+          cp -r ui/dist/* crates/voxforg-api/ui_dist/
+
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build Standalone Rust Binary
+        run: cargo build --release --bin voxforg
+
+      - name: Package Windows Release (.exe and .zip)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          mkdir dist -Force
+          Copy-Item target/release/voxforg.exe -Destination dist/voxforg-windows-x86_64.exe -Force
+          Copy-Item target/release/voxforg.exe -Destination dist/voxforg.exe -Force
+          Copy-Item assets/voxforg.ico -Destination dist/voxforg.ico -Force
+          
+          # Create batch launcher
+          Set-Content -Path dist/VoxForg-Start.bat -Value "@echo off`r`nstart `"`" `"%~dp0voxforg.exe`" serve --open" -Force
+          
+          # Create installer script
+          Set-Content -Path dist/install-desktop.bat -Value "@echo off`r`npowershell -NoProfile -ExecutionPolicy Bypass -Command `"& { irm https://raw.githubusercontent.com/${{ github.repository }}/main/scripts/install.ps1 | iex }`"`r`npause" -Force
+          
+          Compress-Archive -Path dist/voxforg.exe, dist/voxforg.ico, dist/VoxForg-Start.bat, dist/install-desktop.bat -DestinationPath dist/VoxForg-Windows-x64.zip -Force
+
+      - name: Package Unix Release (.tar.gz)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp target/release/voxforg dist/${{ matrix.artifact_name }}
+          chmod +x dist/${{ matrix.artifact_name }}
+          tar -czvf dist/${{ matrix.zip_name }} -C dist ${{ matrix.artifact_name }}
+
+      - name: Upload Release Assets
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            dist/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
