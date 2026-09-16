@@ -48,20 +48,39 @@ try {
     # Keep fallback tag
 }
 
-$DownloadUrl = "https://github.com/$Repo/releases/download/$LatestTag/$BinaryName"
-Write-Host "Downloading VoxForg $LatestTag..." -ForegroundColor Cyan
+$LocalCandidates = @(
+    "$PSScriptRoot\..\target\release\voxforg.exe",
+    "$PSScriptRoot\..\dist\voxforg.exe",
+    "$PSScriptRoot\voxforg.exe",
+    ".\target\release\voxforg.exe"
+)
 
-try {
-    Invoke-WebRequest -Uri $DownloadUrl -OutFile $TargetExe -UseBasicParsing
-    Write-Host "Successfully downloaded to $TargetExe" -ForegroundColor Green
-} catch {
-    Write-Warning "Direct release download unavailable. Checking for local cargo installation..."
-    if (Get-Command cargo -ErrorAction SilentlyContinue) {
-        cargo install --git "https://github.com/$Repo.git" voxforg-cli --root $InstallBase
-        Write-Host "Successfully built and installed via cargo." -ForegroundColor Green
-    } else {
-        Write-Error "Failed to download binary and cargo was not found. Please install Rust or check release assets."
-        exit 1
+$FoundLocal = $false
+foreach ($Cand in $LocalCandidates) {
+    if (Test-Path $Cand) {
+        Write-Host "Found local binary at $Cand. Installing directly..." -ForegroundColor Green
+        Copy-Item -Path $Cand -Destination $TargetExe -Force
+        $FoundLocal = $true
+        break
+    }
+}
+
+if (-not $FoundLocal) {
+    $DownloadUrl = "https://github.com/$Repo/releases/download/$LatestTag/$BinaryName"
+    Write-Host "Downloading VoxForg $LatestTag..." -ForegroundColor Cyan
+
+    try {
+        Invoke-WebRequest -Uri $DownloadUrl -OutFile $TargetExe -UseBasicParsing
+        Write-Host "Successfully downloaded to $TargetExe" -ForegroundColor Green
+    } catch {
+        Write-Warning "Direct release download unavailable. Checking for local cargo installation..."
+        if (Get-Command cargo -ErrorAction SilentlyContinue) {
+            cargo install --git "https://github.com/$Repo.git" voxforg-cli --root $InstallBase
+            Write-Host "Successfully built and installed via cargo." -ForegroundColor Green
+        } else {
+            Write-Error "Failed to download binary and cargo was not found. Please install Rust or check release assets."
+            exit 1
+        }
     }
 }
 
