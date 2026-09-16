@@ -23,6 +23,10 @@
 > **Project Status: In Active Development (Pre-v1.0)**  
 > Core engine architecture, hardware autodetect, DAG pipeline runner, and OpenAI-compatible API are functional. Engine backends, offline neural weights, and desktop packaging are actively progressing.
 
+> [!TIP]
+> **100% Local & Privacy Guaranteed**  
+> All neural voice synthesis, cloning, and transcription execute directly on your machine. Zero telemetry, zero audio streaming to external clouds, zero tracking. Fully functional offline.
+
 ---
 
 ## Direct Downloads (Desktop & Standalone)
@@ -31,8 +35,9 @@ For creators, studio producers, and desktop users: download the pre-compiled sta
 
 | Platform | Download | Package Format | File Size | Details |
 | :--- | :--- | :--- | :--- | :--- |
-| **Windows 10 / 11 (64-bit)** | [**Download .exe**](https://github.com/AMG555/VoxForg/releases/latest/download/voxforg-windows-x86_64.exe) | Standalone Executable (`.exe`) | ~13 MB | Single binary with server + embedded studio UI + speech engines |
-| **Windows 10 / 11 (64-bit)** | [**Download .zip**](https://github.com/AMG555/VoxForg/releases/latest/download/VoxForg-Windows-x64.zip) | Portable Bundle (`.zip`) | ~5 MB | Includes `voxforg.exe`, 1-click launcher, and desktop installer |
+| **Windows 10 / 11 (Installer)** | [**Download Setup (.exe)**](https://github.com/AMG555/VoxForg/releases/latest/download/VoxForg-Setup-v0.1.0-windows-x64.exe) | Setup Wizard (`.exe`) | ~14 MB | Professional installer with path selection, desktop shortcut, uninstaller |
+| **Windows 10 / 11 (Portable)** | [**Download Standalone .exe**](https://github.com/AMG555/VoxForg/releases/latest/download/voxforg-windows-x86_64.exe) | Portable Executable | ~13 MB | Single zero-install binary with embedded studio UI |
+| **Windows 10 / 11 (Zip Bundle)** | [**Download .zip**](https://github.com/AMG555/VoxForg/releases/latest/download/VoxForg-Windows-x64.zip) | Portable Bundle (`.zip`) | ~5 MB | Includes `voxforg.exe`, 1-click launcher, and desktop installer |
 | **macOS (Apple Silicon & Intel)** | [**Download Universal**](https://github.com/AMG555/VoxForg/releases/latest/download/voxforg-macos-universal) | Standalone Binary | ~14 MB | Universal binary with embedded studio UI |
 | **Linux (x86_64)** | [**Download .tar.gz**](https://github.com/AMG555/VoxForg/releases/latest/download/voxforg-linux-x86_64.tar.gz) | Tarball Archive | ~12 MB | Zero-dependency glibc standalone executable |
 

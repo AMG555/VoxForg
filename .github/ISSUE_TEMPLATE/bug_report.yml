@@ -1,0 +1,56 @@
+name: Bug Report
+description: Report an issue or unexpected behavior in VoxForg
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this issue!
+  - type: input
+    id: version
+    attributes:
+      label: VoxForg Version / Commit
+      description: What version or commit hash are you using?
+      placeholder: e.g. v0.1.0 or commit e4578d6
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System
+      description: What operating system are you running VoxForg on?
+      options:
+        - Windows 11 / 10
+        - macOS (Apple Silicon)
+        - macOS (Intel)
+        - Linux (Ubuntu/Debian)
+        - Linux (Arch/Fedora)
+        - Docker
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the Bug
+      description: A clear and concise description of what happened.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to Reproduce
+      description: Steps to reproduce the behavior.
+      placeholder: |
+        1. Start VoxForg with '...'
+        2. Open browser at '...'
+        3. Select model '...'
+        4. See error
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant Log Output
+      description: Please copy and paste any relevant terminal output or browser console logs.
+      render: shell
