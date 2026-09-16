@@ -25,7 +25,7 @@ use voxforg_hardware::HardwareProbe;
 #[command(about = "Unified Hardware-Adaptive Speech Synthesis Platform & Pipeline Engine", long_about = None)]
 struct Cli {
     #[command(subcommand)]
-    command: Commands,
+    command: Option<Commands>,
 }
 
 #[derive(Subcommand)]
@@ -92,7 +92,7 @@ struct ServeArgs {
     router_model: Option<String>,
 
     /// Automatically open web browser to workstation interface on startup
-    #[arg(long, default_value_t = false)]
+    #[arg(long, default_value_t = false, env = "VOXFORG_OPEN_BROWSER")]
     open: bool,
 }
 
@@ -263,7 +263,20 @@ async fn main() -> Result<()> {
 
     let cli = Cli::parse();
 
-    match cli.command {
+    let command = cli.command.unwrap_or_else(|| {
+        Commands::Serve(ServeArgs {
+            port: 8080,
+            host: "0.0.0.0".to_string(),
+            api_key: None,
+            data_dir: PathBuf::from("./data"),
+            router_url: None,
+            router_api_key: None,
+            router_model: None,
+            open: true,
+        })
+    });
+
+    match command {
         Commands::Serve(args) => run_serve(args).await,
         Commands::Synth(args) => run_synth(args).await,
         Commands::Hardware => run_hardware(),
