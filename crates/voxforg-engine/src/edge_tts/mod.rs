@@ -3,7 +3,7 @@ pub mod client;
 use async_trait::async_trait;
 use tokio::sync::mpsc;
 use tracing::warn;
-use voxforg_core::error::Result;
+use voxforg_core::error::{Result, VoxForgError};
 use voxforg_core::models::{AudioChunk, Gender, Voice};
 
 use crate::traits::{EngineCapabilities, SynthesisRequest, TtsEngine};
@@ -59,44 +59,6 @@ impl EdgeTtsEngine {
             rate_str,
             quick_xml_escape(&request.text)
         )
-    }
-
-    /// Internal resilient fallback synthesizing clean tones if cloud connection is unreachable
-    fn synthesize_fallback(&self, request: &SynthesisRequest) -> AudioChunk {
-        let duration_secs = (request.text.len() as f32 * 0.06).max(0.2);
-        let sample_rate = 24000;
-        let num_samples = (sample_rate as f32 * duration_secs) as usize;
-
-        let base_pitch = match request.voice_id.as_str() {
-            "en-US-GuyNeural" | "en-GB-RyanNeural" | "es-ES-AlvaroNeural" => 160.0,
-            "en-GB-SoniaNeural" | "fr-FR-DeniseNeural" => 220.0,
-            _ => 240.0,
-        };
-        let safe_pitch = if request.pitch.is_finite() {
-            request.pitch.clamp(-24.0, 24.0)
-        } else {
-            0.0
-        };
-        let freq = base_pitch * 2.0f32.powf(safe_pitch / 12.0);
-
-        let pcm_data: Vec<i16> = (0..num_samples)
-            .map(|i| {
-                let t = i as f32 / sample_rate as f32;
-                let env = (1.0 - (i as f32 / num_samples as f32))
-                    .min(i as f32 / 400.0)
-                    .clamp(0.0, 1.0);
-                let tone1 = f32::sin(2.0 * std::f32::consts::PI * freq * t);
-                let tone2 = 0.5 * f32::sin(4.0 * std::f32::consts::PI * freq * t);
-                ((tone1 + tone2) * 10000.0 * env) as i16
-            })
-            .collect();
-
-        AudioChunk {
-            sample_rate,
-            channels: 1,
-            pcm_data,
-            is_final: true,
-        }
     }
 }
 
@@ -274,17 +236,9 @@ impl TtsEngine for EdgeTtsEngine {
 
     async fn synthesize(&self, request: &SynthesisRequest) -> Result<AudioChunk> {
         let ssml = Self::build_ssml(request);
-
-        match EdgeTtsClient::synthesize(request, &ssml).await {
-            Ok(chunk) => Ok(chunk),
-            Err(e) => {
-                warn!(
-                    "Live Edge-TTS synthesis failed ({}). Operating in resilient offline fallback mode.",
-                    e
-                );
-                Ok(self.synthesize_fallback(request))
-            }
-        }
+        EdgeTtsClient::synthesize(request, &ssml)
+            .await
+            .map_err(|e| VoxForgError::Engine(format!("Edge-TTS neural synthesis failed: {}", e)))
     }
 
     async fn synthesize_stream(
@@ -294,38 +248,17 @@ impl TtsEngine for EdgeTtsEngine {
         let (tx, rx) = mpsc::channel(16);
         let ssml = Self::build_ssml(request);
         let request_clone = request.clone();
-        let fallback_chunk = self.synthesize_fallback(request);
 
         tokio::spawn(async move {
-            match EdgeTtsClient::stream_synthesis(&request_clone, &ssml, tx.clone()).await {
-                Ok(_) => {}
-                Err(e) => {
-                    warn!(
-                        "Live Edge-TTS streaming failed ({}). Streaming resilient fallback audio.",
+            if let Err(e) = EdgeTtsClient::stream_synthesis(&request_clone, &ssml, tx.clone()).await
+            {
+                warn!("Live Edge-TTS streaming error: {}", e);
+                let _ = tx
+                    .send(Err(VoxForgError::Engine(format!(
+                        "Edge-TTS neural streaming failed: {}",
                         e
-                    );
-                    let chunk_size = 4800; // 200ms
-                    let mut offset = 0;
-                    let total = fallback_chunk.pcm_data.len();
-
-                    while offset < total {
-                        let end = (offset + chunk_size).min(total);
-                        let is_final = end >= total;
-                        let slice = fallback_chunk.pcm_data[offset..end].to_vec();
-
-                        let sub_chunk = AudioChunk {
-                            sample_rate: fallback_chunk.sample_rate,
-                            channels: fallback_chunk.channels,
-                            pcm_data: slice,
-                            is_final,
-                        };
-
-                        if tx.send(Ok(sub_chunk)).await.is_err() {
-                            break;
-                        }
-                        offset = end;
-                    }
-                }
+                    ))))
+                    .await;
             }
         });
 

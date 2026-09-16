@@ -31,8 +31,24 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioElement, 
           const source = ctx.createMediaElementSource(audioElement);
           source.connect(analyser);
           analyser.connect(ctx.destination);
+
+          const resumeCtx = () => {
+            if (ctx.state === 'suspended') {
+              ctx.resume().catch(() => {});
+            }
+          };
+          audioElement.addEventListener('play', resumeCtx);
+          audioElement.addEventListener('playing', resumeCtx);
+
           sourceMap.set(audioElement, { analyser, ctx });
           analyserNode = analyser;
+        }
+      }
+
+      if (sourceMap.has(audioElement)) {
+        const { ctx } = sourceMap.get(audioElement)!;
+        if (ctx.state === 'suspended' && isPlaying) {
+          ctx.resume().catch(() => {});
         }
       }
     } catch (e) {

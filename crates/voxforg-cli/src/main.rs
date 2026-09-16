@@ -20,7 +20,7 @@ use voxforg_audio::WavEncoder;
 use voxforg_core::models::AudioContainerFormat;
 use voxforg_core::store::memory::MemoryStore;
 use voxforg_engine::{
-    AbTestRunner, AbTestScenario, EdgeTtsEngine, EngineRegistry, MockTtsEngine, OpenAiRouterEngine,
+    AbTestRunner, AbTestScenario, EdgeTtsEngine, EngineRegistry, OpenAiRouterEngine,
     PiperTtsEngine, Qwen3TtsEngine, SynthesisRequest, TtsEngine,
 };
 use voxforg_hardware::HardwareProbe;
@@ -309,7 +309,6 @@ async fn initialize_registry(
 ) -> Arc<EngineRegistry> {
     let registry = Arc::new(EngineRegistry::new());
     registry.register(Arc::new(EdgeTtsEngine::new())).await;
-    registry.register(Arc::new(MockTtsEngine::default())).await;
     registry.register(Arc::new(Qwen3TtsEngine::default())).await;
     registry.register(Arc::new(PiperTtsEngine::new())).await;
 

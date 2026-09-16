@@ -335,14 +335,10 @@ mod tests {
             format: AudioContainerFormat::Wav,
         };
 
-        let chunk = router
-            .synthesize(&req)
-            .await
-            .expect("Synthesize must succeed via fallback");
-        assert_eq!(chunk.sample_rate, 24000);
-        assert_eq!(chunk.channels, 1);
-        assert!(!chunk.pcm_data.is_empty());
-        assert!(chunk.is_final);
+        let res = router.synthesize(&req).await;
+        assert!(res.is_err(), "Must return error when API key is missing");
+        let err_msg = res.unwrap_err().to_string();
+        assert!(err_msg.contains("API key is not configured"));
     }
 
     #[tokio::test]

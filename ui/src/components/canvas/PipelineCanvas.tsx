@@ -28,6 +28,8 @@ import {
   X,
   AlertCircle,
   CheckCircle2,
+  MoreHorizontal,
+  Mic,
 } from 'lucide-react';
 import { PipelineDefinition, PipelineNode, Voice } from '../../types';
 import { NodeCard } from './NodeCard';
@@ -364,9 +366,113 @@ const PRESETS: Record<string, PipelineDefinition> = {
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },
+  character_dialogue: {
+    id: 'preset-character-dialogue',
+    name: 'Multi-Character Voice DAG',
+    nodes: [
+      {
+        id: 'char-1',
+        name: 'Captain Miller',
+        node_type: 'character_voice',
+        params: {
+          character_name: 'Captain Miller',
+          voice_id: 'en-US-GuyNeural',
+          text: 'All flight decks, initiate pre-burn diagnostics. We break orbit in forty seconds.',
+          speed: 0.98,
+          pitch: 0,
+        },
+        position: { x: 60, y: 60 },
+      },
+      {
+        id: 'char-2',
+        name: 'Science Officer Nova',
+        node_type: 'character_voice',
+        params: {
+          character_name: 'Science Officer Nova',
+          voice_id: 'en-US-AriaNeural',
+          text: 'Telemetry confirmed, Captain. Gravitational sensors are nominal and corridor is clear.',
+          speed: 1.05,
+          pitch: 1,
+        },
+        position: { x: 60, y: 260 },
+      },
+      {
+        id: 'char-3',
+        name: 'AI Co-pilot Vector',
+        node_type: 'character_voice',
+        params: {
+          character_name: 'AI Co-pilot Vector',
+          voice_id: 'en-US-JennyNeural',
+          text: 'Neural jump drive primed. Synchronizing audio channels to master broadcast.',
+          speed: 1.1,
+          pitch: 2,
+        },
+        position: { x: 60, y: 460 },
+      },
+      {
+        id: 'char-synth',
+        name: 'Neural Synthesizer',
+        node_type: 'synthesizer',
+        params: { speed: 1.0, pitch: 0.0 },
+        position: { x: 420, y: 260 },
+      },
+      {
+        id: 'char-filter',
+        name: 'Studio DSP Mastering',
+        node_type: 'audio_filter',
+        params: {
+          trim_silence: true,
+          enable_eq: true,
+          eq_low_gain_db: 1.0,
+          eq_high_gain_db: 2.0,
+          enable_compressor: true,
+          compressor_threshold_db: -16.0,
+          normalize: true,
+        },
+        position: { x: 740, y: 260 },
+      },
+      {
+        id: 'char-merge',
+        name: 'Audio Merge & Crossfade',
+        node_type: 'audio_merge',
+        params: { pause_ms: 220 },
+        position: { x: 1060, y: 260 },
+      },
+      {
+        id: 'char-sink',
+        name: 'Master Broadcast Sink',
+        node_type: 'output_sink',
+        params: {},
+        position: { x: 1380, y: 260 },
+      },
+    ],
+    edges: [
+      { id: 'che-1', from_node: 'char-1', to_node: 'char-synth' },
+      { id: 'che-2', from_node: 'char-2', to_node: 'char-synth' },
+      { id: 'che-3', from_node: 'char-3', to_node: 'char-synth' },
+      { id: 'che-4', from_node: 'char-synth', to_node: 'char-filter' },
+      { id: 'che-5', from_node: 'char-filter', to_node: 'char-merge' },
+      { id: 'che-6', from_node: 'char-merge', to_node: 'char-sink' },
+    ],
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
 };
 
 const NODE_TEMPLATES = [
+  {
+    type: 'character_voice',
+    name: 'Character Voice & Line',
+    category: 'Character',
+    icon: <Mic className="w-3.5 h-3.5 text-amber-400" />,
+    defaultParams: {
+      character_name: 'Speaker',
+      voice_id: 'en-US-AriaNeural',
+      text: 'Enter spoken dialogue here...',
+      speed: 1.0,
+      pitch: 0,
+    },
+  },
   {
     type: 'text_input',
     name: 'Text Script Input',
@@ -429,6 +535,7 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [showAddMenu, setShowAddMenu] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
 
   // 2D Canvas Viewport State (Pan & Zoom)
   const [pan, setPan] = useState<{ x: number; y: number }>({ x: 60, y: 120 });
@@ -448,29 +555,28 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
   const [pointerCanvasPos, setPointerCanvasPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
   // Workflow & Toast State
-  const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null);
-  const [showPasteModal, setShowPasteModal] = useState(false);
-  const [pasteJsonInput, setPasteJsonInput] = useState('');
+  const [toastMessage, setToastMessage] = useState<{ text: string; type?: 'info' | 'error' } | null>(null);
   const [isEditingName, setIsEditingName] = useState(false);
   const [nameInput, setNameInput] = useState('');
+  const [showPasteModal, setShowPasteModal] = useState(false);
+  const [pasteJsonInput, setPasteJsonInput] = useState('');
 
-  const showToast = useCallback((text: string, type: 'success' | 'info' | 'error' = 'success') => {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const canvasContainerRef = useRef<HTMLDivElement | null>(null);
+
+  const showToast = useCallback((text: string, type: 'info' | 'error' = 'info') => {
     setToastMessage({ text, type });
     setTimeout(() => {
-      setToastMessage((prev) => (prev?.text === text ? null : prev));
+      setToastMessage((cur) => (cur?.text === text ? null : cur));
     }, 2800);
   }, []);
 
-  const canvasContainerRef = useRef<HTMLDivElement | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-
+  // Update master audio source safely
   useEffect(() => {
-    return () => {
-      if (audioUrl) {
-        URL.revokeObjectURL(audioUrl);
-      }
-    };
+    if (audioRef.current && audioUrl) {
+      audioRef.current.load();
+    }
   }, [audioUrl]);
 
   const primarySelectedId = selectedNodeIds.size === 1 ? Array.from(selectedNodeIds)[0] : (selectedNodeIds.size > 0 ? Array.from(selectedNodeIds)[selectedNodeIds.size - 1] : null);
@@ -483,6 +589,13 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
       nodes: prev.nodes.map((n) => (n.id === nodeId ? { ...n, params } : n)),
     }));
   };
+
+  const handleUpdateNodeName = useCallback((nodeId: string, name: string) => {
+    setPipeline((prev) => ({
+      ...prev,
+      nodes: prev.nodes.map((n) => (n.id === nodeId ? { ...n, name } : n)),
+    }));
+  }, []);
 
   const handleSelectNode = useCallback((nodeId: string, isMultiToggle = false) => {
     setSelectedNodeIds((prev) => {
@@ -1154,8 +1267,9 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
       {/* Central Interactive Node Canvas */}
       <div className="flex-1 flex flex-col h-full bg-[#0B0E14] relative overflow-hidden">
         {/* Canvas Toolbar */}
-        <div className="h-12 border-b border-[#242E3D] bg-[#121820]/90 backdrop-blur px-4 flex items-center justify-between z-20 select-none">
-          <div className="flex items-center space-x-2">
+        <div className="h-12 border-b border-[#242E3D] bg-[#121820]/95 backdrop-blur px-4 flex items-center justify-between z-20 select-none">
+          {/* Left section: Title, Preset selector, Selection badge */}
+          <div className="flex items-center space-x-3">
             {/* Editable Workflow Title */}
             {isEditingName ? (
               <div className="flex items-center space-x-1">
@@ -1201,39 +1315,33 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
               </div>
             )}
 
-            <span className="text-[11px] font-mono text-[#64748B]">
-              ({pipeline.nodes.length} nodes, {pipeline.edges.length} edges)
+            <span className="text-[11px] font-mono text-[#64748B] bg-[#0B0E14] px-2 py-0.5 rounded border border-[#242E3D]">
+              {pipeline.nodes.length} nodes
             </span>
 
-            {/* New Workflow button */}
-            <button
-              onClick={handleNewWorkflow}
-              className="flex items-center space-x-1 px-2 py-1 rounded bg-[#1A222D] hover:bg-[#242E3D] text-[#94A3B8] hover:text-white text-xs font-mono border border-[#242E3D] transition-colors ml-1"
-              title="Create new blank workflow"
-            >
-              <FilePlus className="w-3.5 h-3.5 text-sky-400" />
-              <span className="hidden md:inline">New</span>
-            </button>
-
-            {/* Clear Workflow button */}
-            <button
-              onClick={handleClearWorkflow}
-              className="flex items-center space-x-1 px-2 py-1 rounded bg-[#1A222D] hover:bg-rose-500/20 text-[#94A3B8] hover:text-rose-400 text-xs font-mono border border-[#242E3D] transition-colors"
-              title="Clear all nodes from workflow"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span className="hidden md:inline">Clear</span>
-            </button>
-
-            {/* Select All button */}
-            <button
-              onClick={handleSelectAll}
-              className="flex items-center space-x-1 px-2 py-1 rounded bg-[#1A222D] hover:bg-[#242E3D] text-[#94A3B8] hover:text-white text-xs font-mono border border-[#242E3D] transition-colors"
-              title="Select all nodes (Ctrl+A)"
-            >
-              <CheckSquare className="w-3.5 h-3.5 text-amber-400" />
-              <span className="hidden lg:inline">Select All</span>
-            </button>
+            {/* Presets dropdown */}
+            <div className="flex items-center space-x-1.5 pl-2 border-l border-[#242E3D]">
+              <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <select
+                onChange={(e) => {
+                  const preset = PRESETS[e.target.value];
+                  if (preset) {
+                    setPipeline(preset);
+                    setSelectedNodeIds(preset.nodes[0] ? new Set([preset.nodes[0].id]) : new Set());
+                    setTimeout(handleFitToView, 50);
+                    showToast(`Loaded preset: ${preset.name}`);
+                  }
+                }}
+                className="bg-[#0B0E14] text-[#94A3B8] border border-[#242E3D] hover:border-[#3B485C] rounded px-2.5 py-1 text-[11px] font-mono focus:border-amber-500 focus:outline-none cursor-pointer transition-colors"
+                defaultValue="narrative"
+              >
+                <option value="character_dialogue">Preset: Character Voice DAG</option>
+                <option value="narrative">Preset: Narrative Dialogue</option>
+                <option value="podcast">Preset: Multi-Voice Podcast</option>
+                <option value="communications">Preset: Tactical Comms</option>
+                <option value="radio">Preset: Punchy Radio</option>
+              </select>
+            </div>
 
             {/* Active selection badge & quick actions */}
             {selectedNodeIds.size > 0 && (
@@ -1259,56 +1367,39 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
                 </button>
               </div>
             )}
+          </div>
 
-            {/* Presets dropdown */}
-            <div className="flex items-center space-x-1 pl-2 border-l border-[#242E3D]">
-              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-              <select
-                onChange={(e) => {
-                  const preset = PRESETS[e.target.value];
-                  if (preset) {
-                    setPipeline(preset);
-                    setSelectedNodeIds(preset.nodes[0] ? new Set([preset.nodes[0].id]) : new Set());
-                    setTimeout(handleFitToView, 50);
-                    showToast(`Loaded preset: ${preset.name}`);
-                  }
-                }}
-                className="bg-[#0B0E14] text-[#94A3B8] border border-[#242E3D] rounded px-2 py-1 text-[11px] font-mono focus:border-amber-500 focus:outline-none cursor-pointer"
-                defaultValue="narrative"
-              >
-                <option value="narrative">Preset: Narrative Dialogue</option>
-                <option value="podcast">Preset: Multi-Voice Podcast</option>
-                <option value="communications">Preset: Tactical Comms</option>
-                <option value="radio">Preset: Punchy Radio</option>
-              </select>
-            </div>
-
+          {/* Right section: Clean Primary controls + More dropdown */}
+          <div className="flex items-center space-x-2">
             {/* Add Node Dropdown */}
-            <div className="relative pl-1">
+            <div className="relative">
               <button
-                onClick={() => setShowAddMenu((prev) => !prev)}
-                className="flex items-center space-x-1 px-2.5 py-1 rounded bg-[#1A222D] hover:bg-[#242E3D] text-amber-400 hover:text-amber-300 text-xs font-mono border border-amber-500/30 hover:border-amber-500 transition-colors"
+                onClick={() => {
+                  setShowAddMenu((prev) => !prev);
+                  setShowMoreMenu(false);
+                }}
+                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 hover:text-amber-300 text-xs font-mono font-semibold border border-amber-500/40 hover:border-amber-500 transition-colors"
               >
-                <Plus className="w-3.5 h-3.5" />
+                <Plus className="w-3.5 h-3.5 text-amber-400" />
                 <span>Add Node</span>
               </button>
 
               {showAddMenu && (
-                <div className="absolute left-1 top-full mt-1 w-56 bg-[#121820] border border-[#242E3D] rounded-lg shadow-2xl z-50 py-1 font-mono text-xs">
-                  <div className="px-3 py-1.5 text-[10px] font-semibold text-[#64748B] uppercase tracking-wider border-b border-[#242E3D]">
-                    Available DAG Nodes
+                <div className="absolute right-0 top-full mt-1.5 w-60 bg-[#121820] border border-[#242E3D] rounded-xl shadow-2xl z-50 py-1.5 font-mono text-xs">
+                  <div className="px-3 py-1 text-[10px] font-semibold text-[#64748B] uppercase tracking-wider border-b border-[#242E3D]/80">
+                    Available Studio Nodes
                   </div>
                   {NODE_TEMPLATES.map((tmpl) => (
                     <button
                       key={tmpl.type}
                       onClick={() => handleAddNode(tmpl)}
-                      className="w-full px-3 py-2 text-left hover:bg-[#1A222D] flex items-center space-x-2 text-[#F0F4F8] transition-colors"
+                      className="w-full px-3 py-2 text-left hover:bg-[#1A222D] flex items-center space-x-2.5 text-[#F0F4F8] transition-colors"
                     >
-                      <div className="p-1 rounded bg-[#0B0E14] border border-[#242E3D]">
+                      <div className="p-1.5 rounded bg-[#0B0E14] border border-[#242E3D]">
                         {tmpl.icon}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="truncate font-semibold text-xs">{tmpl.name}</div>
+                        <div className="truncate font-semibold text-xs text-white">{tmpl.name}</div>
                         <div className="text-[10px] text-[#64748B] uppercase">{tmpl.category}</div>
                       </div>
                     </button>
@@ -1320,55 +1411,14 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
             {/* Auto-Align studio nodes button */}
             <button
               onClick={handleAutoLayout}
-              className="flex items-center space-x-1 px-2.5 py-1 rounded bg-[#1A222D] hover:bg-[#242E3D] text-[#94A3B8] hover:text-white text-xs font-mono border border-[#242E3D] transition-colors"
+              className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg bg-[#1A222D] hover:bg-[#242E3D] text-[#94A3B8] hover:text-white text-xs font-mono border border-[#242E3D] transition-colors"
               title="Auto-arrange studio nodes sequentially"
             >
-              <Move className="w-3.5 h-3.5 text-amber-500" />
-              <span>Auto-Align</span>
-            </button>
-          </div>
-
-          <div className="flex items-center space-x-1.5">
-            {/* Paste from Clipboard button */}
-            <button
-              onClick={handlePasteFromClipboard}
-              className="flex items-center space-x-1 px-2.5 py-1 rounded bg-[#1A222D] hover:bg-[#242E3D] text-amber-400 hover:text-amber-300 text-xs font-mono border border-amber-500/30 hover:border-amber-500 transition-colors"
-              title="Paste Workflow or Node JSON from Clipboard (Ctrl+V)"
-            >
-              <Clipboard className="w-3.5 h-3.5" />
-              <span>Paste JSON</span>
+              <Move className="w-3.5 h-3.5 text-amber-400" />
+              <span>Align</span>
             </button>
 
-            {/* Copy Workflow JSON button */}
-            <button
-              onClick={handleCopyWorkflowJson}
-              className="flex items-center space-x-1 px-2 py-1 rounded bg-[#1A222D] hover:bg-[#242E3D] text-[#94A3B8] hover:text-white text-xs font-mono border border-[#242E3D] transition-colors"
-              title="Copy Workflow JSON to Clipboard"
-            >
-              <Copy className="w-3.5 h-3.5" />
-              <span className="hidden md:inline">Copy</span>
-            </button>
-
-            {/* Export File button */}
-            <button
-              onClick={handleExportJson}
-              className="flex items-center space-x-1 px-2 py-1 rounded bg-[#1A222D] hover:bg-[#242E3D] text-[#94A3B8] hover:text-white text-xs font-mono border border-[#242E3D] transition-colors"
-              title="Export DAG to JSON file"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span className="hidden md:inline">Export</span>
-            </button>
-
-            {/* Import File button */}
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="flex items-center space-x-1 px-2 py-1 rounded bg-[#1A222D] hover:bg-[#242E3D] text-[#94A3B8] hover:text-white text-xs font-mono border border-[#242E3D] transition-colors"
-              title="Import DAG from JSON file"
-            >
-              <Upload className="w-3.5 h-3.5" />
-              <span className="hidden md:inline">Import</span>
-            </button>
-
+            {/* Audio playback preview */}
             {audioUrl && (
               <audio
                 ref={audioRef}
@@ -1377,14 +1427,15 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
                 onPlay={() => setIsPlaying(true)}
                 onPause={() => setIsPlaying(false)}
                 onEnded={() => setIsPlaying(false)}
-                className="h-7 w-60 rounded bg-[#1A222D]"
+                className="h-7 w-48 rounded bg-[#1A222D]"
               />
             )}
 
+            {/* Execute Pipeline button */}
             <button
               onClick={handleRunPipeline}
               disabled={isRunning}
-              className="flex items-center space-x-2 px-3.5 py-1.5 rounded bg-amber-500 hover:bg-amber-400 text-black font-semibold text-xs transition-colors shadow-lg shadow-amber-500/20 disabled:opacity-50"
+              className="flex items-center space-x-2 px-4 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-semibold text-xs transition-colors shadow-lg shadow-amber-500/20 disabled:opacity-50"
             >
               {isRunning ? (
                 <>
@@ -1398,6 +1449,105 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
                 </>
               )}
             </button>
+
+            {/* More Actions Menu (n8n inspired) */}
+            <div className="relative">
+              <button
+                onClick={() => {
+                  setShowMoreMenu((prev) => !prev);
+                  setShowAddMenu(false);
+                }}
+                className="p-1.5 rounded-lg bg-[#1A222D] hover:bg-[#242E3D] text-[#94A3B8] hover:text-white border border-[#242E3D] transition-colors"
+                title="Workflow options"
+              >
+                <MoreHorizontal className="w-4 h-4" />
+              </button>
+
+              {showMoreMenu && (
+                <div className="absolute right-0 top-full mt-1.5 w-52 bg-[#121820] border border-[#242E3D] rounded-xl shadow-2xl z-50 py-1.5 font-mono text-xs">
+                  <button
+                    onClick={() => {
+                      setShowMoreMenu(false);
+                      handleNewWorkflow();
+                    }}
+                    className="w-full px-3 py-2 text-left hover:bg-[#1A222D] flex items-center space-x-2 text-[#94A3B8] hover:text-white transition-colors"
+                  >
+                    <FilePlus className="w-3.5 h-3.5 text-sky-400" />
+                    <span>New Workflow</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setShowMoreMenu(false);
+                      handleSelectAll();
+                    }}
+                    className="w-full px-3 py-2 text-left hover:bg-[#1A222D] flex items-center space-x-2 text-[#94A3B8] hover:text-white transition-colors"
+                  >
+                    <CheckSquare className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Select All (Ctrl+A)</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setShowMoreMenu(false);
+                      handleClearWorkflow();
+                    }}
+                    className="w-full px-3 py-2 text-left hover:bg-rose-500/20 flex items-center space-x-2 text-[#94A3B8] hover:text-rose-400 transition-colors"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Clear Canvas</span>
+                  </button>
+
+                  <div className="border-t border-[#242E3D] my-1" />
+
+                  <button
+                    onClick={() => {
+                      setShowMoreMenu(false);
+                      handlePasteFromClipboard();
+                    }}
+                    className="w-full px-3 py-2 text-left hover:bg-[#1A222D] flex items-center space-x-2 text-amber-400 hover:text-amber-300 transition-colors"
+                  >
+                    <Clipboard className="w-3.5 h-3.5" />
+                    <span>Paste JSON (Ctrl+V)</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setShowMoreMenu(false);
+                      handleCopyWorkflowJson();
+                    }}
+                    className="w-full px-3 py-2 text-left hover:bg-[#1A222D] flex items-center space-x-2 text-[#94A3B8] hover:text-white transition-colors"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>Copy Workflow JSON</span>
+                  </button>
+
+                  <div className="border-t border-[#242E3D] my-1" />
+
+                  <button
+                    onClick={() => {
+                      setShowMoreMenu(false);
+                      handleExportJson();
+                    }}
+                    className="w-full px-3 py-2 text-left hover:bg-[#1A222D] flex items-center space-x-2 text-[#94A3B8] hover:text-white transition-colors"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Export File</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setShowMoreMenu(false);
+                      fileInputRef.current?.click();
+                    }}
+                    className="w-full px-3 py-2 text-left hover:bg-[#1A222D] flex items-center space-x-2 text-[#94A3B8] hover:text-white transition-colors"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Import File</span>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -1672,6 +1822,7 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
         voices={voices}
         onClose={() => setSelectedNodeIds(new Set())}
         onUpdateParams={handleUpdateParams}
+        onUpdateName={handleUpdateNodeName}
         onDeleteNode={handleDeleteNode}
         onDuplicateNode={handleDuplicateNode}
         onCopyNodeJson={handleCopyNodeJson}

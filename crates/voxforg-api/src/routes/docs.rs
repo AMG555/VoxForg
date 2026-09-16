@@ -5,6 +5,23 @@ use axum::{
 };
 use serde_json::json;
 
+const FAVICON_ICO: &[u8] = include_bytes!("../../../../assets/voxforg.ico");
+
+pub async fn favicon_handler() -> impl IntoResponse {
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("image/x-icon"),
+        )
+        .header(
+            header::CACHE_CONTROL,
+            HeaderValue::from_static("public, max-age=86400"),
+        )
+        .body(axum::body::Body::from(FAVICON_ICO))
+        .unwrap()
+}
+
 pub async fn scalar_docs_html() -> impl IntoResponse {
     let html = r#"<!doctype html>
 <html lang="en">
@@ -13,6 +30,7 @@ pub async fn scalar_docs_html() -> impl IntoResponse {
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>VoxForg API Reference | Studio Neural Speech & DSP</title>
     <meta name="description" content="Interactive API documentation for VoxForg neural audio synthesis, graph pipelines, and automated QA." />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <style>
       body {
         margin: 0;

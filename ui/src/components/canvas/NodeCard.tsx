@@ -9,6 +9,7 @@ import {
   Save,
   Trash2,
   Copy,
+  Mic,
 } from 'lucide-react';
 import { PipelineNode } from '../../types';
 
@@ -25,6 +26,7 @@ interface NodeCardProps {
 }
 
 const nodeIcons: Record<string, React.ReactNode> = {
+  character_voice: <Mic className="w-4 h-4 text-amber-400" />,
   text_input: <FileText className="w-4 h-4 text-sky-400" />,
   speaker_parser: <Users className="w-4 h-4 text-purple-400" />,
   voice_assigner: <UserCheck className="w-4 h-4 text-amber-400" />,
@@ -35,6 +37,7 @@ const nodeIcons: Record<string, React.ReactNode> = {
 };
 
 const nodeCategoryLabels: Record<string, string> = {
+  character_voice: 'Character',
   text_input: 'Ingestion',
   speaker_parser: 'Analysis',
   voice_assigner: 'Routing',
@@ -139,6 +142,21 @@ export const NodeCard: React.FC<NodeCardProps> = ({
 
       {/* Card Content Snippet */}
       <div className="p-3 text-xs font-mono text-[#94A3B8] space-y-1">
+        {node.node_type === 'character_voice' && (
+          <div className="space-y-1">
+            <div className="flex items-center justify-between text-[11px]">
+              <span className="font-semibold text-amber-400 truncate max-w-[120px]">
+                {node.params.character_name || 'Character'}
+              </span>
+              <span className="text-[10px] text-sky-400 bg-sky-950/50 px-1.5 py-0.5 rounded border border-sky-800/50 truncate max-w-[90px]">
+                {node.params.voice_id ? node.params.voice_id.split('-').slice(-1)[0] : 'Voice'}
+              </span>
+            </div>
+            <p className="line-clamp-2 text-[#F0F4F8] font-sans text-xs italic">
+              "{node.params.text || 'No dialogue entered'}"
+            </p>
+          </div>
+        )}
         {node.node_type === 'text_input' && (
           <p className="line-clamp-2 text-[#F0F4F8] font-sans text-xs">
             "{node.params.text || 'No text provided'}"

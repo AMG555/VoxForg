@@ -36,9 +36,18 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices }) => {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Router API Key config state
+  // Router Multi-Platform config state
+  const [routerProvider, setRouterProvider] = useState<'openrouter' | 'openai' | 'groq' | 'together' | 'custom'>(() => {
+    return (typeof window !== 'undefined' ? (localStorage.getItem('voxforg_router_provider') as any) : null) || 'openrouter';
+  });
   const [apiKeyInput, setApiKeyInput] = useState<string>(() => {
     return typeof window !== 'undefined' ? localStorage.getItem('voxforg_api_key') || '' : '';
+  });
+  const [routerModelInput, setRouterModelInput] = useState<string>(() => {
+    return typeof window !== 'undefined' ? localStorage.getItem('voxforg_router_model') || 'openai/tts-1' : 'openai/tts-1';
+  });
+  const [routerCustomUrl, setRouterCustomUrl] = useState<string>(() => {
+    return typeof window !== 'undefined' ? localStorage.getItem('voxforg_router_url') || '' : '';
   });
   const [keySaved, setKeySaved] = useState<boolean>(false);
 
@@ -56,9 +65,11 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices }) => {
   const [isRecording, setIsRecording] = useState<boolean>(false);
   const [recordingSeconds, setRecordingSeconds] = useState<number>(0);
   const [recordedAudioUrl, setRecordedAudioUrl] = useState<string | null>(null);
+  const [isPreviewPlaying, setIsPreviewPlaying] = useState<boolean>(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<any>(null);
+  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     return () => {
@@ -74,17 +85,36 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices }) => {
     };
   }, [audioUrl, recordedAudioUrl]);
 
-  const filteredVoices = voices.filter(
-    (v) =>
-      v.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      v.language.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      v.engine_id.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Clean neural voices list: eliminate mock sine voices and sort working neural voices to top
+  const filteredVoices = voices
+    .filter((v) => v.engine_id !== 'mock-tts')
+    .filter(
+      (v) =>
+        v.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        v.language.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        v.engine_id.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+    .sort((a, b) => {
+      const getPriority = (v: Voice) => {
+        if (v.tags?.includes('cloned')) return 0;
+        if (v.engine_id === 'edge-tts') return 1;
+        if (v.engine_id === 'piper-tts') return 2;
+        return 3;
+      };
+      return getPriority(a) - getPriority(b);
+    });
 
-  const selectedVoice = voices.find((v) => v.id === selectedVoiceId) || voices[0];
+  const selectedVoice =
+    filteredVoices.find((v) => v.id === selectedVoiceId) ||
+    filteredVoices.find((v) => v.engine_id === 'edge-tts') ||
+    filteredVoices[0] ||
+    voices[0];
+
+  const isRouterConfigured = Boolean(apiKeyInput.trim() && routerModelInput.trim());
+  const canGenerate = selectedVoice?.engine_id !== 'openai-router' || isRouterConfigured;
 
   const handleGenerate = async () => {
-    if (!text.trim()) return;
+    if (!text.trim() || !canGenerate) return;
     try {
       setIsGenerating(true);
       if (audioUrl) {
@@ -93,7 +123,7 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices }) => {
       }
       const blob = await api.synthesizeDirect({
         input: text,
-        voice: selectedVoiceId,
+        voice: selectedVoice.id,
         speed,
         pitch,
       });
@@ -106,9 +136,29 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices }) => {
     }
   };
 
-  const handleSaveApiKey = () => {
+  const handleProviderChange = (provider: 'openrouter' | 'openai' | 'groq' | 'together' | 'custom') => {
+    setRouterProvider(provider);
+    let defaultModel = routerModelInput;
+    if (provider === 'openrouter') defaultModel = 'openai/tts-1';
+    else if (provider === 'openai') defaultModel = 'tts-1';
+    else if (provider === 'groq') defaultModel = 'whisper-large-v3';
+    else if (provider === 'together') defaultModel = 'cartesia/sonic';
+
+    setRouterModelInput(defaultModel);
     if (typeof window !== 'undefined') {
+      localStorage.setItem('voxforg_router_provider', provider);
+      localStorage.setItem('voxforg_router_model', defaultModel);
+    }
+  };
+
+  const handleSaveRouterConfig = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('voxforg_router_provider', routerProvider);
       localStorage.setItem('voxforg_api_key', apiKeyInput.trim());
+      localStorage.setItem('voxforg_router_model', routerModelInput.trim());
+      if (routerCustomUrl.trim()) {
+        localStorage.setItem('voxforg_router_url', routerCustomUrl.trim());
+      }
       setKeySaved(true);
       setTimeout(() => setKeySaved(false), 2500);
     }
@@ -118,20 +168,35 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices }) => {
   const startRecording = async () => {
     try {
       audioChunksRef.current = [];
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
+
+      // Cross-browser MIME type check
+      const supportedMime = [
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/ogg;codecs=opus',
+        'audio/mp4',
+      ].find((t) => typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(t)) || '';
+
+      const recorderOptions = supportedMime ? { mimeType: supportedMime } : undefined;
+      const mediaRecorder = new MediaRecorder(stream, recorderOptions);
       mediaRecorderRef.current = mediaRecorder;
 
       mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
+        if (event.data && event.data.size > 0) {
           audioChunksRef.current.push(event.data);
         }
       };
 
       mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, {
-          type: mediaRecorder.mimeType || 'audio/webm',
-        });
+        const chosenMime = mediaRecorder.mimeType || supportedMime || 'audio/webm';
+        const audioBlob = new Blob(audioChunksRef.current, { type: chosenMime });
         if (recordedAudioUrl) {
           URL.revokeObjectURL(recordedAudioUrl);
         }
@@ -152,7 +217,7 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices }) => {
         stream.getTracks().forEach((track) => track.stop());
       };
 
-      mediaRecorder.start(200); // 200ms timeslices
+      mediaRecorder.start(250);
       setIsRecording(true);
       setRecordingSeconds(0);
 
@@ -363,36 +428,104 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices }) => {
           )}
 
           {selectedVoice?.engine_id === 'openai-router' && (
-            <div className="p-3.5 rounded-lg bg-sky-500/10 border border-sky-500/25 space-y-2 text-xs">
-              <div className="flex items-center space-x-2 text-sky-400 font-semibold">
-                <Key className="w-4 h-4" />
-                <span>OpenRouter / OpenAI API Credentials</span>
+            <div className="p-4 rounded-xl bg-[#121820] border border-sky-500/30 space-y-3.5 text-xs shadow-xl">
+              <div className="flex items-center justify-between border-b border-[#242E3D] pb-2">
+                <div className="flex items-center space-x-2 text-sky-400 font-semibold">
+                  <Key className="w-4 h-4" />
+                  <span>External Router Platform & Credentials</span>
+                </div>
+                <span className="text-[10px] font-mono text-[#64748B]">Stored in browser</span>
               </div>
-              <p className="text-[#94A3B8] text-[11px]">
-                Enter your Bearer key for external cloud TTS routing (e.g. OpenRouter or OpenAI). Stored securely in your browser session.
-              </p>
-              <div className="flex items-center space-x-2 pt-1">
-                <input
-                  type="password"
-                  placeholder="sk-or-v1-... or sk-proj-..."
-                  value={apiKeyInput}
-                  onChange={(e) => setApiKeyInput(e.target.value)}
-                  className="flex-1 bg-[#0B0E14] border border-[#242E3D] rounded px-3 py-1.5 text-xs text-white font-mono focus:border-sky-500 focus:outline-none"
-                />
-                <button
-                  onClick={handleSaveApiKey}
-                  className="px-3 py-1.5 rounded bg-sky-500 hover:bg-sky-400 text-black font-semibold text-xs transition-colors flex items-center space-x-1"
-                >
-                  {keySaved ? (
-                    <>
-                      <Check className="w-3.5 h-3.5" />
-                      <span>Saved!</span>
-                    </>
-                  ) : (
-                    <span>Save Key</span>
-                  )}
-                </button>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-mono uppercase text-[#94A3B8] mb-1">
+                    Router Provider
+                  </label>
+                  <select
+                    value={routerProvider}
+                    onChange={(e) => handleProviderChange(e.target.value as any)}
+                    className="w-full bg-[#0B0E14] border border-[#242E3D] rounded px-2.5 py-1.5 text-white font-mono text-xs focus:border-sky-500 focus:outline-none cursor-pointer"
+                  >
+                    <option value="openrouter">OpenRouter (openrouter.ai)</option>
+                    <option value="openai">OpenAI Direct (api.openai.com)</option>
+                    <option value="groq">Groq Cloud (api.groq.com)</option>
+                    <option value="together">Together AI (together.xyz)</option>
+                    <option value="custom">Custom Server / Local URL</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-mono uppercase text-[#94A3B8] mb-1">
+                    Exact Model ID *
+                  </label>
+                  <input
+                    type="text"
+                    value={routerModelInput}
+                    onChange={(e) => setRouterModelInput(e.target.value)}
+                    placeholder="e.g. openai/tts-1, tts-1"
+                    className="w-full bg-[#0B0E14] border border-[#242E3D] rounded px-2.5 py-1.5 text-white font-mono text-xs focus:border-sky-500 focus:outline-none"
+                  />
+                </div>
               </div>
+
+              {routerProvider === 'custom' && (
+                <div>
+                  <label className="block text-[10px] font-mono uppercase text-[#94A3B8] mb-1">
+                    Custom Base URL *
+                  </label>
+                  <input
+                    type="text"
+                    value={routerCustomUrl}
+                    onChange={(e) => setRouterCustomUrl(e.target.value)}
+                    placeholder="e.g. http://localhost:8000/v1 or https://my-proxy/v1"
+                    className="w-full bg-[#0B0E14] border border-[#242E3D] rounded px-2.5 py-1.5 text-white font-mono text-xs focus:border-sky-500 focus:outline-none"
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="block text-[10px] font-mono uppercase text-[#94A3B8] mb-1">
+                  API Key / Bearer Token *
+                </label>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="password"
+                    placeholder={
+                      routerProvider === 'openrouter'
+                        ? 'sk-or-v1-...'
+                        : routerProvider === 'openai'
+                        ? 'sk-proj-...'
+                        : routerProvider === 'groq'
+                        ? 'gsk_...'
+                        : 'Enter provider API key...'
+                    }
+                    value={apiKeyInput}
+                    onChange={(e) => setApiKeyInput(e.target.value)}
+                    className="flex-1 bg-[#0B0E14] border border-[#242E3D] rounded px-3 py-1.5 text-xs text-white font-mono focus:border-sky-500 focus:outline-none"
+                  />
+                  <button
+                    onClick={handleSaveRouterConfig}
+                    className="px-3.5 py-1.5 rounded bg-sky-500 hover:bg-sky-400 text-black font-semibold text-xs transition-colors flex items-center space-x-1"
+                  >
+                    {keySaved ? (
+                      <>
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Saved!</span>
+                      </>
+                    ) : (
+                      <span>Save Config</span>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {!isRouterConfigured && (
+                <div className="p-2.5 rounded bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[11px] font-mono flex items-center space-x-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>Enter API key and exact Model ID to enable external neural synthesis.</span>
+                </div>
+              )}
             </div>
           )}
 
@@ -453,37 +586,49 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices }) => {
           </div>
 
           <div className="space-y-4">
-            <div className="flex items-center space-x-4">
-              <button
-                onClick={handleGenerate}
-                disabled={isGenerating}
-                className="flex items-center space-x-2 px-5 py-2.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-semibold text-xs transition-colors shadow-lg shadow-amber-500/20 disabled:opacity-50"
-              >
-                {isGenerating ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Synthesizing...</span>
-                  </>
-                ) : (
-                  <>
-                    <Play className="w-4 h-4 fill-black" />
-                    <span>Generate Audio</span>
-                  </>
-                )}
-              </button>
+            {canGenerate ? (
+              <div className="flex items-center space-x-4">
+                <button
+                  onClick={handleGenerate}
+                  disabled={isGenerating}
+                  className="flex items-center space-x-2 px-5 py-2.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-semibold text-xs transition-colors shadow-lg shadow-amber-500/20 disabled:opacity-50"
+                >
+                  {isGenerating ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Synthesizing...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-4 h-4 fill-black" />
+                      <span>Generate Audio</span>
+                    </>
+                  )}
+                </button>
 
-              {audioUrl && (
-                <audio
-                  ref={audioRef}
-                  controls
-                  src={audioUrl}
-                  onPlay={() => setIsPlaying(true)}
-                  onPause={() => setIsPlaying(false)}
-                  onEnded={() => setIsPlaying(false)}
-                  className="h-10 w-96 rounded-lg bg-[#121820]"
-                />
-              )}
-            </div>
+                {audioUrl && (
+                  <audio
+                    ref={audioRef}
+                    controls
+                    src={audioUrl}
+                    onPlay={() => setIsPlaying(true)}
+                    onPause={() => setIsPlaying(false)}
+                    onEnded={() => setIsPlaying(false)}
+                    className="h-10 w-96 rounded-lg bg-[#121820]"
+                  />
+                )}
+              </div>
+            ) : (
+              <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-start space-x-3 text-xs text-amber-300 font-mono">
+                <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                <div>
+                  <div className="font-semibold text-white">Generate Audio Hidden: Router Setup Required</div>
+                  <div className="text-[11px] text-[#94A3B8] mt-1 leading-relaxed">
+                    This voice routes through an external API. Add your working API key and exact Model ID in the configuration panel above to unlock audio generation.
+                  </div>
+                </div>
+              </div>
+            )}
 
             {audioUrl && (
               <AudioVisualizer
@@ -592,7 +737,46 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices }) => {
                             <span>Record Again</span>
                           </button>
                         </div>
-                        <audio controls src={recordedAudioUrl} className="w-full h-8 rounded bg-[#1A222D]" />
+
+                        <div className="flex items-center space-x-2.5 bg-[#121820] p-2.5 rounded-lg border border-[#242E3D]">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!previewAudioRef.current) return;
+                              if (isPreviewPlaying) {
+                                previewAudioRef.current.pause();
+                                setIsPreviewPlaying(false);
+                              } else {
+                                previewAudioRef.current.currentTime = 0;
+                                previewAudioRef.current.play().catch(console.error);
+                                setIsPreviewPlaying(true);
+                              }
+                            }}
+                            className="px-3.5 py-1.5 rounded-md bg-amber-500 hover:bg-amber-400 text-black font-semibold text-xs flex items-center space-x-1.5 transition-colors shadow-sm shrink-0"
+                          >
+                            {isPreviewPlaying ? (
+                              <>
+                                <Square className="w-3.5 h-3.5 fill-black" />
+                                <span>Stop</span>
+                              </>
+                            ) : (
+                              <>
+                                <Play className="w-3.5 h-3.5 fill-black" />
+                                <span>Play Preview</span>
+                              </>
+                            )}
+                          </button>
+
+                          <audio
+                            ref={previewAudioRef}
+                            controls
+                            src={recordedAudioUrl}
+                            onPlay={() => setIsPreviewPlaying(true)}
+                            onPause={() => setIsPreviewPlaying(false)}
+                            onEnded={() => setIsPreviewPlaying(false)}
+                            className="flex-1 h-8 rounded bg-[#0B0E14]"
+                          />
+                        </div>
                       </div>
                     ) : isRecording ? (
                       <div className="flex flex-col items-center space-y-3 py-2">

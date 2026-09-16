@@ -8,6 +8,7 @@ interface NodeInspectorProps {
   voices: Voice[];
   onClose: () => void;
   onUpdateParams: (nodeId: string, params: Record<string, any>) => void;
+  onUpdateName?: (nodeId: string, name: string) => void;
   onDeleteNode?: (nodeId: string) => void;
   onDuplicateNode?: (nodeId: string) => void;
   onCopyNodeJson?: (node: PipelineNode) => void;
@@ -23,6 +24,7 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
   voices,
   onClose,
   onUpdateParams,
+  onUpdateName,
   onDeleteNode,
   onDuplicateNode,
   onCopyNodeJson,
@@ -223,10 +225,101 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
           <input
             type="text"
             value={node.name}
-            readOnly
-            className="w-full bg-[#0B0E14] border border-[#242E3D] rounded px-3 py-1.5 text-white font-mono text-xs focus:outline-none"
+            onChange={(e) => onUpdateName?.(node.id, e.target.value)}
+            placeholder="Node Name"
+            className="w-full bg-[#0B0E14] border border-[#242E3D] hover:border-[#38465a] focus:border-amber-500 rounded px-3 py-1.5 text-white font-mono text-xs focus:outline-none transition-colors"
           />
         </div>
+
+        {node.node_type === 'character_voice' && (
+          <div className="space-y-4 bg-[#0B0E14] p-3.5 rounded-lg border border-[#242E3D]">
+            <div className="flex items-center space-x-2 text-amber-400 font-semibold text-xs border-b border-[#242E3D] pb-2">
+              <Mic className="w-4 h-4 text-amber-400" />
+              <span>Character Dialogue & Voice</span>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-mono uppercase text-[#94A3B8] mb-1">
+                Character Name
+              </label>
+              <input
+                type="text"
+                value={node.params.character_name || ''}
+                onChange={(e) => handleChange('character_name', e.target.value)}
+                placeholder="e.g. Captain, Narrator, AI Co-pilot"
+                className="w-full bg-[#121820] border border-[#242E3D] focus:border-amber-500 rounded px-3 py-1.5 text-white font-mono text-xs focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-mono uppercase text-[#94A3B8] mb-1">
+                Assigned Voice
+              </label>
+              <select
+                value={node.params.voice_id || 'en-US-AriaNeural'}
+                onChange={(e) => handleChange('voice_id', e.target.value)}
+                className="w-full bg-[#121820] border border-[#242E3D] focus:border-amber-500 rounded px-3 py-2 text-white text-xs font-mono focus:outline-none"
+              >
+                {voices
+                  .filter((v) => v.engine_id !== 'mock-tts')
+                  .map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.name} ({v.language} · {v.engine_id})
+                    </option>
+                  ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-mono uppercase text-[#94A3B8] mb-1">
+                Dialogue Line
+              </label>
+              <textarea
+                rows={5}
+                value={node.params.text || ''}
+                onChange={(e) => handleChange('text', e.target.value)}
+                className="w-full bg-[#121820] border border-[#242E3D] focus:border-amber-500 rounded p-2.5 text-white text-xs focus:outline-none resize-none leading-relaxed font-sans"
+                placeholder="Enter character spoken line..."
+              />
+            </div>
+
+            <div className="space-y-3 pt-2 border-t border-[#1A222D]">
+              <div>
+                <div className="flex justify-between text-[11px] font-mono text-[#94A3B8] mb-1">
+                  <span>Speaking Rate</span>
+                  <span className="text-amber-400">{(node.params.speed ?? 1.0).toFixed(2)}x</span>
+                </div>
+                <input
+                  type="range"
+                  min="0.5"
+                  max="2.0"
+                  step="0.05"
+                  value={node.params.speed ?? 1.0}
+                  onChange={(e) => handleChange('speed', parseFloat(e.target.value))}
+                  className="w-full accent-amber-500 cursor-pointer"
+                />
+              </div>
+
+              <div>
+                <div className="flex justify-between text-[11px] font-mono text-[#94A3B8] mb-1">
+                  <span>Pitch Shift</span>
+                  <span className="text-amber-400">
+                    {(node.params.pitch ?? 0) > 0 ? `+${node.params.pitch}` : node.params.pitch ?? 0} st
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="-12"
+                  max="12"
+                  step="1"
+                  value={node.params.pitch ?? 0}
+                  onChange={(e) => handleChange('pitch', parseInt(e.target.value, 10))}
+                  className="w-full accent-amber-500 cursor-pointer"
+                />
+              </div>
+            </div>
+          </div>
+        )}
 
         {node.node_type === 'text_input' && (
           <div>

@@ -139,6 +139,48 @@ impl PipelineExecutor {
                 Ok(())
             }
 
+            NodeType::CharacterVoice => {
+                let character = node
+                    .params
+                    .get("character_name")
+                    .or_else(|| node.params.get("character"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or(&node.name);
+                let text = node
+                    .params
+                    .get("text")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or_default();
+                let voice_id = node
+                    .params
+                    .get("voice_id")
+                    .or_else(|| node.params.get("voice"))
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+                let speed = node
+                    .params
+                    .get("speed")
+                    .and_then(|v| v.as_f64())
+                    .map(|f| f as f32);
+                let pitch = node
+                    .params
+                    .get("pitch")
+                    .and_then(|v| v.as_f64())
+                    .map(|f| f as f32);
+
+                if !text.trim().is_empty() {
+                    ctx.segments.push(ScriptSegment {
+                        speaker: character.to_string(),
+                        text: text.trim().to_string(),
+                        voice_id,
+                        speed,
+                        pitch,
+                        target_duration_ms: None,
+                    });
+                }
+                Ok(())
+            }
+
             NodeType::SpeakerParser => {
                 let text = ctx.raw_text.as_deref().unwrap_or_default();
                 let mut segments = Vec::new();

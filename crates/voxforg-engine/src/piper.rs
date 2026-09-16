@@ -201,33 +201,6 @@ impl PiperTtsEngine {
             is_final: true,
         })
     }
-
-    /// Generate deterministic harmonic offline fallback PCM
-    fn synthesize_fallback(&self, text: &str, speed: f32) -> AudioChunk {
-        let sample_rate = self.sample_rate;
-        let char_count = text.chars().count().max(1);
-        let duration_secs = (char_count as f32 * 0.05 / speed.max(0.1)).clamp(0.2, 30.0);
-        let total_samples = (sample_rate as f32 * duration_secs) as usize;
-
-        let base_freq = 180.0_f32;
-        let mut pcm_data = Vec::with_capacity(total_samples);
-
-        for i in 0..total_samples {
-            let t = i as f32 / sample_rate as f32;
-            let f0 = base_freq + 20.0 * (t * 4.0).sin();
-            let sample = (t * f0 * 2.0 * std::f32::consts::PI).sin() * 0.4
-                + (t * f0 * 2.0 * 2.0 * std::f32::consts::PI).sin() * 0.2;
-            let int16_val = (sample * 16384.0).clamp(-32768.0, 32767.0) as i16;
-            pcm_data.push(int16_val);
-        }
-
-        AudioChunk {
-            pcm_data,
-            sample_rate,
-            channels: 1,
-            is_final: true,
-        }
-    }
 }
 
 fn which_piper() -> bool {
@@ -403,7 +376,10 @@ impl TtsEngine for PiperTtsEngine {
             }
         }
 
-        Ok(self.synthesize_fallback(&req.text, req.speed))
+        Err(VoxForgError::Engine(format!(
+            "Piper model for '{}' is not installed locally. Please download the model in Model Catalog.",
+            req.voice_id
+        )))
     }
 
     async fn synthesize_stream(
@@ -466,7 +442,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_piper_fallback_synthesis() {
+    async fn test_piper_missing_model_error() {
         let engine = PiperTtsEngine::new();
         let req = SynthesisRequest {
             text: "Hello world from Piper ONNX engine.".to_string(),
@@ -476,10 +452,9 @@ mod tests {
             format: voxforg_core::models::AudioContainerFormat::Wav,
         };
 
-        let chunk = engine.synthesize(&req).await.unwrap();
-        assert!(!chunk.pcm_data.is_empty());
-        assert_eq!(chunk.sample_rate, 22050);
-        assert_eq!(chunk.channels, 1);
-        assert!(chunk.is_final);
+        let res = engine.synthesize(&req).await;
+        assert!(res.is_err(), "Must return error when model is not installed");
+        let err_msg = res.unwrap_err().to_string();
+        assert!(err_msg.contains("not installed locally"));
     }
 }

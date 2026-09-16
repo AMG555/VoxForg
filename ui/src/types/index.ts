@@ -1,5 +1,6 @@
 export type NodeType =
   | 'text_input'
+  | 'character_voice'
   | 'speaker_parser'
   | 'voice_assigner'
   | 'synthesizer'

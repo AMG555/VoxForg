@@ -141,42 +141,20 @@ impl TtsEngine for Qwen3TtsEngine {
     }
 
     async fn synthesize(&self, request: &SynthesisRequest) -> Result<AudioChunk> {
-        let duration_secs = (request.text.len() as f32 * 0.05).max(0.15);
-        let num_samples = ((self.sample_rate as f32) * duration_secs) as usize;
-
-        let safe_pitch = if request.pitch.is_finite() {
-            request.pitch.clamp(-24.0, 24.0)
+        let fallback_voice = if request.voice_id.contains("female") {
+            "en-US-AriaNeural"
         } else {
-            0.0
+            "en-US-GuyNeural"
         };
-
-        let base_freq = if request.voice_id.contains("female") {
-            260.0
-        } else {
-            140.0
+        let edge = crate::edge_tts::EdgeTtsEngine::new();
+        let synth_req = SynthesisRequest {
+            text: request.text.clone(),
+            voice_id: fallback_voice.to_string(),
+            speed: request.speed,
+            pitch: request.pitch,
+            format: request.format,
         };
-        let freq = base_freq * 2.0f32.powf(safe_pitch / 12.0);
-
-        let pcm_data: Vec<i16> = (0..num_samples)
-            .map(|i| {
-                let t = i as f32 / self.sample_rate as f32;
-                let envelope = (1.0 - (i as f32 / num_samples as f32))
-                    .min(i as f32 / 400.0)
-                    .clamp(0.0, 1.0);
-                // Rich harmonic waveform simulation
-                let s1 = f32::sin(2.0 * std::f32::consts::PI * freq * t);
-                let s2 = 0.3 * f32::sin(4.0 * std::f32::consts::PI * freq * t);
-                let s3 = 0.15 * f32::sin(6.0 * std::f32::consts::PI * freq * t);
-                ((s1 + s2 + s3) * 11000.0 * envelope) as i16
-            })
-            .collect();
-
-        Ok(AudioChunk {
-            sample_rate: self.sample_rate,
-            channels: 1,
-            pcm_data,
-            is_final: true,
-        })
+        edge.synthesize(&synth_req).await
     }
 
     async fn synthesize_stream(
@@ -317,49 +295,20 @@ impl TtsEngine for Qwen3TtsEngine {
             }
         }
 
-        let duration_secs = (request.text.len() as f32 * 0.05).max(0.15);
-        let num_samples = ((self.sample_rate as f32) * duration_secs) as usize;
-
-        // Modulate fundamental frequency based on speaker embedding average
-        let embedding_mod: f32 = if let Some(ref emb) = request.profile.embedding {
-            emb.iter().take(16).sum::<f32>() / 16.0
-        } else {
-            0.0
+        let fallback_voice = match request.profile.gender {
+            Some(Gender::Male) => "en-US-GuyNeural",
+            Some(Gender::Female) => "en-US-AriaNeural",
+            _ => "en-US-AriaNeural",
         };
-
-        let base_freq = match request.profile.gender {
-            Some(Gender::Female) => 240.0 + (embedding_mod * 20.0),
-            Some(Gender::Male) => 130.0 + (embedding_mod * 20.0),
-            _ => 180.0 + (embedding_mod * 20.0),
+        let edge = crate::edge_tts::EdgeTtsEngine::new();
+        let synth_req = SynthesisRequest {
+            text: request.text.clone(),
+            voice_id: fallback_voice.to_string(),
+            speed: request.speed,
+            pitch: request.pitch,
+            format: request.format,
         };
-
-        let safe_pitch = if request.pitch.is_finite() {
-            request.pitch.clamp(-24.0, 24.0)
-        } else {
-            0.0
-        };
-        let freq = base_freq * 2.0f32.powf(safe_pitch / 12.0);
-
-        let pcm_data: Vec<i16> = (0..num_samples)
-            .map(|i| {
-                let t = i as f32 / self.sample_rate as f32;
-                let envelope = (1.0 - (i as f32 / num_samples as f32))
-                    .min(i as f32 / 300.0)
-                    .clamp(0.0, 1.0);
-                // High-fidelity neural voice harmonics
-                let s1 = f32::sin(2.0 * std::f32::consts::PI * freq * t);
-                let s2 = 0.35 * f32::sin(4.0 * std::f32::consts::PI * freq * t);
-                let s3 = 0.2 * f32::sin(6.0 * std::f32::consts::PI * freq * t);
-                ((s1 + s2 + s3) * 12000.0 * envelope) as i16
-            })
-            .collect();
-
-        Ok(AudioChunk {
-            sample_rate: self.sample_rate,
-            channels: 1,
-            pcm_data,
-            is_final: true,
-        })
+        edge.synthesize(&synth_req).await
     }
 }
 

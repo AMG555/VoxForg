@@ -9,7 +9,7 @@ use tokio::sync::mpsc;
 use tracing::{debug, warn};
 
 use voxforg_audio::WavEncoder;
-use voxforg_core::error::Result;
+use voxforg_core::error::{Result, VoxForgError};
 use voxforg_core::models::{AudioChunk, Gender, Voice};
 
 use crate::edge_tts::decode_mp3_to_pcm;
@@ -182,30 +182,6 @@ impl OpenAiRouterEngine {
             );
         }
     }
-
-    fn synthesize_fallback(&self, request: &SynthesisRequest) -> AudioChunk {
-        let duration_secs = (request.text.len() as f32 * 0.06).max(0.2);
-        let sample_rate = 24000;
-        let num_samples = (sample_rate as f32 * duration_secs) as usize;
-        let freq = 300.0;
-
-        let pcm_data: Vec<i16> = (0..num_samples)
-            .map(|i| {
-                let t = i as f32 / sample_rate as f32;
-                let env = (1.0 - (i as f32 / num_samples as f32))
-                    .min(i as f32 / 400.0)
-                    .clamp(0.0, 1.0);
-                (f32::sin(2.0 * std::f32::consts::PI * freq * t) * 8000.0 * env) as i16
-            })
-            .collect();
-
-        AudioChunk {
-            sample_rate,
-            channels: 1,
-            pcm_data,
-            is_final: true,
-        }
-    }
 }
 
 #[async_trait]
@@ -315,17 +291,25 @@ impl TtsEngine for OpenAiRouterEngine {
 
         // 1. SSRF URL validation
         if let Err(err) = validate_router_url(&url, self.allow_private_ips) {
-            warn!(
-                "Router request blocked by SSRF policy: {}. Operating in fallback mode.",
-                err
-            );
-            return Ok(self.synthesize_fallback(request));
+            warn!("Router request blocked by SSRF policy: {}", err);
+            return Err(VoxForgError::Engine(format!(
+                "Router URL blocked by security policy: {err}"
+            )));
         }
 
         // 2. Circuit Breaker Check
         if self.is_circuit_open() {
-            debug!("Router circuit breaker is active. Fast-failing to fallback synthesis.");
-            return Ok(self.synthesize_fallback(request));
+            warn!("Router circuit breaker is active. Fast-failing synthesis request.");
+            return Err(VoxForgError::Engine(
+                "Router circuit breaker active: upstream service temporarily unavailable"
+                    .to_string(),
+            ));
+        }
+
+        if self.api_key.as_deref().unwrap_or("").trim().is_empty() {
+            return Err(VoxForgError::Engine(
+                "Router API key is not configured. Please select your router provider and enter your API key in Voice Lab.".to_string(),
+            ));
         }
 
         let payload = json!({
@@ -365,14 +349,17 @@ impl TtsEngine for OpenAiRouterEngine {
                             Ok(b) => b,
                             Err(e) => {
                                 self.record_failure();
-                                warn!("Failed to read router audio stream: {e}. Operating in fallback mode.");
-                                return Ok(self.synthesize_fallback(request));
+                                return Err(VoxForgError::Engine(format!(
+                                    "Failed to read router audio response: {e}"
+                                )));
                             }
                         };
 
                         if bytes.is_empty() {
                             self.record_failure();
-                            return Ok(self.synthesize_fallback(request));
+                            return Err(VoxForgError::Engine(
+                                "Router returned empty audio stream".to_string(),
+                            ));
                         }
 
                         // Try decoding as WAV first
@@ -402,8 +389,9 @@ impl TtsEngine for OpenAiRouterEngine {
                         }
 
                         self.record_failure();
-                        warn!("Router returned unparseable audio container. Operating in fallback mode.");
-                        return Ok(self.synthesize_fallback(request));
+                        return Err(VoxForgError::Engine(
+                            "Router returned unsupported audio container format".to_string(),
+                        ));
                     }
 
                     // Transient 5xx server errors warrant retry
@@ -417,11 +405,9 @@ impl TtsEngine for OpenAiRouterEngine {
 
                     let err_body = resp.text().await.unwrap_or_default();
                     self.record_failure();
-                    warn!(
-                        "Router upstream returned error {}: {}. Operating in resilient fallback mode.",
-                        status, err_body
-                    );
-                    return Ok(self.synthesize_fallback(request));
+                    return Err(VoxForgError::Engine(format!(
+                        "Upstream router error {status}: {err_body}"
+                    )));
                 }
                 Err(e) => {
                     if attempts <= max_retries {
@@ -431,11 +417,9 @@ impl TtsEngine for OpenAiRouterEngine {
                     }
 
                     self.record_failure();
-                    warn!(
-                        "Router upstream request failed after {} attempts: {}. Operating in fallback mode.",
-                        attempts, e
-                    );
-                    return Ok(self.synthesize_fallback(request));
+                    return Err(VoxForgError::Engine(format!(
+                        "Upstream router connection failed: {e}"
+                    )));
                 }
             }
         }

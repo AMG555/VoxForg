@@ -24,6 +24,7 @@ use axum::{
 
 pub fn build_api_router() -> Router<AppState> {
     Router::new()
+        .route("/favicon.ico", get(docs::favicon_handler))
         .route("/docs", get(docs::scalar_docs_html))
         .route("/openapi.json", get(docs::openapi_spec))
         .route("/metrics", get(metrics::get_metrics))
