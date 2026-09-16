@@ -61,7 +61,7 @@ VoxForg adheres to an enterprise security baseline:
 - **Circuit Breakers:** Upstream routing failures trigger an automated circuit breaker after 5 consecutive errors, protecting against thread pool depletion and cascading network delays.
 
 ### 4. Constant-Time Authentication Verification (CWE-208)
-- API Bearer tokens are verified strictly using constant-time comparisons (`subtle::ConstantTimeEq`) to eliminate timing side-channel attacks.
+- API Bearer tokens are verified strictly using constant-time comparisons (`subtle::ConstantTimeEq`) to eliminate timing side-channel attacks. 
 
 ### 5. Strict Security Headers
 - Automatic header enforcement across all HTTP responses:
