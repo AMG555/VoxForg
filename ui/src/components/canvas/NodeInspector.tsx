@@ -1,5 +1,4 @@
-import React from 'react';
-import { X, Sliders, Trash2, Wand2, Volume2, Mic } from 'lucide-react';
+import { X, Sliders, Trash2, Wand2, Volume2, Mic, Copy, Clipboard } from 'lucide-react';
 import { PipelineNode, Voice } from '../../types';
 
 interface NodeInspectorProps {
@@ -8,6 +7,9 @@ interface NodeInspectorProps {
   voices: Voice[];
   onClose: () => void;
   onUpdateParams: (nodeId: string, params: Record<string, any>) => void;
+  onDeleteNode?: (nodeId: string) => void;
+  onDuplicateNode?: (nodeId: string) => void;
+  onCopyNodeJson?: (node: PipelineNode) => void;
 }
 
 export const NodeInspector: React.FC<NodeInspectorProps> = ({
@@ -16,6 +18,9 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
   voices,
   onClose,
   onUpdateParams,
+  onDeleteNode,
+  onDuplicateNode,
+  onCopyNodeJson,
 }) => {
   if (!node) return null;
 
@@ -74,12 +79,42 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
             Node Inspector
           </span>
         </div>
-        <button
-          onClick={onClose}
-          className="p-1 rounded text-[#94A3B8] hover:text-white hover:bg-[#1A222D]"
-        >
-          <X className="w-4 h-4" />
-        </button>
+        <div className="flex items-center space-x-1">
+          {onCopyNodeJson && (
+            <button
+              onClick={() => onCopyNodeJson(node)}
+              className="p-1 rounded text-[#94A3B8] hover:text-white hover:bg-[#1A222D] transition-colors"
+              title="Copy Node JSON (Ctrl+C)"
+            >
+              <Clipboard className="w-3.5 h-3.5" />
+            </button>
+          )}
+          {onDuplicateNode && (
+            <button
+              onClick={() => onDuplicateNode(node.id)}
+              className="p-1 rounded text-[#94A3B8] hover:text-amber-400 hover:bg-[#1A222D] transition-colors"
+              title="Duplicate Node (Ctrl+D)"
+            >
+              <Copy className="w-3.5 h-3.5" />
+            </button>
+          )}
+          {onDeleteNode && (
+            <button
+              onClick={() => onDeleteNode(node.id)}
+              className="p-1 rounded text-[#64748B] hover:text-rose-400 hover:bg-[#1A222D] transition-colors"
+              title="Delete Node (Del)"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            className="p-1 rounded text-[#94A3B8] hover:text-white hover:bg-[#1A222D] transition-colors"
+            title="Close Inspector"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       <div className="p-4 space-y-5 flex-1 overflow-y-auto font-sans text-xs">
@@ -676,6 +711,45 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
               </div>
             </div>
           </div>
+        )}
+      </div>
+
+      {/* Node Actions Bottom Bar */}
+      <div className="p-3 border-t border-[#242E3D] bg-[#0B0E14]/60 flex items-center justify-between text-xs font-mono">
+        <div className="flex items-center space-x-2">
+          {onDuplicateNode && (
+            <button
+              type="button"
+              onClick={() => onDuplicateNode(node.id)}
+              className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded bg-[#1A222D] hover:bg-[#242E3D] text-[#94A3B8] hover:text-white transition-colors"
+              title="Duplicate node (Ctrl+D)"
+            >
+              <Copy className="w-3.5 h-3.5 text-amber-400" />
+              <span>Duplicate</span>
+            </button>
+          )}
+          {onCopyNodeJson && (
+            <button
+              type="button"
+              onClick={() => onCopyNodeJson(node)}
+              className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded bg-[#1A222D] hover:bg-[#242E3D] text-[#94A3B8] hover:text-white transition-colors"
+              title="Copy JSON to clipboard"
+            >
+              <Clipboard className="w-3.5 h-3.5 text-sky-400" />
+              <span>Copy JSON</span>
+            </button>
+          )}
+        </div>
+        {onDeleteNode && (
+          <button
+            type="button"
+            onClick={() => onDeleteNode(node.id)}
+            className="flex items-center space-x-1 px-2.5 py-1.5 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 transition-colors"
+            title="Delete node (Del)"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>Delete</span>
+          </button>
         )}
       </div>
     </aside>

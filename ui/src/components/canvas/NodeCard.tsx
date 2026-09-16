@@ -8,6 +8,7 @@ import {
   Layers,
   Save,
   Trash2,
+  Copy,
 } from 'lucide-react';
 import { PipelineNode } from '../../types';
 
@@ -16,6 +17,7 @@ interface NodeCardProps {
   isSelected: boolean;
   onSelect: (id: string) => void;
   onDelete: (id: string) => void;
+  onDuplicate?: (id: string) => void;
   onPointerDown?: (e: React.PointerEvent, id: string) => void;
   onConnectStart?: (nodeId: string, e: React.PointerEvent) => void;
   onConnectEnd?: (nodeId: string) => void;
@@ -47,6 +49,7 @@ export const NodeCard: React.FC<NodeCardProps> = ({
   isSelected,
   onSelect,
   onDelete,
+  onDuplicate,
   onPointerDown,
   onConnectStart,
   onConnectEnd,
@@ -106,15 +109,32 @@ export const NodeCard: React.FC<NodeCardProps> = ({
           </div>
         </div>
 
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete(node.id);
-          }}
-          className="text-[#64748B] hover:text-rose-400 p-1 rounded transition-colors"
-        >
-          <Trash2 className="w-3.5 h-3.5" />
-        </button>
+        <div className="flex items-center space-x-1">
+          {onDuplicate && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDuplicate(node.id);
+              }}
+              className="text-[#64748B] hover:text-amber-400 p-1 rounded hover:bg-[#1A222D] transition-colors"
+              title="Duplicate node (Ctrl+D)"
+            >
+              <Copy className="w-3.5 h-3.5" />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(node.id);
+            }}
+            className="text-[#64748B] hover:text-rose-400 p-1 rounded hover:bg-[#1A222D] transition-colors"
+            title="Delete node (Del)"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
 
       {/* Card Content Snippet */}

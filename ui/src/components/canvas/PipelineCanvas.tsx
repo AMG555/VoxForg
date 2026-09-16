@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   Play,
   Loader2,
@@ -18,6 +18,15 @@ import {
   Users,
   UserCheck,
   Save,
+  Copy,
+  Clipboard,
+  Trash2,
+  Edit2,
+  Check,
+  FilePlus,
+  X,
+  AlertCircle,
+  CheckCircle2,
 } from 'lucide-react';
 import { PipelineDefinition, PipelineNode, Voice } from '../../types';
 import { NodeCard } from './NodeCard';
@@ -439,6 +448,20 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
   const [connectingFrom, setConnectingFrom] = useState<string | null>(null);
   const [pointerCanvasPos, setPointerCanvasPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
+  // Workflow & Toast State
+  const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null);
+  const [showPasteModal, setShowPasteModal] = useState(false);
+  const [pasteJsonInput, setPasteJsonInput] = useState('');
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState('');
+
+  const showToast = useCallback((text: string, type: 'success' | 'info' | 'error' = 'success') => {
+    setToastMessage({ text, type });
+    setTimeout(() => {
+      setToastMessage((prev) => (prev?.text === text ? null : prev));
+    }, 2800);
+  }, []);
+
   const canvasContainerRef = useRef<HTMLDivElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -460,22 +483,109 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
     }));
   };
 
-  const handleDeleteNode = (nodeId: string) => {
+  const handleDeleteNode = useCallback((nodeId: string) => {
     setPipeline((prev) => ({
       ...prev,
       nodes: prev.nodes.filter((n) => n.id !== nodeId),
       edges: prev.edges.filter((e) => e.from_node !== nodeId && e.to_node !== nodeId),
     }));
-    if (selectedNodeId === nodeId) {
-      setSelectedNodeId(null);
-    }
-  };
+    setSelectedNodeId((current) => (current === nodeId ? null : current));
+  }, []);
 
   const handleDeleteEdge = (edgeId: string) => {
     setPipeline((prev) => ({
       ...prev,
       edges: prev.edges.filter((e) => e.id !== edgeId),
     }));
+  };
+
+  const handleDuplicateNode = useCallback((nodeId: string) => {
+    const targetNode = pipeline.nodes.find((n) => n.id === nodeId);
+    if (!targetNode) return;
+
+    const freshId = `node-${Date.now()}`;
+    const pos = targetNode.position || { x: 100, y: 100 };
+    const duplicatedNode: PipelineNode = {
+      ...targetNode,
+      id: freshId,
+      name: `${targetNode.name} (Copy)`,
+      position: { x: pos.x + 40, y: pos.y + 40 },
+    };
+
+    setPipeline((prev) => ({
+      ...prev,
+      nodes: [...prev.nodes, duplicatedNode],
+    }));
+    setSelectedNodeId(freshId);
+    showToast(`Duplicated ${targetNode.name}`);
+  }, [pipeline.nodes, showToast]);
+
+  const handleCopyNodeJson = useCallback((node: PipelineNode) => {
+    navigator.clipboard.writeText(JSON.stringify(node, null, 2));
+    showToast(`Node "${node.name}" JSON copied to clipboard!`);
+  }, [showToast]);
+
+  const handleCopyWorkflowJson = useCallback(() => {
+    navigator.clipboard.writeText(JSON.stringify(pipeline, null, 2));
+    showToast(`Workflow "${pipeline.name}" copied to clipboard!`);
+  }, [pipeline, showToast]);
+
+  const handleNewWorkflow = useCallback(() => {
+    if (pipeline.nodes.length > 0) {
+      if (!window.confirm('Create new blank workflow? Current canvas nodes will be replaced.')) {
+        return;
+      }
+    }
+    const freshId = `node-${Date.now()}`;
+    const freshPipeline: PipelineDefinition = {
+      id: `pipeline-${Date.now()}`,
+      name: 'Untitled Studio Workflow',
+      nodes: [
+        {
+          id: freshId,
+          name: 'Script Input',
+          node_type: 'text_input',
+          params: { text: 'Host: Welcome to the studio!\nGuest: Great to be here.' },
+          position: { x: 80, y: 120 },
+        },
+      ],
+      edges: [],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    setPipeline(freshPipeline);
+    setSelectedNodeId(freshId);
+    if (audioUrl) {
+      URL.revokeObjectURL(audioUrl);
+      setAudioUrl(null);
+    }
+    showToast('New blank workflow created');
+  }, [pipeline.nodes.length, audioUrl, showToast]);
+
+  const handleClearWorkflow = useCallback(() => {
+    if (pipeline.nodes.length === 0) return;
+    if (!window.confirm('Clear all nodes and connections from this workflow?')) {
+      return;
+    }
+    setPipeline((prev) => ({
+      ...prev,
+      nodes: [],
+      edges: [],
+    }));
+    setSelectedNodeId(null);
+    if (audioUrl) {
+      URL.revokeObjectURL(audioUrl);
+      setAudioUrl(null);
+    }
+    showToast('Workflow canvas cleared', 'info');
+  }, [pipeline.nodes.length, audioUrl, showToast]);
+
+  const handleSaveName = () => {
+    if (nameInput.trim()) {
+      setPipeline((prev) => ({ ...prev, name: nameInput.trim() }));
+      showToast(`Renamed workflow to "${nameInput.trim()}"`);
+    }
+    setIsEditingName(false);
   };
 
   const handleAutoLayout = () => {
@@ -731,16 +841,166 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
           setPipeline(imported);
           setSelectedNodeId(imported.nodes[0]?.id || null);
           setTimeout(handleFitToView, 50);
+          showToast(`Imported workflow "${imported.name || 'Custom Workflow'}"`);
         } else {
-          alert('Invalid pipeline JSON: Missing nodes or edges array');
+          showToast('Invalid pipeline JSON: Missing nodes or edges array', 'error');
         }
       } catch (err: any) {
-        alert(`Failed to parse pipeline file: ${err.message}`);
+        showToast(`Failed to parse pipeline file: ${err.message}`, 'error');
       }
     };
     reader.readAsText(file);
-    e.target.value = '';
+    if (e.target) e.target.value = '';
   };
+
+  const applyPastedJson = useCallback((jsonString: string) => {
+    try {
+      const trimmed = jsonString.trim();
+      const parsed = JSON.parse(trimmed);
+
+      // Case 1: Full Workflow Object
+      if (parsed && Array.isArray(parsed.nodes) && Array.isArray(parsed.edges)) {
+        setPipeline(parsed);
+        setSelectedNodeId(parsed.nodes[0]?.id || null);
+        setTimeout(handleFitToView, 50);
+        showToast(`Imported workflow "${parsed.name || 'Custom Workflow'}" (${parsed.nodes.length} nodes)`);
+        setShowPasteModal(false);
+        setPasteJsonInput('');
+        return;
+      }
+
+      // Case 2: Array of Nodes
+      if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].node_type) {
+        const newNodes: PipelineNode[] = parsed.map((item, idx) => {
+          const freshId = `node-${Date.now()}-${idx}`;
+          const originalPos = item.position || { x: 100, y: 100 };
+          return {
+            ...item,
+            id: freshId,
+            position: { x: originalPos.x + 60, y: originalPos.y + 60 },
+          };
+        });
+        setPipeline((prev) => ({
+          ...prev,
+          nodes: [...prev.nodes, ...newNodes],
+        }));
+        setSelectedNodeId(newNodes[0]?.id || null);
+        showToast(`Pasted ${newNodes.length} nodes into canvas`);
+        setShowPasteModal(false);
+        setPasteJsonInput('');
+        return;
+      }
+
+      // Case 3: Single Node Object
+      if (parsed && (parsed.node_type || parsed.type)) {
+        const rect = canvasContainerRef.current?.getBoundingClientRect();
+        const centerX = rect ? (rect.width / 2 - pan.x) / zoom - 128 : 200;
+        const centerY = rect ? (rect.height / 2 - pan.y) / zoom - 60 : 150;
+
+        const newNodeId = `node-${Date.now()}`;
+        const newNode: PipelineNode = {
+          id: newNodeId,
+          name: parsed.name || 'Pasted Node',
+          node_type: (parsed.node_type || parsed.type) as any,
+          params: parsed.params || {},
+          position: {
+            x: Math.round(centerX + Math.random() * 30),
+            y: Math.round(centerY + Math.random() * 30),
+          },
+        };
+
+        setPipeline((prev) => {
+          let newEdges = [...prev.edges];
+          if (selectedNodeId && prev.nodes.some((n) => n.id === selectedNodeId)) {
+            newEdges.push({
+              id: `edge-${Date.now()}`,
+              from_node: selectedNodeId,
+              to_node: newNodeId,
+            });
+          }
+          return {
+            ...prev,
+            nodes: [...prev.nodes, newNode],
+            edges: newEdges,
+          };
+        });
+        setSelectedNodeId(newNodeId);
+        showToast(`Pasted node "${newNode.name}"`);
+        setShowPasteModal(false);
+        setPasteJsonInput('');
+        return;
+      }
+
+      showToast('Unrecognized JSON structure. Expected workflow or node.', 'error');
+    } catch (err: any) {
+      showToast(`Invalid JSON: ${err.message}`, 'error');
+    }
+  }, [pan, zoom, selectedNodeId, showToast]);
+
+  const handlePasteFromClipboard = useCallback(async () => {
+    try {
+      if (navigator.clipboard && navigator.clipboard.readText) {
+        const text = await navigator.clipboard.readText();
+        if (text && (text.trim().startsWith('{') || text.trim().startsWith('['))) {
+          applyPastedJson(text);
+          return;
+        }
+      }
+      setShowPasteModal(true);
+    } catch {
+      setShowPasteModal(true);
+    }
+  }, [applyPastedJson]);
+
+  // Global Keyboard Shortcuts (Delete, Backspace, Ctrl+C, Ctrl+V, Ctrl+D)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.tagName === 'SELECT' ||
+        target.isContentEditable
+      ) {
+        return;
+      }
+
+      // Delete / Backspace: Delete selected node
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedNodeId) {
+        e.preventDefault();
+        handleDeleteNode(selectedNodeId);
+        showToast('Node deleted (Del)', 'info');
+        return;
+      }
+
+      // Ctrl+C / Cmd+C: Copy selected node JSON
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c' && selectedNodeId) {
+        const node = pipeline.nodes.find((n) => n.id === selectedNodeId);
+        if (node) {
+          e.preventDefault();
+          handleCopyNodeJson(node);
+        }
+        return;
+      }
+
+      // Ctrl+D / Cmd+D: Duplicate selected node
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd' && selectedNodeId) {
+        e.preventDefault();
+        handleDuplicateNode(selectedNodeId);
+        return;
+      }
+
+      // Ctrl+V / Cmd+V: Paste from clipboard
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
+        e.preventDefault();
+        handlePasteFromClipboard();
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedNodeId, pipeline.nodes, handleDeleteNode, handleDuplicateNode, handleCopyNodeJson, handlePasteFromClipboard, showToast]);
 
   return (
     <div className="flex-1 flex overflow-hidden relative">
@@ -756,14 +1016,78 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
       <div className="flex-1 flex flex-col h-full bg-[#0B0E14] relative overflow-hidden">
         {/* Canvas Toolbar */}
         <div className="h-12 border-b border-[#242E3D] bg-[#121820]/90 backdrop-blur px-4 flex items-center justify-between z-20 select-none">
-          <div className="flex items-center space-x-3">
-            <span className="text-xs font-mono font-bold text-white">{pipeline.name}</span>
+          <div className="flex items-center space-x-2">
+            {/* Editable Workflow Title */}
+            {isEditingName ? (
+              <div className="flex items-center space-x-1">
+                <input
+                  type="text"
+                  value={nameInput}
+                  onChange={(e) => setNameInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSaveName();
+                    if (e.key === 'Escape') setIsEditingName(false);
+                  }}
+                  autoFocus
+                  className="bg-[#0B0E14] border border-amber-500 rounded px-2 py-0.5 text-xs text-white font-mono focus:outline-none"
+                />
+                <button
+                  onClick={handleSaveName}
+                  className="p-1 text-emerald-400 hover:text-white"
+                  title="Save Name"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => setIsEditingName(false)}
+                  className="p-1 text-[#64748B] hover:text-white"
+                  title="Cancel"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <div
+                onClick={() => {
+                  setNameInput(pipeline.name);
+                  setIsEditingName(true);
+                }}
+                className="flex items-center space-x-1.5 cursor-pointer group hover:bg-[#1A222D] px-2 py-1 rounded transition-colors"
+                title="Click to rename workflow"
+              >
+                <span className="text-xs font-mono font-bold text-white group-hover:text-amber-400">
+                  {pipeline.name}
+                </span>
+                <Edit2 className="w-3 h-3 text-[#64748B] group-hover:text-amber-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+              </div>
+            )}
+
             <span className="text-[11px] font-mono text-[#64748B]">
               ({pipeline.nodes.length} nodes, {pipeline.edges.length} edges)
             </span>
 
+            {/* New Workflow button */}
+            <button
+              onClick={handleNewWorkflow}
+              className="flex items-center space-x-1 px-2 py-1 rounded bg-[#1A222D] hover:bg-[#242E3D] text-[#94A3B8] hover:text-white text-xs font-mono border border-[#242E3D] transition-colors ml-1"
+              title="Create new blank workflow"
+            >
+              <FilePlus className="w-3.5 h-3.5 text-sky-400" />
+              <span className="hidden md:inline">New</span>
+            </button>
+
+            {/* Clear Workflow button */}
+            <button
+              onClick={handleClearWorkflow}
+              className="flex items-center space-x-1 px-2 py-1 rounded bg-[#1A222D] hover:bg-rose-500/20 text-[#94A3B8] hover:text-rose-400 text-xs font-mono border border-[#242E3D] transition-colors"
+              title="Clear all nodes from workflow"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">Clear</span>
+            </button>
+
             {/* Presets dropdown */}
-            <div className="flex items-center space-x-1 pl-3 border-l border-[#242E3D]">
+            <div className="flex items-center space-x-1 pl-2 border-l border-[#242E3D]">
               <Sparkles className="w-3.5 h-3.5 text-amber-500" />
               <select
                 onChange={(e) => {
@@ -772,6 +1096,7 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
                     setPipeline(preset);
                     setSelectedNodeId(preset.nodes[0]?.id || null);
                     setTimeout(handleFitToView, 50);
+                    showToast(`Loaded preset: ${preset.name}`);
                   }
                 }}
                 className="bg-[#0B0E14] text-[#94A3B8] border border-[#242E3D] rounded px-2 py-1 text-[11px] font-mono focus:border-amber-500 focus:outline-none cursor-pointer"
@@ -785,7 +1110,7 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
             </div>
 
             {/* Add Node Dropdown */}
-            <div className="relative pl-2">
+            <div className="relative pl-1">
               <button
                 onClick={() => setShowAddMenu((prev) => !prev)}
                 className="flex items-center space-x-1 px-2.5 py-1 rounded bg-[#1A222D] hover:bg-[#242E3D] text-amber-400 hover:text-amber-300 text-xs font-mono border border-amber-500/30 hover:border-amber-500 transition-colors"
@@ -795,7 +1120,7 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
               </button>
 
               {showAddMenu && (
-                <div className="absolute left-2 top-full mt-1 w-56 bg-[#121820] border border-[#242E3D] rounded-lg shadow-2xl z-50 py-1 font-mono text-xs">
+                <div className="absolute left-1 top-full mt-1 w-56 bg-[#121820] border border-[#242E3D] rounded-lg shadow-2xl z-50 py-1 font-mono text-xs">
                   <div className="px-3 py-1.5 text-[10px] font-semibold text-[#64748B] uppercase tracking-wider border-b border-[#242E3D]">
                     Available DAG Nodes
                   </div>
@@ -821,7 +1146,7 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
             {/* Auto-Align studio nodes button */}
             <button
               onClick={handleAutoLayout}
-              className="flex items-center space-x-1 px-2.5 py-1 rounded bg-[#1A222D] hover:bg-[#242E3D] text-[#94A3B8] hover:text-white text-xs font-mono border border-[#242E3D] transition-colors ml-2"
+              className="flex items-center space-x-1 px-2.5 py-1 rounded bg-[#1A222D] hover:bg-[#242E3D] text-[#94A3B8] hover:text-white text-xs font-mono border border-[#242E3D] transition-colors"
               title="Auto-arrange studio nodes sequentially"
             >
               <Move className="w-3.5 h-3.5 text-amber-500" />
@@ -829,23 +1154,45 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
             </button>
           </div>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-1.5">
+            {/* Paste from Clipboard button */}
             <button
-              onClick={handleExportJson}
-              className="flex items-center space-x-1 px-2.5 py-1 rounded bg-[#1A222D] hover:bg-[#242E3D] text-[#94A3B8] hover:text-white text-xs font-mono border border-[#242E3D] transition-colors"
-              title="Export DAG to JSON"
+              onClick={handlePasteFromClipboard}
+              className="flex items-center space-x-1 px-2.5 py-1 rounded bg-[#1A222D] hover:bg-[#242E3D] text-amber-400 hover:text-amber-300 text-xs font-mono border border-amber-500/30 hover:border-amber-500 transition-colors"
+              title="Paste Workflow or Node JSON from Clipboard (Ctrl+V)"
             >
-              <Download className="w-3.5 h-3.5" />
-              <span>Export</span>
+              <Clipboard className="w-3.5 h-3.5" />
+              <span>Paste JSON</span>
             </button>
 
+            {/* Copy Workflow JSON button */}
+            <button
+              onClick={handleCopyWorkflowJson}
+              className="flex items-center space-x-1 px-2 py-1 rounded bg-[#1A222D] hover:bg-[#242E3D] text-[#94A3B8] hover:text-white text-xs font-mono border border-[#242E3D] transition-colors"
+              title="Copy Workflow JSON to Clipboard"
+            >
+              <Copy className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">Copy</span>
+            </button>
+
+            {/* Export File button */}
+            <button
+              onClick={handleExportJson}
+              className="flex items-center space-x-1 px-2 py-1 rounded bg-[#1A222D] hover:bg-[#242E3D] text-[#94A3B8] hover:text-white text-xs font-mono border border-[#242E3D] transition-colors"
+              title="Export DAG to JSON file"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">Export</span>
+            </button>
+
+            {/* Import File button */}
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="flex items-center space-x-1 px-2.5 py-1 rounded bg-[#1A222D] hover:bg-[#242E3D] text-[#94A3B8] hover:text-white text-xs font-mono border border-[#242E3D] transition-colors"
-              title="Import DAG from JSON"
+              className="flex items-center space-x-1 px-2 py-1 rounded bg-[#1A222D] hover:bg-[#242E3D] text-[#94A3B8] hover:text-white text-xs font-mono border border-[#242E3D] transition-colors"
+              title="Import DAG from JSON file"
             >
               <Upload className="w-3.5 h-3.5" />
-              <span>Import</span>
+              <span className="hidden md:inline">Import</span>
             </button>
 
             {audioUrl && (
@@ -1004,6 +1351,7 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
                     isSelected={node.id === selectedNodeId}
                     onSelect={setSelectedNodeId}
                     onDelete={handleDeleteNode}
+                    onDuplicate={handleDuplicateNode}
                     onPointerDown={handleNodePointerDown}
                     onConnectStart={handleConnectStart}
                     onConnectEnd={handleConnectEnd}
@@ -1060,7 +1408,7 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
           {/* Bottom Hint Banner */}
           <div className="absolute bottom-5 left-5 z-10 hidden sm:flex items-center space-x-2 px-3 py-1.5 bg-[#121820]/75 backdrop-blur-sm border border-[#242E3D]/60 rounded-full text-[11px] font-mono text-[#64748B] pointer-events-none">
             <Move className="w-3 h-3 text-amber-500" />
-            <span>Drag canvas to pan • Scroll to zoom • Drag cards to position</span>
+            <span>Drag canvas to pan • Scroll to zoom • Del to delete • Ctrl+C / Ctrl+V to copy & paste JSON • Ctrl+D to duplicate</span>
           </div>
         </div>
 
@@ -1073,6 +1421,73 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
             />
           </div>
         )}
+
+        {/* Toast Notification Banner */}
+        {toastMessage && (
+          <div className="absolute top-16 right-6 z-50 flex items-center space-x-2 px-3.5 py-2 rounded-lg bg-[#121820] border border-amber-500/40 text-white shadow-2xl backdrop-blur text-xs font-mono animate-in fade-in slide-in-from-top-2 duration-200">
+            {toastMessage.type === 'error' ? (
+              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+            ) : (
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            )}
+            <span>{toastMessage.text}</span>
+          </div>
+        )}
+
+        {/* Paste JSON Modal Dialog */}
+        {showPasteModal && (
+          <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-[#121820] border border-[#242E3D] rounded-xl shadow-2xl w-full max-w-lg p-5 font-mono text-xs flex flex-col space-y-4">
+              <div className="flex items-center justify-between border-b border-[#242E3D] pb-3">
+                <div className="flex items-center space-x-2 text-amber-400 font-semibold text-sm">
+                  <Clipboard className="w-4 h-4" />
+                  <span>Paste Workflow or Node JSON</span>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowPasteModal(false);
+                    setPasteJsonInput('');
+                  }}
+                  className="p-1 rounded text-[#94A3B8] hover:text-white"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <p className="text-[#94A3B8] font-sans text-xs leading-relaxed">
+                Paste complete workflow JSON, a single node definition, or an array of nodes. The studio will parse and mount it onto your canvas.
+              </p>
+
+              <textarea
+                rows={8}
+                value={pasteJsonInput}
+                onChange={(e) => setPasteJsonInput(e.target.value)}
+                placeholder='Paste JSON here (e.g. { "name": "My Workflow", "nodes": [...], "edges": [...] } or { "node_type": "synthesizer", ... })'
+                className="w-full bg-[#0B0E14] border border-[#242E3D] rounded-lg p-3 text-white font-mono text-xs focus:border-amber-500 focus:outline-none resize-none leading-relaxed"
+                autoFocus
+              />
+
+              <div className="flex items-center justify-end space-x-2 pt-2 border-t border-[#242E3D]">
+                <button
+                  onClick={() => {
+                    setShowPasteModal(false);
+                    setPasteJsonInput('');
+                  }}
+                  className="px-3 py-1.5 rounded bg-[#1A222D] hover:bg-[#242E3D] text-[#94A3B8] hover:text-white transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => applyPastedJson(pasteJsonInput)}
+                  disabled={!pasteJsonInput.trim()}
+                  className="px-4 py-1.5 rounded bg-amber-500 hover:bg-amber-400 text-black font-semibold transition-colors disabled:opacity-50"
+                >
+                  Import to Canvas
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Node Inspector Drawer */}
@@ -1082,6 +1497,9 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
         voices={voices}
         onClose={() => setSelectedNodeId(null)}
         onUpdateParams={handleUpdateParams}
+        onDeleteNode={handleDeleteNode}
+        onDuplicateNode={handleDuplicateNode}
+        onCopyNodeJson={handleCopyNodeJson}
       />
     </div>
   );
