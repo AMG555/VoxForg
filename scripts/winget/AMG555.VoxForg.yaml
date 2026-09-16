@@ -1,0 +1,53 @@
+# Windows Package Manager (winget) Manifest for VoxForg
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.version.1.6.0.schema.json
+
+PackageIdentifier: AMG555.VoxForg
+PackageVersion: 0.1.0
+DefaultLocale: en-US
+ManifestType: version
+ManifestVersion: 1.6.0
+---
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.6.0.schema.json
+
+PackageIdentifier: AMG555.VoxForg
+PackageVersion: 0.1.0
+PackageLocale: en-US
+Publisher: AMG555
+PublisherUrl: https://github.com/AMG555
+PublisherSupportUrl: https://github.com/AMG555/VoxForg/issues
+PackageName: VoxForg
+PackageUrl: https://github.com/AMG555/VoxForg
+License: Apache-2.0 OR MIT
+LicenseUrl: https://github.com/AMG555/VoxForg/blob/main/LICENSE-APACHE
+ShortDescription: High-performance Neural Speech Synthesis & Voice Cloning Studio.
+Description: |
+  VoxForg is a local neural speech workstation supporting XTTS v2, Piper,
+  Kokoro, and Whisper with a real-time multi-track audio workstation UI.
+Tags:
+  - tts
+  - speech-synthesis
+  - voice-cloning
+  - audio
+  - ai
+  - deep-learning
+ManifestType: defaultLocale
+ManifestVersion: 1.6.0
+---
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.6.0.schema.json
+
+PackageIdentifier: AMG555.VoxForg
+PackageVersion: 0.1.0
+Platform:
+  - Windows.Desktop
+InstallModes:
+  - interactive
+  - silent
+  - silentWithProgress
+Installers:
+  - Architecture: x64
+    InstallerType: inno
+    InstallerUrl: https://github.com/AMG555/VoxForg/releases/download/v0.1.0/VoxForg-Setup-v0.1.0-windows-x64.exe
+    InstallerSha256: 0000000000000000000000000000000000000000000000000000000000000000
+    Scope: user
+ManifestType: installer
+ManifestVersion: 1.6.0

@@ -1,3 +1,10 @@
+// Hide the terminal window when launched by double-click on Windows.
+// The server still runs; the UI opens in the default browser.
+#![cfg_attr(
+    all(target_os = "windows", not(debug_assertions)),
+    windows_subsystem = "windows"
+)]
+
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -263,12 +270,17 @@ async fn main() -> Result<()> {
 
     let cli = Cli::parse();
 
+    // Default data directory: %APPDATA%\VoxForg on Windows, ~/.voxforg elsewhere.
+    // This ensures the installed app has a stable writable location regardless
+    // of where the exe lives (e.g. Downloads folder).
+    let default_data_dir = dirs_data_dir();
+
     let command = cli.command.unwrap_or_else(|| {
         Commands::Serve(ServeArgs {
             port: 8080,
-            host: "0.0.0.0".to_string(),
+            host: "127.0.0.1".to_string(),
             api_key: None,
-            data_dir: PathBuf::from("./data"),
+            data_dir: default_data_dir,
             router_url: None,
             router_api_key: None,
             router_model: None,
@@ -383,6 +395,33 @@ fn open_browser(url: &str) {
     {
         let _ = std::process::Command::new("xdg-open").arg(url).spawn();
     }
+}
+
+/// Resolve a stable application data directory for VoxForg.
+///
+/// Windows : %APPDATA%\VoxForg  (e.g. C:\Users\Alice\AppData\Roaming\VoxForg)
+/// macOS   : ~/Library/Application Support/VoxForg
+/// Linux   : ~/.local/share/VoxForg
+fn dirs_data_dir() -> PathBuf {
+    #[cfg(target_os = "windows")]
+    {
+        if let Ok(appdata) = std::env::var("APPDATA") {
+            let dir = PathBuf::from(appdata).join("VoxForg");
+            let _ = std::fs::create_dir_all(&dir);
+            return dir;
+        }
+    }
+    // Fallback for all platforms
+    let fallback = dirs_home().join(".voxforg");
+    let _ = std::fs::create_dir_all(&fallback);
+    fallback
+}
+
+fn dirs_home() -> PathBuf {
+    std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| PathBuf::from("."))
 }
 
 async fn shutdown_signal() {

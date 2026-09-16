@@ -42,8 +42,10 @@ fn main() {
         res.set_icon(&ico_path.to_string_lossy());
         res.set("ProductName", "VoxForg");
         res.set("FileDescription", "VoxForg Neural Speech Studio");
-        res.set("CompanyName", "VoxForg Contributors");
-        res.set("LegalCopyright", "Apache-2.0 OR MIT");
+        res.set("CompanyName", "VoxForg Team");
+        res.set("LegalCopyright", "Copyright (c) 2025 VoxForg Contributors");
+        res.set("OriginalFilename", "voxforg.exe");
+        res.set("InternalName", "voxforg");
         res.set_version_info(winres::VersionInfo::PRODUCTVERSION, 0x0001_0000_0000_0000);
         res.set_version_info(winres::VersionInfo::FILEVERSION, 0x0001_0000_0000_0000);
 

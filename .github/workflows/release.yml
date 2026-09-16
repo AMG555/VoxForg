@@ -63,14 +63,49 @@ jobs:
           Copy-Item target/release/voxforg.exe -Destination dist/voxforg-windows-x86_64.exe -Force
           Copy-Item target/release/voxforg.exe -Destination dist/voxforg.exe -Force
           Copy-Item assets/voxforg.ico -Destination dist/voxforg.ico -Force
-          
+
           # Create batch launcher
           Set-Content -Path dist/VoxForg-Start.bat -Value "@echo off`r`nstart `"`" `"%~dp0voxforg.exe`" serve --open" -Force
-          
+
           # Create installer script
           Set-Content -Path dist/install-desktop.bat -Value "@echo off`r`npowershell -NoProfile -ExecutionPolicy Bypass -Command `"& { irm https://raw.githubusercontent.com/${{ github.repository }}/main/scripts/install.ps1 | iex }`"`r`npause" -Force
-          
+
           Compress-Archive -Path dist/voxforg.exe, dist/voxforg.ico, dist/VoxForg-Start.bat, dist/install-desktop.bat -DestinationPath dist/VoxForg-Windows-x64.zip -Force
+
+      - name: Build Inno Setup Installer (.Setup.exe)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          & $iscc scripts/installer/voxforg.iss
+          Write-Host "Installer built successfully"
+
+      - name: Sign Windows Binaries (if certificate configured)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          WINDOWS_CERT_BASE64: ${{ secrets.WINDOWS_CERT_BASE64 }}
+          WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+        run: |
+          if ($env:WINDOWS_CERT_BASE64) {
+            Write-Host "Signing Windows binaries with Authenticode certificate..."
+            $certBytes = [Convert]::FromBase64String($env:WINDOWS_CERT_BASE64)
+            $pfxPath = "$env:TEMP\cert.pfx"
+            [IO.File]::WriteAllBytes($pfxPath, $certBytes)
+            $signtool = (Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" | Select-Object -First 1).FullName
+            if ($signtool) {
+              Get-ChildItem "dist\*.exe" | ForEach-Object {
+                Write-Host "Signing $($_.FullName)..."
+                & $signtool sign /f $pfxPath /p "$env:WINDOWS_CERT_PASSWORD" /tr http://timestamp.digicert.com /td sha256 /fd sha256 $_.FullName
+              }
+            } else {
+              Write-Warning "signtool.exe not found on runner."
+            }
+            Remove-Item $pfxPath -Force
+          } else {
+            Write-Host "No WINDOWS_CERT_BASE64 secret found; skipping Authenticode signing."
+          }
 
       - name: Package Unix Release (.tar.gz)
         if: runner.os != 'Windows'
