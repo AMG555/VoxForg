@@ -11,7 +11,10 @@ fn main() {
         let ico_path = workspace_root.join("assets").join("voxforg.ico");
 
         if !ico_path.exists() {
-            eprintln!("cargo:warning=voxforg.ico not found at {}, skipping icon embed", ico_path.display());
+            eprintln!(
+                "cargo:warning=voxforg.ico not found at {}, skipping icon embed",
+                ico_path.display()
+            );
             return;
         }
 
@@ -42,7 +45,7 @@ fn main() {
         res.set("CompanyName", "VoxForg Contributors");
         res.set("LegalCopyright", "Apache-2.0 OR MIT");
         res.set_version_info(winres::VersionInfo::PRODUCTVERSION, 0x0001_0000_0000_0000);
-        res.set_version_info(winres::VersionInfo::FILEVERSION,    0x0001_0000_0000_0000);
+        res.set_version_info(winres::VersionInfo::FILEVERSION, 0x0001_0000_0000_0000);
 
         if let Err(e) = res.compile() {
             eprintln!("cargo:warning=winres compile failed: {e}");

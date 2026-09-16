@@ -81,4 +81,3 @@ pub struct PipelineDefinition {
     #[serde(default = "default_now")]
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
-

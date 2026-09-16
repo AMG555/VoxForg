@@ -159,7 +159,9 @@ impl PipelineExecutor {
                             pitch: None,
                             target_duration_ms: None,
                         });
-                    } else if let Some((speaker, utterance)) = line.strip_prefix('[').and_then(|s| s.split_once(']')) {
+                    } else if let Some((speaker, utterance)) =
+                        line.strip_prefix('[').and_then(|s| s.split_once(']'))
+                    {
                         segments.push(ScriptSegment {
                             speaker: speaker.trim().to_string(),
                             text: utterance.trim().to_string(),
@@ -168,7 +170,9 @@ impl PipelineExecutor {
                             pitch: None,
                             target_duration_ms: None,
                         });
-                    } else if let Some((speaker, utterance)) = line.strip_prefix('(').and_then(|s| s.split_once(')')) {
+                    } else if let Some((speaker, utterance)) =
+                        line.strip_prefix('(').and_then(|s| s.split_once(')'))
+                    {
                         segments.push(ScriptSegment {
                             speaker: speaker.trim().to_string(),
                             text: utterance.trim().to_string(),
@@ -218,7 +222,10 @@ impl PipelineExecutor {
                     if let Some(map) = speaker_map.and_then(|m| m.as_object()) {
                         if let Some(v) = map.get(&segment.speaker).and_then(|val| val.as_str()) {
                             assigned = v.to_string();
-                        } else if let Some((_, v)) = map.iter().find(|(k, _)| k.eq_ignore_ascii_case(&segment.speaker)) {
+                        } else if let Some((_, v)) = map
+                            .iter()
+                            .find(|(k, _)| k.eq_ignore_ascii_case(&segment.speaker))
+                        {
                             if let Some(val) = v.as_str() {
                                 assigned = val.to_string();
                             }
@@ -240,17 +247,30 @@ impl PipelineExecutor {
                             .collect();
                         if !lines.is_empty() {
                             for line in lines {
-                                let (speaker, utterance) = if let Some((s, u)) = line.split_once(':') {
-                                    (s.trim().to_string(), u.trim().to_string())
-                                } else {
-                                    ("Host".to_string(), line.to_string())
-                                };
+                                let (speaker, utterance) =
+                                    if let Some((s, u)) = line.split_once(':') {
+                                        (s.trim().to_string(), u.trim().to_string())
+                                    } else {
+                                        ("Host".to_string(), line.to_string())
+                                    };
                                 ctx.segments.push(ScriptSegment {
                                     speaker,
                                     text: utterance,
-                                    voice_id: node.params.get("voice").and_then(|v| v.as_str()).map(|s| s.to_string()),
-                                    speed: node.params.get("speed").and_then(|s| s.as_f64()).map(|f| f as f32),
-                                    pitch: node.params.get("pitch").and_then(|p| p.as_f64()).map(|f| f as f32),
+                                    voice_id: node
+                                        .params
+                                        .get("voice")
+                                        .and_then(|v| v.as_str())
+                                        .map(|s| s.to_string()),
+                                    speed: node
+                                        .params
+                                        .get("speed")
+                                        .and_then(|s| s.as_f64())
+                                        .map(|f| f as f32),
+                                    pitch: node
+                                        .params
+                                        .get("pitch")
+                                        .and_then(|p| p.as_f64())
+                                        .map(|f| f as f32),
                                     target_duration_ms: None,
                                 });
                             }
@@ -292,11 +312,21 @@ impl PipelineExecutor {
 
                     let speed = segment
                         .speed
-                        .or_else(|| node.params.get("speed").and_then(|s| s.as_f64()).map(|f| f as f32))
+                        .or_else(|| {
+                            node.params
+                                .get("speed")
+                                .and_then(|s| s.as_f64())
+                                .map(|f| f as f32)
+                        })
                         .unwrap_or(1.0);
                     let pitch = segment
                         .pitch
-                        .or_else(|| node.params.get("pitch").and_then(|p| p.as_f64()).map(|f| f as f32))
+                        .or_else(|| {
+                            node.params
+                                .get("pitch")
+                                .and_then(|p| p.as_f64())
+                                .map(|f| f as f32)
+                        })
                         .unwrap_or(0.0);
 
                     let req = SynthesisRequest {
@@ -323,7 +353,11 @@ impl PipelineExecutor {
                     if !ctx.master_audio_pcm.is_empty() {
                         AudioNormalizer::peak_normalize(&mut ctx.master_audio_pcm, target);
                     }
-                } else if node.params.get("normalize").and_then(|b| b.as_bool()).unwrap_or(false)
+                } else if node
+                    .params
+                    .get("normalize")
+                    .and_then(|b| b.as_bool())
+                    .unwrap_or(false)
                     || node.params.get("filter_type").and_then(|t| t.as_str()) == Some("normalize")
                     || node.params.is_null()
                     || node.params.as_object().is_none_or(|o| o.is_empty())
@@ -348,14 +382,26 @@ impl PipelineExecutor {
                 }
 
                 // 3. Silence trimmer (supports both nested object and flat parameters)
-                let trim_enabled = node.params.get("trim_silence").and_then(|b| b.as_bool()).unwrap_or(false)
+                let trim_enabled = node
+                    .params
+                    .get("trim_silence")
+                    .and_then(|b| b.as_bool())
+                    .unwrap_or(false)
                     || node.params.get("silence_trim").is_some();
                 if trim_enabled {
-                    let threshold = node.params.get("silence_trim")
+                    let threshold = node
+                        .params
+                        .get("silence_trim")
                         .and_then(|o| o.get("threshold_dbfs").and_then(|t| t.as_f64()))
-                        .or_else(|| node.params.get("silence_threshold_db").and_then(|t| t.as_f64()))
+                        .or_else(|| {
+                            node.params
+                                .get("silence_threshold_db")
+                                .and_then(|t| t.as_f64())
+                        })
                         .unwrap_or(-45.0) as f32;
-                    let padding = node.params.get("silence_trim")
+                    let padding = node
+                        .params
+                        .get("silence_trim")
                         .and_then(|o| o.get("padding_ms").and_then(|p| p.as_u64()))
                         .or_else(|| node.params.get("silence_pad_ms").and_then(|p| p.as_u64()))
                         .unwrap_or(30) as u32;
@@ -365,24 +411,38 @@ impl PipelineExecutor {
                             SilenceTrimmer::trim(segment_pcm, ctx.sample_rate, threshold, padding);
                     }
                     if !ctx.master_audio_pcm.is_empty() {
-                        ctx.master_audio_pcm =
-                            SilenceTrimmer::trim(&ctx.master_audio_pcm, ctx.sample_rate, threshold, padding);
+                        ctx.master_audio_pcm = SilenceTrimmer::trim(
+                            &ctx.master_audio_pcm,
+                            ctx.sample_rate,
+                            threshold,
+                            padding,
+                        );
                     }
                 }
 
                 // 4. 3-Band Parametric Equalizer (supports both nested object and flat parameters)
-                let eq_enabled = node.params.get("enable_eq").and_then(|b| b.as_bool()).unwrap_or(false)
+                let eq_enabled = node
+                    .params
+                    .get("enable_eq")
+                    .and_then(|b| b.as_bool())
+                    .unwrap_or(false)
                     || node.params.get("eq").is_some();
                 if eq_enabled {
-                    let low = node.params.get("eq")
+                    let low = node
+                        .params
+                        .get("eq")
                         .and_then(|o| o.get("low_gain_db").and_then(|v| v.as_f64()))
                         .or_else(|| node.params.get("eq_low_gain_db").and_then(|v| v.as_f64()))
                         .unwrap_or(0.0) as f32;
-                    let mid = node.params.get("eq")
+                    let mid = node
+                        .params
+                        .get("eq")
                         .and_then(|o| o.get("mid_gain_db").and_then(|v| v.as_f64()))
                         .or_else(|| node.params.get("eq_mid_gain_db").and_then(|v| v.as_f64()))
                         .unwrap_or(0.0) as f32;
-                    let high = node.params.get("eq")
+                    let high = node
+                        .params
+                        .get("eq")
                         .and_then(|o| o.get("high_gain_db").and_then(|v| v.as_f64()))
                         .or_else(|| node.params.get("eq_high_gain_db").and_then(|v| v.as_f64()))
                         .unwrap_or(0.0) as f32;
@@ -391,29 +451,53 @@ impl PipelineExecutor {
                         ParametricEq::process_3band(segment_pcm, ctx.sample_rate, low, mid, high);
                     }
                     if !ctx.master_audio_pcm.is_empty() {
-                        ParametricEq::process_3band(&mut ctx.master_audio_pcm, ctx.sample_rate, low, mid, high);
+                        ParametricEq::process_3band(
+                            &mut ctx.master_audio_pcm,
+                            ctx.sample_rate,
+                            low,
+                            mid,
+                            high,
+                        );
                     }
                 }
 
                 // 5. Dynamic Range Compressor (supports both nested object and flat parameters)
-                let comp_enabled = node.params.get("enable_compressor").and_then(|b| b.as_bool()).unwrap_or(false)
+                let comp_enabled = node
+                    .params
+                    .get("enable_compressor")
+                    .and_then(|b| b.as_bool())
+                    .unwrap_or(false)
                     || node.params.get("compressor").is_some();
                 if comp_enabled {
-                    let threshold = node.params.get("compressor")
+                    let threshold = node
+                        .params
+                        .get("compressor")
                         .and_then(|o| o.get("threshold_dbfs").and_then(|v| v.as_f64()))
-                        .or_else(|| node.params.get("compressor_threshold_db").and_then(|v| v.as_f64()))
+                        .or_else(|| {
+                            node.params
+                                .get("compressor_threshold_db")
+                                .and_then(|v| v.as_f64())
+                        })
                         .unwrap_or(-18.0) as f32;
-                    let ratio = node.params.get("compressor")
+                    let ratio = node
+                        .params
+                        .get("compressor")
                         .and_then(|o| o.get("ratio").and_then(|v| v.as_f64()))
                         .or_else(|| node.params.get("compressor_ratio").and_then(|v| v.as_f64()))
                         .unwrap_or(3.0) as f32;
-                    let attack = node.params.get("compressor")
+                    let attack = node
+                        .params
+                        .get("compressor")
                         .and_then(|o| o.get("attack_ms").and_then(|v| v.as_f64()))
                         .unwrap_or(15.0) as f32;
-                    let release = node.params.get("compressor")
+                    let release = node
+                        .params
+                        .get("compressor")
                         .and_then(|o| o.get("release_ms").and_then(|v| v.as_f64()))
                         .unwrap_or(100.0) as f32;
-                    let makeup = node.params.get("compressor")
+                    let makeup = node
+                        .params
+                        .get("compressor")
                         .and_then(|o| o.get("makeup_gain_db").and_then(|v| v.as_f64()))
                         .unwrap_or(0.0) as f32;
 
@@ -442,12 +526,22 @@ impl PipelineExecutor {
                 }
 
                 // 6. Brickwall Limiter (supports both nested object and flat parameters)
-                let limiter_enabled = node.params.get("enable_limiter").and_then(|b| b.as_bool()).unwrap_or(false)
+                let limiter_enabled = node
+                    .params
+                    .get("enable_limiter")
+                    .and_then(|b| b.as_bool())
+                    .unwrap_or(false)
                     || node.params.get("limiter").is_some();
                 if limiter_enabled {
-                    let ceiling = node.params.get("limiter")
+                    let ceiling = node
+                        .params
+                        .get("limiter")
                         .and_then(|o| o.get("ceiling_dbfs").and_then(|v| v.as_f64()))
-                        .or_else(|| node.params.get("limiter_ceiling_db").and_then(|v| v.as_f64()))
+                        .or_else(|| {
+                            node.params
+                                .get("limiter_ceiling_db")
+                                .and_then(|v| v.as_f64())
+                        })
                         .unwrap_or(-0.5) as f32;
                     for segment_pcm in &mut ctx.audio_segments {
                         BrickwallLimiter::process(segment_pcm, ceiling);
