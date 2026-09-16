@@ -1,6 +1,25 @@
-import React, { useState, useRef } from 'react';
-import { Play, Loader2, Download, Upload, Sparkles } from 'lucide-react';
-import { PipelineDefinition, Voice } from '../../types';
+import React, { useState, useRef, useCallback } from 'react';
+import {
+  Play,
+  Loader2,
+  Download,
+  Upload,
+  Sparkles,
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
+  RotateCcw,
+  Plus,
+  Move,
+  Sliders,
+  Cpu,
+  Layers,
+  FileText,
+  Users,
+  UserCheck,
+  Save,
+} from 'lucide-react';
+import { PipelineDefinition, PipelineNode, Voice } from '../../types';
 import { NodeCard } from './NodeCard';
 import { NodeInspector } from './NodeInspector';
 import { api } from '../../services/api';
@@ -22,14 +41,14 @@ const PRESETS: Record<string, PipelineDefinition> = {
         params: {
           text: "Captain: We have cleared asteroid belt alpha.\nNav: Coordinates aligned, sir.",
         },
-        position: { x: 50, y: 120 },
+        position: { x: 60, y: 120 },
       },
       {
         id: 'node-2',
         name: 'Speaker Parser',
         node_type: 'speaker_parser',
         params: {},
-        position: { x: 360, y: 120 },
+        position: { x: 380, y: 120 },
       },
       {
         id: 'node-3',
@@ -42,28 +61,28 @@ const PRESETS: Record<string, PipelineDefinition> = {
             Nav: 'en-US-AriaNeural',
           },
         },
-        position: { x: 670, y: 120 },
+        position: { x: 700, y: 120 },
       },
       {
         id: 'node-4',
         name: 'Speech Synthesizer',
         node_type: 'synthesizer',
         params: {},
-        position: { x: 980, y: 120 },
+        position: { x: 1020, y: 120 },
       },
       {
         id: 'node-5',
         name: 'Audio Merge & Crossfade',
         node_type: 'audio_merge',
         params: { pause_ms: 180 },
-        position: { x: 1290, y: 120 },
+        position: { x: 1340, y: 120 },
       },
       {
         id: 'node-6',
         name: 'Master Output',
         node_type: 'output_sink',
         params: {},
-        position: { x: 1600, y: 120 },
+        position: { x: 1660, y: 120 },
       },
     ],
     edges: [
@@ -87,14 +106,14 @@ const PRESETS: Record<string, PipelineDefinition> = {
         params: {
           text: 'Welcome back to Quantum Wave. Today we dive into neural speech synthesis architectures in high-concurrency environments.',
         },
-        position: { x: 50, y: 120 },
+        position: { x: 60, y: 120 },
       },
       {
         id: 'p-2',
         name: 'Neural Synthesizer',
         node_type: 'synthesizer',
         params: { voice: 'en-US-JennyNeural' },
-        position: { x: 360, y: 120 },
+        position: { x: 380, y: 120 },
       },
       {
         id: 'p-3',
@@ -115,14 +134,14 @@ const PRESETS: Record<string, PipelineDefinition> = {
           limiter_ceiling_db: -0.8,
           normalize: true,
         },
-        position: { x: 670, y: 120 },
+        position: { x: 700, y: 120 },
       },
       {
         id: 'p-4',
         name: 'Broadcast Sink',
         node_type: 'output_sink',
         params: {},
-        position: { x: 980, y: 120 },
+        position: { x: 1020, y: 120 },
       },
     ],
     edges: [
@@ -144,14 +163,14 @@ const PRESETS: Record<string, PipelineDefinition> = {
         params: {
           text: 'You are listening to 104.7 VoxFM. Up next: non-stop neural audio streams with zero latency.',
         },
-        position: { x: 50, y: 120 },
+        position: { x: 60, y: 120 },
       },
       {
         id: 'r-2',
         name: 'Resonant Synthesizer',
         node_type: 'synthesizer',
         params: { voice: 'en-US-GuyNeural' },
-        position: { x: 360, y: 120 },
+        position: { x: 380, y: 120 },
       },
       {
         id: 'r-3',
@@ -171,14 +190,14 @@ const PRESETS: Record<string, PipelineDefinition> = {
           limiter_ceiling_db: -0.3,
           normalize: true,
         },
-        position: { x: 670, y: 120 },
+        position: { x: 700, y: 120 },
       },
       {
         id: 'r-4',
         name: 'Transmitter Sink',
         node_type: 'output_sink',
         params: {},
-        position: { x: 980, y: 120 },
+        position: { x: 1020, y: 120 },
       },
     ],
     edges: [
@@ -191,12 +210,86 @@ const PRESETS: Record<string, PipelineDefinition> = {
   },
 };
 
+const NODE_TEMPLATES = [
+  {
+    type: 'text_input',
+    name: 'Text Script Input',
+    category: 'Ingestion',
+    icon: <FileText className="w-3.5 h-3.5 text-sky-400" />,
+    defaultParams: { text: 'New synthesized line.' },
+  },
+  {
+    type: 'speaker_parser',
+    name: 'Speaker Script Parser',
+    category: 'Analysis',
+    icon: <Users className="w-3.5 h-3.5 text-purple-400" />,
+    defaultParams: {},
+  },
+  {
+    type: 'voice_assigner',
+    name: 'Voice Assigner',
+    category: 'Routing',
+    icon: <UserCheck className="w-3.5 h-3.5 text-amber-400" />,
+    defaultParams: { default_voice: 'en-US-AriaNeural' },
+  },
+  {
+    type: 'synthesizer',
+    name: 'Neural Synthesizer',
+    category: 'Synthesis',
+    icon: <Cpu className="w-3.5 h-3.5 text-emerald-400" />,
+    defaultParams: { speed: 1.0, pitch: 0.0 },
+  },
+  {
+    type: 'audio_filter',
+    name: 'DSP Filter Chain',
+    category: 'DSP Filter',
+    icon: <Sliders className="w-3.5 h-3.5 text-pink-400" />,
+    defaultParams: { trim_silence: true, normalize: true },
+  },
+  {
+    type: 'audio_merge',
+    name: 'Audio Track Merge',
+    category: 'Mastering',
+    icon: <Layers className="w-3.5 h-3.5 text-indigo-400" />,
+    defaultParams: { pause_ms: 150 },
+  },
+  {
+    type: 'output_sink',
+    name: 'Master Audio Sink',
+    category: 'Output Sink',
+    icon: <Save className="w-3.5 h-3.5 text-rose-400" />,
+    defaultParams: { format: 'wav' },
+  },
+];
+
+const getNodePos = (node: PipelineNode): { x: number; y: number } => {
+  return node.position || { x: 100, y: 100 };
+};
+
 export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
   const [pipeline, setPipeline] = useState<PipelineDefinition>(PRESETS.narrative);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>('node-1');
   const [isRunning, setIsRunning] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [showAddMenu, setShowAddMenu] = useState(false);
+
+  // 2D Canvas Viewport State (Pan & Zoom)
+  const [pan, setPan] = useState<{ x: number; y: number }>({ x: 60, y: 120 });
+  const [zoom, setZoom] = useState<number>(1.0);
+  const [isPanning, setIsPanning] = useState<boolean>(false);
+  const [panStart, setPanStart] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  // Node Dragging State
+  const [dragNodeState, setDragNodeState] = useState<{
+    nodeId: string;
+    startMouseX: number;
+    startMouseY: number;
+    startNodeX: number;
+    startNodeY: number;
+  } | null>(null);
+
+  const canvasContainerRef = useRef<HTMLDivElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -226,6 +319,163 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
     if (selectedNodeId === nodeId) {
       setSelectedNodeId(null);
     }
+  };
+
+  // Canvas Panning Handlers
+  const handleCanvasPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    // Only pan on background click (button 0 = left, button 1 = middle)
+    if (e.button !== 0 && e.button !== 1) return;
+    const target = e.target as HTMLElement;
+    // Don't pan if clicking directly on a node card or interactive element
+    if (target.closest('.node-card-interactive') || target.tagName === 'BUTTON' || target.tagName === 'INPUT') {
+      return;
+    }
+
+    setIsPanning(true);
+    setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+    setSelectedNodeId(null);
+    setShowAddMenu(false);
+  };
+
+  // Node Drag Start Handler
+  const handleNodePointerDown = useCallback((e: React.PointerEvent, nodeId: string) => {
+    e.stopPropagation();
+    setSelectedNodeId(nodeId);
+    setShowAddMenu(false);
+
+    const node = pipeline.nodes.find((n) => n.id === nodeId);
+    if (!node) return;
+
+    const pos = getNodePos(node);
+    setDragNodeState({
+      nodeId,
+      startMouseX: e.clientX,
+      startMouseY: e.clientY,
+      startNodeX: pos.x,
+      startNodeY: pos.y,
+    });
+  }, [pipeline.nodes]);
+
+  // Unified Pointer Move
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (dragNodeState) {
+      const dx = (e.clientX - dragNodeState.startMouseX) / zoom;
+      const dy = (e.clientY - dragNodeState.startMouseY) / zoom;
+
+      setPipeline((prev) => ({
+        ...prev,
+        nodes: prev.nodes.map((n) =>
+          n.id === dragNodeState.nodeId
+            ? {
+                ...n,
+                position: {
+                  x: Math.round(dragNodeState.startNodeX + dx),
+                  y: Math.round(dragNodeState.startNodeY + dy),
+                },
+              }
+            : n
+        ),
+      }));
+    } else if (isPanning) {
+      setPan({
+        x: e.clientX - panStart.x,
+        y: e.clientY - panStart.y,
+      });
+    }
+  };
+
+  // Pointer Up / Cancel
+  const handlePointerUp = () => {
+    setIsPanning(false);
+    setDragNodeState(null);
+  };
+
+  // Smooth Wheel Zoom Centered at Cursor
+  const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const rect = canvasContainerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
+    const zoomDelta = e.deltaY < 0 ? 1.12 : 0.89;
+    const newZoom = Math.min(Math.max(Number((zoom * zoomDelta).toFixed(3)), 0.25), 2.5);
+
+    // Zoom anchored to mouse position:
+    const newPanX = mouseX - (mouseX - pan.x) * (newZoom / zoom);
+    const newPanY = mouseY - (mouseY - pan.y) * (newZoom / zoom);
+
+    setZoom(newZoom);
+    setPan({ x: Math.round(newPanX), y: Math.round(newPanY) });
+  };
+
+  // Reset Zoom to 100%
+  const handleResetZoom = () => {
+    setZoom(1.0);
+    setPan({ x: 60, y: 120 });
+  };
+
+  // Fit All Nodes in Viewport
+  const handleFitToView = () => {
+    if (pipeline.nodes.length === 0) return;
+    const rect = canvasContainerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    const padding = 80;
+    const xs = pipeline.nodes.map((n) => getNodePos(n).x);
+    const ys = pipeline.nodes.map((n) => getNodePos(n).y);
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs) + 260; // card width is 256
+    const minY = Math.min(...ys);
+    const maxY = Math.max(...ys) + 150; // card height ~140
+
+    const graphWidth = maxX - minX;
+    const graphHeight = maxY - minY;
+
+    const scaleX = (rect.width - padding * 2) / graphWidth;
+    const scaleY = (rect.height - padding * 2) / graphHeight;
+    const newZoom = Math.min(Math.max(Math.min(scaleX, scaleY), 0.35), 1.5);
+
+    const newPanX = (rect.width - graphWidth * newZoom) / 2 - minX * newZoom;
+    const newPanY = (rect.height - graphHeight * newZoom) / 2 - minY * newZoom;
+
+    setZoom(Number(newZoom.toFixed(2)));
+    setPan({ x: Math.round(newPanX), y: Math.round(newPanY) });
+  };
+
+  // Add Node from Template
+  const handleAddNode = (template: typeof NODE_TEMPLATES[0]) => {
+    const rect = canvasContainerRef.current?.getBoundingClientRect();
+    const centerX = rect ? (rect.width / 2 - pan.x) / zoom - 128 : 200;
+    const centerY = rect ? (rect.height / 2 - pan.y) / zoom - 60 : 150;
+
+    const newNodeId = `node-${Date.now()}`;
+    const newNode: PipelineNode = {
+      id: newNodeId,
+      name: template.name,
+      node_type: template.type as any,
+      params: { ...template.defaultParams },
+      position: { x: Math.round(centerX), y: Math.round(centerY) },
+    };
+
+    // Auto connect from currently selected node if present
+    let newEdges = [...pipeline.edges];
+    if (selectedNodeId && pipeline.nodes.some((n) => n.id === selectedNodeId)) {
+      newEdges.push({
+        id: `edge-${Date.now()}`,
+        from_node: selectedNodeId,
+        to_node: newNodeId,
+      });
+    }
+
+    setPipeline((prev) => ({
+      ...prev,
+      nodes: [...prev.nodes, newNode],
+      edges: newEdges,
+    }));
+    setSelectedNodeId(newNodeId);
+    setShowAddMenu(false);
   };
 
   const handleRunPipeline = async () => {
@@ -267,6 +517,7 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
         if (Array.isArray(imported.nodes) && Array.isArray(imported.edges)) {
           setPipeline(imported);
           setSelectedNodeId(imported.nodes[0]?.id || null);
+          setTimeout(handleFitToView, 50);
         } else {
           alert('Invalid pipeline JSON: Missing nodes or edges array');
         }
@@ -289,9 +540,9 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
       />
 
       {/* Central Interactive Node Canvas */}
-      <div className="flex-1 flex flex-col h-full bg-[#0B0E14] relative">
+      <div className="flex-1 flex flex-col h-full bg-[#0B0E14] relative overflow-hidden">
         {/* Canvas Toolbar */}
-        <div className="h-12 border-b border-[#242E3D] bg-[#121820]/80 backdrop-blur px-4 flex items-center justify-between z-10 select-none">
+        <div className="h-12 border-b border-[#242E3D] bg-[#121820]/90 backdrop-blur px-4 flex items-center justify-between z-20 select-none">
           <div className="flex items-center space-x-3">
             <span className="text-xs font-mono font-bold text-white">{pipeline.name}</span>
             <span className="text-[11px] font-mono text-[#64748B]">
@@ -307,6 +558,7 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
                   if (preset) {
                     setPipeline(preset);
                     setSelectedNodeId(preset.nodes[0]?.id || null);
+                    setTimeout(handleFitToView, 50);
                   }
                 }}
                 className="bg-[#0B0E14] text-[#94A3B8] border border-[#242E3D] rounded px-2 py-1 text-[11px] font-mono focus:border-amber-500 focus:outline-none cursor-pointer"
@@ -316,6 +568,40 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
                 <option value="podcast">Preset: Studio Podcast</option>
                 <option value="radio">Preset: Punchy Radio</option>
               </select>
+            </div>
+
+            {/* Add Node Dropdown */}
+            <div className="relative pl-2">
+              <button
+                onClick={() => setShowAddMenu((prev) => !prev)}
+                className="flex items-center space-x-1 px-2.5 py-1 rounded bg-[#1A222D] hover:bg-[#242E3D] text-amber-400 hover:text-amber-300 text-xs font-mono border border-amber-500/30 hover:border-amber-500 transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add Node</span>
+              </button>
+
+              {showAddMenu && (
+                <div className="absolute left-2 top-full mt-1 w-56 bg-[#121820] border border-[#242E3D] rounded-lg shadow-2xl z-50 py-1 font-mono text-xs">
+                  <div className="px-3 py-1.5 text-[10px] font-semibold text-[#64748B] uppercase tracking-wider border-b border-[#242E3D]">
+                    Available DAG Nodes
+                  </div>
+                  {NODE_TEMPLATES.map((tmpl) => (
+                    <button
+                      key={tmpl.type}
+                      onClick={() => handleAddNode(tmpl)}
+                      className="w-full px-3 py-2 text-left hover:bg-[#1A222D] flex items-center space-x-2 text-[#F0F4F8] transition-colors"
+                    >
+                      <div className="p-1 rounded bg-[#0B0E14] border border-[#242E3D]">
+                        {tmpl.icon}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="truncate font-semibold text-xs">{tmpl.name}</div>
+                        <div className="text-[10px] text-[#64748B] uppercase">{tmpl.category}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
@@ -370,30 +656,166 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
           </div>
         </div>
 
-        {/* Canvas Workspace Area */}
-        <div className="flex-1 overflow-x-auto overflow-y-hidden p-8 canvas-grid relative flex items-center">
-          <div className="flex items-center space-x-12 min-w-max">
-            {pipeline.nodes.map((node, index) => (
-              <React.Fragment key={node.id}>
-                <NodeCard
-                  node={node}
-                  isSelected={node.id === selectedNodeId}
-                  onSelect={setSelectedNodeId}
-                  onDelete={handleDeleteNode}
-                />
-                {index < pipeline.nodes.length - 1 && (
-                  <div className="w-12 h-0.5 bg-[#38BDF8] relative flex items-center justify-center">
-                    <div className="w-2 h-2 rounded-full bg-[#38BDF8] animate-ping" />
+        {/* Interactive Infinite Canvas Workspace */}
+        <div
+          ref={canvasContainerRef}
+          onPointerDown={handleCanvasPointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerLeave={handlePointerUp}
+          onWheel={handleWheel}
+          className={`flex-1 w-full h-full relative overflow-hidden select-none canvas-grid ${
+            isPanning ? 'cursor-grabbing' : 'cursor-default'
+          }`}
+          style={{
+            backgroundPosition: `${pan.x}px ${pan.y}px`,
+            backgroundSize: `${Math.max(16, Math.round(24 * zoom))}px ${Math.max(16, Math.round(24 * zoom))}px`,
+          }}
+        >
+          {/* Zoom & Pan Transform Layer */}
+          <div
+            className="absolute inset-0 origin-top-left pointer-events-none"
+            style={{
+              transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+            }}
+          >
+            {/* SVG Connection Wires Layer */}
+            <svg
+              className="absolute inset-0 overflow-visible pointer-events-none"
+              style={{ width: '100%', height: '100%' }}
+            >
+              <defs>
+                <linearGradient id="wireGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="#38BDF8" />
+                  <stop offset="100%" stopColor="#34D399" />
+                </linearGradient>
+                <filter id="wireGlowFilter" x="-20%" y="-20%" width="140%" height="140%">
+                  <feGaussianBlur stdDeviation="3" result="glow" />
+                  <feMerge>
+                    <feMergeNode in="glow" />
+                    <feMergeNode in="SourceGraphic" />
+                  </feMerge>
+                </filter>
+              </defs>
+
+              {pipeline.edges.map((edge) => {
+                const fromNode = pipeline.nodes.find((n) => n.id === edge.from_node);
+                const toNode = pipeline.nodes.find((n) => n.id === edge.to_node);
+                if (!fromNode || !toNode) return null;
+
+                const fromPos = getNodePos(fromNode);
+                const toPos = getNodePos(toNode);
+                // Card width is 256px (w-64); connector ports are centered on right and left edges
+                const x1 = fromPos.x + 256;
+                const y1 = fromPos.y + 60;
+                const x2 = toPos.x;
+                const y2 = toPos.y + 60;
+
+                const dx = Math.max(Math.abs(x2 - x1) * 0.5, 45);
+                const pathData = `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
+
+                return (
+                  <g key={edge.id}>
+                    {/* Background glow halo */}
+                    <path
+                      d={pathData}
+                      fill="none"
+                      stroke="#38BDF8"
+                      strokeWidth="6"
+                      strokeOpacity="0.15"
+                      filter="url(#wireGlowFilter)"
+                    />
+                    {/* Main smooth bezier curve */}
+                    <path
+                      d={pathData}
+                      fill="none"
+                      stroke="url(#wireGrad)"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                    />
+                    {/* Flowing animated pulse marker */}
+                    <circle r="3.5" fill="#F59E0B">
+                      <animateMotion dur="2.8s" repeatCount="indefinite" path={pathData} />
+                    </circle>
+                  </g>
+                );
+              })}
+            </svg>
+
+            {/* Draggable Node Cards */}
+            {pipeline.nodes.map((node) => {
+              const pos = getNodePos(node);
+                return (
+                  <div
+                    key={node.id}
+                    className="pointer-events-auto node-card-interactive"
+                  >
+                    <NodeCard
+                      node={node}
+                      isSelected={node.id === selectedNodeId}
+                      onSelect={setSelectedNodeId}
+                      onDelete={handleDeleteNode}
+                      onPointerDown={handleNodePointerDown}
+                      style={{
+                        left: `${pos.x}px`,
+                        top: `${pos.y}px`,
+                      }}
+                    />
                   </div>
-                )}
-              </React.Fragment>
-            ))}
+                );
+              })}
+          </div>
+
+          {/* Floating Zoom & Pan HUD Controls */}
+          <div className="absolute bottom-5 right-5 z-20 flex items-center bg-[#121820]/90 backdrop-blur-md border border-[#242E3D] rounded-lg shadow-2xl p-1 space-x-1 select-none">
+            <button
+              onClick={() => setZoom((z) => Math.min(Number((z + 0.15).toFixed(2)), 2.5))}
+              className="p-1.5 rounded hover:bg-[#1A222D] text-[#94A3B8] hover:text-white transition-colors"
+              title="Zoom In"
+            >
+              <ZoomIn className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setZoom((z) => Math.max(Number((z - 0.15).toFixed(2)), 0.25))}
+              className="p-1.5 rounded hover:bg-[#1A222D] text-[#94A3B8] hover:text-white transition-colors"
+              title="Zoom Out"
+            >
+              <ZoomOut className="w-4 h-4" />
+            </button>
+            <button
+              onClick={handleResetZoom}
+              className="px-2 py-1 rounded hover:bg-[#1A222D] text-[11px] font-mono text-[#94A3B8] hover:text-white transition-colors"
+              title="Reset to 100%"
+            >
+              {Math.round(zoom * 100)}%
+            </button>
+            <div className="w-px h-4 bg-[#242E3D]" />
+            <button
+              onClick={handleFitToView}
+              className="p-1.5 rounded hover:bg-[#1A222D] text-[#94A3B8] hover:text-white transition-colors"
+              title="Fit to Screen"
+            >
+              <Maximize2 className="w-4 h-4" />
+            </button>
+            <button
+              onClick={handleResetZoom}
+              className="p-1.5 rounded hover:bg-[#1A222D] text-[#94A3B8] hover:text-white transition-colors"
+              title="Center Origin"
+            >
+              <RotateCcw className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Bottom Hint Banner */}
+          <div className="absolute bottom-5 left-5 z-10 hidden sm:flex items-center space-x-2 px-3 py-1.5 bg-[#121820]/75 backdrop-blur-sm border border-[#242E3D]/60 rounded-full text-[11px] font-mono text-[#64748B] pointer-events-none">
+            <Move className="w-3 h-3 text-amber-500" />
+            <span>Drag canvas to pan • Scroll to zoom • Drag cards to position</span>
           </div>
         </div>
 
         {/* Real-time Audio Visualizer Bottom Dock */}
         {audioUrl && (
-          <div className="absolute bottom-4 left-4 z-20 w-96 shadow-2xl backdrop-blur-md bg-[#0B0E14]/90 rounded-lg">
+          <div className="absolute bottom-16 left-5 z-30 w-96 shadow-2xl backdrop-blur-md bg-[#0B0E14]/90 rounded-lg border border-[#242E3D]">
             <AudioVisualizer
               audioElement={audioRef.current}
               isPlaying={isPlaying}

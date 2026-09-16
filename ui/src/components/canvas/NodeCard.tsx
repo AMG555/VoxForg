@@ -16,6 +16,8 @@ interface NodeCardProps {
   isSelected: boolean;
   onSelect: (id: string) => void;
   onDelete: (id: string) => void;
+  onPointerDown?: (e: React.PointerEvent, id: string) => void;
+  style?: React.CSSProperties;
 }
 
 const nodeIcons: Record<string, React.ReactNode> = {
@@ -43,14 +45,21 @@ export const NodeCard: React.FC<NodeCardProps> = ({
   isSelected,
   onSelect,
   onDelete,
+  onPointerDown,
+  style,
 }) => {
   return (
     <div
-      onClick={() => onSelect(node.id)}
-      className={`relative w-64 rounded-lg bg-[#121820] border transition-all cursor-pointer shadow-lg select-none ${
+      style={style}
+      onPointerDown={(e) => onPointerDown?.(e, node.id)}
+      onClick={(e) => {
+        e.stopPropagation();
+        onSelect(node.id);
+      }}
+      className={`absolute w-64 rounded-lg bg-[#121820] border cursor-grab active:cursor-grabbing shadow-xl select-none transition-shadow ${
         isSelected
-          ? 'border-amber-500 ring-1 ring-amber-500/50 shadow-amber-500/10'
-          : 'border-[#242E3D] hover:border-[#3B485C]'
+          ? 'border-amber-500 ring-2 ring-amber-500/50 shadow-amber-500/20 z-30'
+          : 'border-[#242E3D] hover:border-[#3B485C] z-20'
       }`}
     >
       {/* Input port connector */}
