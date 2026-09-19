@@ -61,6 +61,10 @@ export const App: React.FC = () => {
     });
   }, []);
 
+  const handleVoiceCreated = (newVoice: Voice) => {
+    setVoices((prev) => [newVoice, ...prev.filter((v) => v.id !== newVoice.id)]);
+  };
+
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#0B0E14]">
       <Navigation
@@ -71,7 +75,7 @@ export const App: React.FC = () => {
 
       <main className="flex-1 flex overflow-hidden">
         {activeTab === 'canvas' && <PipelineCanvas voices={voices} />}
-        {activeTab === 'voices' && <VoiceLab voices={voices} />}
+        {activeTab === 'voices' && <VoiceLab voices={voices} onVoiceCreated={handleVoiceCreated} />}
         {activeTab === 'catalog' && <ModelCatalog />}
         {activeTab === 'hardware' && <HardwareInspector hardware={hardware} onNavigateTab={setActiveTab} />}
         {activeTab === 'qa' && <AbTestLab voices={voices} />}

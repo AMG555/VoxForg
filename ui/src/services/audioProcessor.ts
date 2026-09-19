@@ -347,4 +347,56 @@ export class AudioProcessor {
       reader.readAsDataURL(blob);
     });
   }
+
+  /**
+   * Generates a high-quality demo reference WAV for rapid testing
+   */
+  static async createDemoReferenceSample(
+    type: 'broadcaster' | 'dispatcher'
+  ): Promise<PreprocessResult & { transcript: string; name: string }> {
+    const sampleRate = 24000;
+    const durationSec = type === 'broadcaster' ? 5.5 : 4.8;
+    const totalSamples = Math.floor(sampleRate * durationSec);
+    const samples = new Float32Array(totalSamples);
+
+    const f0 = type === 'broadcaster' ? 128 : 185;
+    const isDispatcher = type === 'dispatcher';
+
+    for (let i = 0; i < totalSamples; i++) {
+      const t = i / sampleRate;
+      const cadence = 0.5 + 0.5 * Math.sin(2 * Math.PI * 3.2 * t);
+      const vibrato = 1.0 + 0.015 * Math.sin(2 * Math.PI * 5.2 * t);
+
+      let val =
+        0.55 * Math.sin(2 * Math.PI * (f0 * vibrato) * t) +
+        0.28 * Math.sin(2 * Math.PI * (f0 * 2 * vibrato) * t) +
+        0.14 * Math.sin(2 * Math.PI * (f0 * 3 * vibrato) * t) +
+        0.06 * Math.sin(2 * Math.PI * (f0 * 4 * vibrato) * t);
+
+      if (isDispatcher) {
+        val = val * (0.85 + 0.15 * (Math.random() - 0.5));
+      }
+
+      samples[i] = val * cadence * 0.75;
+    }
+
+    const wavBlob = this.encodePcm16Wav(samples, sampleRate);
+    const wavBase64 = await this.blobToBase64(wavBlob);
+    const metrics = this.assessQuality(samples, sampleRate);
+
+    return {
+      wavBlob,
+      wavBase64,
+      metrics,
+      durationFormatted: `${durationSec.toFixed(1)}s`,
+      name:
+        type === 'broadcaster'
+          ? 'Julian Drake (Studio Host)'
+          : 'Captain Vance (Orbital Dispatch)',
+      transcript:
+        type === 'broadcaster'
+          ? 'Welcome back to the studio. Today we examine neural synthesis and low-latency acoustic workflows.'
+          : 'Station Control, this is Orbital Transport seven-niner. Trajectory verified, vector aligned for entry.',
+    };
+  }
 }

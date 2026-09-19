@@ -34,6 +34,8 @@ import {
   Headphones,
   Clock,
   Film,
+  HelpCircle,
+  LayoutGrid,
 } from 'lucide-react';
 import {
   PipelineNode,
@@ -254,6 +256,7 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
   const [nameInput, setNameInput] = useState('');
   const [showPasteModal, setShowPasteModal] = useState(false);
   const [pasteJsonInput, setPasteJsonInput] = useState('');
+  const [showShortcutsModal, setShowShortcutsModal] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -546,6 +549,238 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
     navigator.clipboard?.writeText(JSON.stringify(payload, null, 2));
     showToast(`Copied ${subNodes.length} selected nodes to clipboard`);
   }, [selectedNodeIds, pipeline, showToast]);
+
+  const handlePaste = useCallback(async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!text) return;
+      const parsed = JSON.parse(text);
+      let incomingNodes: PipelineNode[] = [];
+      let incomingEdges: any[] = [];
+      if (Array.isArray(parsed)) {
+        incomingNodes = parsed;
+      } else if (parsed && Array.isArray(parsed.nodes)) {
+        incomingNodes = parsed.nodes;
+        incomingEdges = parsed.edges || [];
+      } else if (parsed && parsed.node_type) {
+        incomingNodes = [parsed];
+      }
+      if (incomingNodes.length === 0) return;
+
+      const idMap = new Map<string, string>();
+      const pastedNodes: PipelineNode[] = incomingNodes.map((n) => {
+        const freshId = `node-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+        idMap.set(n.id, freshId);
+        const pos = getNodePos(n);
+        return {
+          ...n,
+          id: freshId,
+          name: `${n.name} (Pasted)`,
+          position: { x: pos.x + 36, y: pos.y + 36 },
+        };
+      });
+
+      const pastedEdges = incomingEdges
+        .filter((e) => idMap.has(e.from_node) && idMap.has(e.to_node))
+        .map((e) => ({
+          id: `edge-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          from_node: idMap.get(e.from_node)!,
+          to_node: idMap.get(e.to_node)!,
+        }));
+
+      setPipeline((prev) => {
+        const updated = {
+          ...prev,
+          nodes: [...prev.nodes, ...pastedNodes],
+          edges: [...prev.edges, ...pastedEdges],
+        };
+        setIsDirty(true);
+        pushHistory(updated);
+        return updated;
+      });
+
+      setSelectedNodeIds(new Set(pastedNodes.map((n) => n.id)));
+      showToast(`Pasted ${pastedNodes.length} nodes from clipboard`);
+    } catch {
+      setShowPasteModal(true);
+    }
+  }, [pushHistory, showToast]);
+
+  const handleAutoLayout = useCallback(() => {
+    if (pipeline.nodes.length === 0) return;
+
+    const inDegree = new Map<string, number>();
+    const outgoing = new Map<string, string[]>();
+
+    pipeline.nodes.forEach((n) => {
+      inDegree.set(n.id, 0);
+      outgoing.set(n.id, []);
+    });
+
+    pipeline.edges.forEach((e) => {
+      if (inDegree.has(e.to_node)) {
+        inDegree.set(e.to_node, (inDegree.get(e.to_node) || 0) + 1);
+      }
+      if (outgoing.has(e.from_node)) {
+        outgoing.get(e.from_node)!.push(e.to_node);
+      }
+    });
+
+    const colRank = new Map<string, number>();
+    const queue: string[] = [];
+
+    pipeline.nodes.forEach((n) => {
+      if ((inDegree.get(n.id) || 0) === 0 || n.node_type === 'text_input') {
+        colRank.set(n.id, 0);
+        queue.push(n.id);
+      }
+    });
+
+    while (queue.length > 0) {
+      const u = queue.shift()!;
+      const r = colRank.get(u) || 0;
+      const targets = outgoing.get(u) || [];
+      targets.forEach((v) => {
+        const currentRank = colRank.get(v) || 0;
+        if (r + 1 > currentRank) {
+          colRank.set(v, r + 1);
+          queue.push(v);
+        }
+      });
+    }
+
+    const columns = new Map<number, PipelineNode[]>();
+    pipeline.nodes.forEach((n) => {
+      const col = colRank.get(n.id) ?? (n.node_type === 'output_sink' ? 4 : 1);
+      if (!columns.has(col)) columns.set(col, []);
+      columns.get(col)!.push(n);
+    });
+
+    const sortedCols = Array.from(columns.keys()).sort((a, b) => a - b);
+    const colSpacing = 340;
+    const rowSpacing = 220;
+    const startX = 80;
+    const startY = 80;
+
+    const newPositions = new Map<string, { x: number; y: number }>();
+
+    sortedCols.forEach((colIdx, colOrder) => {
+      const colNodes = columns.get(colIdx)!;
+      colNodes.forEach((node, rowIdx) => {
+        newPositions.set(node.id, {
+          x: startX + colOrder * colSpacing,
+          y: startY + rowIdx * rowSpacing,
+        });
+      });
+    });
+
+    setPipeline((prev) => {
+      const updatedNodes = prev.nodes.map((n) => ({
+        ...n,
+        position: newPositions.get(n.id) || n.position || { x: 100, y: 100 },
+      }));
+      const updated = {
+        ...prev,
+        nodes: updatedNodes,
+      };
+      setIsDirty(true);
+      pushHistory(updated);
+      return updated;
+    });
+
+    showToast(`Auto-arranged ${pipeline.nodes.length} nodes into clean columns`);
+  }, [pipeline.nodes, pipeline.edges, pushHistory, showToast]);
+
+  // Global Keyboard Shortcuts (n8n Standard)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeTag = (document.activeElement as HTMLElement)?.tagName;
+      if (
+        activeTag === 'INPUT' ||
+        activeTag === 'TEXTAREA' ||
+        (document.activeElement as HTMLElement)?.isContentEditable
+      ) {
+        return;
+      }
+
+      // Ctrl+A / Cmd+A: Select all
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'a' || e.key === 'A')) {
+        e.preventDefault();
+        handleSelectAll();
+        return;
+      }
+
+      // Delete / Backspace: Delete selected
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault();
+        handleDeleteSelected();
+        return;
+      }
+
+      // Ctrl+D / Cmd+D: Duplicate selected
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'd' || e.key === 'D')) {
+        e.preventDefault();
+        handleDuplicateSelected();
+        return;
+      }
+
+      // Ctrl+C / Cmd+C: Copy selected
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C')) {
+        handleCopySelected();
+        return;
+      }
+
+      // Ctrl+V / Cmd+V: Paste
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'v' || e.key === 'V')) {
+        e.preventDefault();
+        handlePaste();
+        return;
+      }
+
+      // Ctrl+Z: Undo
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z') && !e.shiftKey) {
+        e.preventDefault();
+        handleUndo();
+        return;
+      }
+
+      // Ctrl+Y or Ctrl+Shift+Z: Redo
+      if (
+        ((e.ctrlKey || e.metaKey) && (e.key === 'y' || e.key === 'Y')) ||
+        ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'z' || e.key === 'Z'))
+      ) {
+        e.preventDefault();
+        handleRedo();
+        return;
+      }
+
+      // Shift+Alt+L: Auto Layout
+      if (e.shiftKey && e.altKey && (e.key === 'l' || e.key === 'L')) {
+        e.preventDefault();
+        handleAutoLayout();
+        return;
+      }
+
+      // ?: Open keyboard shortcuts guide
+      if (e.key === '?' || (e.shiftKey && e.key === '/')) {
+        e.preventDefault();
+        setShowShortcutsModal((prev) => !prev);
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    handleSelectAll,
+    handleDeleteSelected,
+    handleDuplicateSelected,
+    handleCopySelected,
+    handlePaste,
+    handleUndo,
+    handleRedo,
+    handleAutoLayout,
+  ]);
 
   // Sticky Notes Handling
   const handleAddStickyNote = () => {
@@ -1657,6 +1892,21 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
               >
                 <RotateCcw className="w-4 h-4" />
               </button>
+              <div className="w-px h-4 bg-[#242E3D]" />
+              <button
+                onClick={handleAutoLayout}
+                className="p-1.5 rounded hover:bg-[#1A222D] text-[#94A3B8] hover:text-amber-400 transition-colors"
+                title="Auto-Layout DAG (Shift+Alt+L)"
+              >
+                <LayoutGrid className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setShowShortcutsModal(true)}
+                className="p-1.5 rounded hover:bg-[#1A222D] text-[#94A3B8] hover:text-sky-400 transition-colors"
+                title="Keyboard Shortcuts Guide (?)"
+              >
+                <HelpCircle className="w-4 h-4" />
+              </button>
             </div>
           </div>
 
@@ -1747,6 +1997,130 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
                   className="px-4 py-1.5 rounded bg-amber-500 hover:bg-amber-400 text-black font-semibold"
                 >
                   Import to Canvas
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Keyboard Shortcuts & Gestures Guide Modal */}
+        {showShortcutsModal && (
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-[#121820] border border-[#242E3D] rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden animate-in fade-in zoom-in duration-150 text-xs font-mono">
+              <div className="p-4 border-b border-[#242E3D] flex items-center justify-between bg-[#0B0E14]/60">
+                <div className="flex items-center space-x-2">
+                  <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                    <HelpCircle className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-white">DAG Canvas Gestures & Shortcuts</h3>
+                    <p className="text-[11px] text-[#94A3B8]">Fast studio navigation and editing</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowShortcutsModal(false)}
+                  className="p-1.5 rounded-lg text-[#94A3B8] hover:text-white hover:bg-[#1A222D]"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
+                <div>
+                  <div className="text-[11px] uppercase font-semibold text-amber-400 tracking-wider mb-2">
+                    Canvas Navigation & Viewport
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-[11px]">
+                    <div className="p-2.5 rounded-lg bg-[#0B0E14] border border-[#242E3D] flex justify-between items-center">
+                      <span className="text-[#94A3B8]">2D Swipe Pan</span>
+                      <span className="text-white font-semibold">Scroll / Trackpad</span>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-[#0B0E14] border border-[#242E3D] flex justify-between items-center">
+                      <span className="text-[#94A3B8]">Drag Pan</span>
+                      <span className="text-white font-semibold">Space / Mid-Click</span>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-[#0B0E14] border border-[#242E3D] flex justify-between items-center">
+                      <span className="text-[#94A3B8]">Zoom In</span>
+                      <span className="text-white font-semibold">Double Click</span>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-[#0B0E14] border border-[#242E3D] flex justify-between items-center">
+                      <span className="text-[#94A3B8]">Zoom Out</span>
+                      <span className="text-amber-400 font-semibold">HUD [-] Button</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-[11px] uppercase font-semibold text-sky-400 tracking-wider mb-2">
+                    Node Selection & Editing
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-[11px]">
+                    <div className="p-2.5 rounded-lg bg-[#0B0E14] border border-[#242E3D] flex justify-between items-center">
+                      <span className="text-[#94A3B8]">Marquee Selection</span>
+                      <span className="text-white font-semibold">Drag empty canvas</span>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-[#0B0E14] border border-[#242E3D] flex justify-between items-center">
+                      <span className="text-[#94A3B8]">Multi-Select Add</span>
+                      <span className="text-white font-semibold">Shift + Drag / Click</span>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-[#0B0E14] border border-[#242E3D] flex justify-between items-center">
+                      <span className="text-[#94A3B8]">Select All Nodes</span>
+                      <span className="text-white font-semibold">Ctrl + A</span>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-[#0B0E14] border border-[#242E3D] flex justify-between items-center">
+                      <span className="text-[#94A3B8]">Delete Selected</span>
+                      <span className="text-rose-400 font-semibold">Del / Backspace</span>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-[#0B0E14] border border-[#242E3D] flex justify-between items-center">
+                      <span className="text-[#94A3B8]">Duplicate Selected</span>
+                      <span className="text-white font-semibold">Ctrl + D</span>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-[#0B0E14] border border-[#242E3D] flex justify-between items-center">
+                      <span className="text-[#94A3B8]">Copy JSON</span>
+                      <span className="text-white font-semibold">Ctrl + C</span>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-[#0B0E14] border border-[#242E3D] flex justify-between items-center">
+                      <span className="text-[#94A3B8]">Paste Nodes</span>
+                      <span className="text-emerald-400 font-semibold">Ctrl + V</span>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-[#0B0E14] border border-[#242E3D] flex justify-between items-center">
+                      <span className="text-[#94A3B8]">Auto-Layout DAG</span>
+                      <span className="text-amber-400 font-semibold">Shift + Alt + L</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-[11px] uppercase font-semibold text-emerald-400 tracking-wider mb-2">
+                    History & Workflow
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-[11px]">
+                    <div className="p-2.5 rounded-lg bg-[#0B0E14] border border-[#242E3D] flex justify-between items-center">
+                      <span className="text-[#94A3B8]">Undo</span>
+                      <span className="text-white font-semibold">Ctrl + Z</span>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-[#0B0E14] border border-[#242E3D] flex justify-between items-center">
+                      <span className="text-[#94A3B8]">Redo</span>
+                      <span className="text-white font-semibold">Ctrl + Y</span>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-[#0B0E14] border border-[#242E3D] flex justify-between items-center">
+                      <span className="text-[#94A3B8]">Test Single Node</span>
+                      <span className="text-white font-semibold">Play Icon on Node</span>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-[#0B0E14] border border-[#242E3D] flex justify-between items-center">
+                      <span className="text-[#94A3B8]">Sticky Notes</span>
+                      <span className="text-white font-semibold">Click Note in HUD</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-3 border-t border-[#242E3D] bg-[#0B0E14]/40 flex justify-end">
+                <button
+                  onClick={() => setShowShortcutsModal(false)}
+                  className="px-4 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-semibold"
+                >
+                  Got It
                 </button>
               </div>
             </div>

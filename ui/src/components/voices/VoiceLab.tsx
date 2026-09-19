@@ -22,9 +22,14 @@ import { AudioProcessor, AudioQualityAssessment } from '../../services/audioProc
 
 interface VoiceLabProps {
   voices: Voice[];
+  onVoiceCreated?: (voice: Voice) => void;
 }
 
-export const VoiceLab: React.FC<VoiceLabProps> = ({ voices }) => {
+export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated }) => {
+  const [localVoices, setLocalVoices] = useState<Voice[]>(voices);
+  useEffect(() => {
+    setLocalVoices(voices);
+  }, [voices]);
   const [selectedVoiceId, setSelectedVoiceId] = useState<string>('en-US-AriaNeural');
   const [text, setText] = useState<string>(
     'The atmospheric density on Kepler-452b allows acoustic waves to travel 1.4 times faster than standard Earth normal.'
@@ -93,7 +98,7 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices }) => {
   }, [audioUrl, recordedAudioUrl]);
 
   // Clean neural voices list: eliminate mock sine voices and sort working neural voices to top
-  const filteredVoices = voices
+  const filteredVoices = localVoices
     .filter((v) => v.engine_id !== 'mock-tts')
     .filter(
       (v) =>
@@ -115,6 +120,7 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices }) => {
     filteredVoices.find((v) => v.id === selectedVoiceId) ||
     filteredVoices.find((v) => v.engine_id === 'edge-tts') ||
     filteredVoices[0] ||
+    localVoices[0] ||
     voices[0];
 
   const isRouterConfigured = Boolean(apiKeyInput.trim() && routerModelInput.trim());
@@ -362,7 +368,8 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices }) => {
         tags: ['cloned', 'zero-shot'],
         description: 'Zero-shot voice profile generated from reference sample',
       };
-      voices.unshift(newVoice);
+      setLocalVoices((prev) => [newVoice, ...prev.filter((v) => v.id !== newVoice.id)]);
+      onVoiceCreated?.(newVoice);
       setSelectedVoiceId(newVoice.id);
       setShowCloneModal(false);
       setCloneName('');
@@ -374,6 +381,22 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices }) => {
       alert(`Cloning failed: ${err.message}`);
     } finally {
       setIsCloning(false);
+    }
+  };
+
+  const handleLoadDemoSample = async (type: 'broadcaster' | 'dispatcher') => {
+    try {
+      const demo = await AudioProcessor.createDemoReferenceSample(type);
+      if (recordedAudioUrl) URL.revokeObjectURL(recordedAudioUrl);
+      setRecordedAudioUrl(URL.createObjectURL(demo.wavBlob));
+      setCloneAudioBase64(demo.wavBase64);
+      setAudioQuality(demo.metrics);
+      setCloneName(demo.name);
+      setCloneTranscript(demo.transcript);
+      setCloneFileName(`${demo.name} (Enhanced 24kHz Reference WAV)`);
+      setCloneMode('upload');
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -785,6 +808,26 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices }) => {
                   >
                     <Upload className="w-3.5 h-3.5" />
                     <span>Upload Audio File</span>
+                  </button>
+                </div>
+
+                <div className="flex items-center space-x-2 mb-3 px-1">
+                  <span className="text-[10px] font-mono text-[#64748B] uppercase">Quick Demo:</span>
+                  <button
+                    type="button"
+                    onClick={() => handleLoadDemoSample('broadcaster')}
+                    className="px-2.5 py-1 text-[11px] font-mono rounded-md bg-[#0B0E14] hover:bg-[#1A222D] text-[#94A3B8] hover:text-amber-400 border border-[#242E3D] hover:border-amber-500/40 transition-colors flex items-center space-x-1"
+                  >
+                    <Sparkles className="w-3 h-3 text-amber-400" />
+                    <span>Studio Host (5.5s)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleLoadDemoSample('dispatcher')}
+                    className="px-2.5 py-1 text-[11px] font-mono rounded-md bg-[#0B0E14] hover:bg-[#1A222D] text-[#94A3B8] hover:text-sky-400 border border-[#242E3D] hover:border-sky-500/40 transition-colors flex items-center space-x-1"
+                  >
+                    <Sparkles className="w-3 h-3 text-sky-400" />
+                    <span>Orbital Dispatch (4.8s)</span>
                   </button>
                 </div>
 
