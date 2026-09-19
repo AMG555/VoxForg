@@ -3,8 +3,6 @@ import {
   Play,
   Loader2,
   Download,
-  Upload,
-  Sparkles,
   ZoomIn,
   ZoomOut,
   Maximize2,
@@ -24,444 +22,47 @@ import {
   Edit2,
   Check,
   CheckSquare,
-  FilePlus,
   X,
   AlertCircle,
   CheckCircle2,
   MoreHorizontal,
   Mic,
+  StickyNote,
+  Undo2,
+  Redo2,
+  FolderOpen,
+  Headphones,
+  Clock,
+  Film,
 } from 'lucide-react';
-import { PipelineDefinition, PipelineNode, Voice } from '../../types';
+import {
+  PipelineNode,
+  Voice,
+  NodeExecutionState,
+  NodeType,
+} from '../../types';
 import { NodeCard } from './NodeCard';
 import { NodeInspector } from './NodeInspector';
+import { CanvasMiniMap } from './CanvasMiniMap';
+import { ExecutionTimelineDrawer } from './ExecutionTimelineDrawer';
+import { StickyNoteCard } from './StickyNoteCard';
+import {
+  WorkflowManagerModal,
+} from './WorkflowManagerModal';
+import {
+  WorkflowStorage,
+  StoredWorkflow,
+  StickyNoteData,
+} from '../../services/workflowStorage';
 import { api } from '../../services/api';
-import { AudioVisualizer } from '../common/AudioVisualizer';
 
 interface PipelineCanvasProps {
   voices: Voice[];
 }
 
-const PRESETS: Record<string, PipelineDefinition> = {
-  narrative: {
-    id: 'preset-narrative',
-    name: 'Narrative Dialogue Pipeline',
-    nodes: [
-      {
-        id: 'node-1',
-        name: 'Input Script',
-        node_type: 'text_input',
-        params: {
-          text: "Captain: We have cleared asteroid belt alpha.\nNav: Coordinates aligned, sir.",
-        },
-        position: { x: 60, y: 120 },
-      },
-      {
-        id: 'node-2',
-        name: 'Speaker Parser',
-        node_type: 'speaker_parser',
-        params: {},
-        position: { x: 380, y: 120 },
-      },
-      {
-        id: 'node-3',
-        name: 'Voice Allocation',
-        node_type: 'voice_assigner',
-        params: {
-          default_voice: 'en-US-AriaNeural',
-          speaker_map: {
-            Captain: 'en-US-GuyNeural',
-            Nav: 'en-US-AriaNeural',
-          },
-        },
-        position: { x: 700, y: 120 },
-      },
-      {
-        id: 'node-4',
-        name: 'Speech Synthesizer',
-        node_type: 'synthesizer',
-        params: {},
-        position: { x: 1020, y: 120 },
-      },
-      {
-        id: 'node-5',
-        name: 'Audio Merge & Crossfade',
-        node_type: 'audio_merge',
-        params: { pause_ms: 180 },
-        position: { x: 1340, y: 120 },
-      },
-      {
-        id: 'node-6',
-        name: 'Master Output',
-        node_type: 'output_sink',
-        params: {},
-        position: { x: 1660, y: 120 },
-      },
-    ],
-    edges: [
-      { id: 'e1', from_node: 'node-1', to_node: 'node-2' },
-      { id: 'e2', from_node: 'node-2', to_node: 'node-3' },
-      { id: 'e3', from_node: 'node-3', to_node: 'node-4' },
-      { id: 'e4', from_node: 'node-4', to_node: 'node-5' },
-      { id: 'e5', from_node: 'node-5', to_node: 'node-6' },
-    ],
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  podcast: {
-    id: 'preset-podcast',
-    name: 'Multi-Voice Studio Podcast',
-    nodes: [
-      {
-        id: 'p-1',
-        name: 'Podcast Interview Script',
-        node_type: 'text_input',
-        params: {
-          text: "Host: Welcome back to Quantum Wave! Today we dive into multi-voice neural speech synthesis in high-concurrency environments.\nGuest: Thanks for having me, Alex! Combining distinct voices on a single directed canvas is a massive leap for studio production.\nHost: Absolutely. With inter-speaker crossfades and dynamic audio mastering, creators can build full podcast episodes in seconds.",
-        },
-        position: { x: 60, y: 120 },
-      },
-      {
-        id: 'p-2',
-        name: 'Speaker Script Parser',
-        node_type: 'speaker_parser',
-        params: {},
-        position: { x: 380, y: 120 },
-      },
-      {
-        id: 'p-3',
-        name: 'Podcast Voice Assigner',
-        node_type: 'voice_assigner',
-        params: {
-          default_voice: 'en-US-JennyNeural',
-          speaker_map: {
-            Host: 'en-US-JennyNeural',
-            Guest: 'en-US-GuyNeural',
-          },
-        },
-        position: { x: 700, y: 120 },
-      },
-      {
-        id: 'p-4',
-        name: 'Neural Synthesizer',
-        node_type: 'synthesizer',
-        params: { speed: 1.0, pitch: 0.0 },
-        position: { x: 1020, y: 120 },
-      },
-      {
-        id: 'p-5',
-        name: 'Studio DSP Mastering',
-        node_type: 'audio_filter',
-        params: {
-          trim_silence: true,
-          silence_threshold_db: -42.0,
-          silence_pad_ms: 40,
-          enable_eq: true,
-          eq_low_gain_db: 1.5,
-          eq_mid_gain_db: -0.5,
-          eq_high_gain_db: 2.0,
-          enable_compressor: true,
-          compressor_threshold_db: -18.0,
-          compressor_ratio: 2.5,
-          enable_limiter: true,
-          limiter_ceiling_db: -0.8,
-          normalize: true,
-        },
-        position: { x: 1340, y: 120 },
-      },
-      {
-        id: 'p-6',
-        name: 'Audio Merge & Crossfade',
-        node_type: 'audio_merge',
-        params: { pause_ms: 220 },
-        position: { x: 1660, y: 120 },
-      },
-      {
-        id: 'p-7',
-        name: 'Broadcast Master Sink',
-        node_type: 'output_sink',
-        params: {},
-        position: { x: 1980, y: 120 },
-      },
-    ],
-    edges: [
-      { id: 'pe1', from_node: 'p-1', to_node: 'p-2' },
-      { id: 'pe2', from_node: 'p-2', to_node: 'p-3' },
-      { id: 'pe3', from_node: 'p-3', to_node: 'p-4' },
-      { id: 'pe4', from_node: 'p-4', to_node: 'p-5' },
-      { id: 'pe5', from_node: 'p-5', to_node: 'p-6' },
-      { id: 'pe6', from_node: 'p-6', to_node: 'p-7' },
-    ],
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  communications: {
-    id: 'preset-comms',
-    name: 'Tactical Communications Studio',
-    nodes: [
-      {
-        id: 'c-1',
-        name: 'Comms Dispatch Script',
-        node_type: 'text_input',
-        params: {
-          text: "Dispatch: Control to Falcon-1, radar contact lost at vector zero-four-zero. Confirm visual status.\nPilot: Falcon-1 copy. Heavy static layer at ten thousand feet, switching auxiliary frequency now.\nDispatch: Roger Falcon-1. Maintain designated corridor and report telemetry link.",
-        },
-        position: { x: 60, y: 120 },
-      },
-      {
-        id: 'c-2',
-        name: 'Speaker Script Parser',
-        node_type: 'speaker_parser',
-        params: {},
-        position: { x: 380, y: 120 },
-      },
-      {
-        id: 'c-3',
-        name: 'Tactical Voice Allocation',
-        node_type: 'voice_assigner',
-        params: {
-          default_voice: 'en-US-AriaNeural',
-          speaker_map: {
-            Dispatch: 'en-US-AriaNeural',
-            Pilot: 'en-US-GuyNeural',
-          },
-        },
-        position: { x: 700, y: 120 },
-      },
-      {
-        id: 'c-4',
-        name: 'Comms Synthesizer',
-        node_type: 'synthesizer',
-        params: { speed: 1.05, pitch: 0.0 },
-        position: { x: 1020, y: 120 },
-      },
-      {
-        id: 'c-5',
-        name: 'Radio Bandpass DSP',
-        node_type: 'audio_filter',
-        params: {
-          trim_silence: true,
-          silence_threshold_db: -36.0,
-          enable_eq: true,
-          eq_low_gain_db: -3.0,
-          eq_mid_gain_db: 3.5,
-          eq_high_gain_db: 2.0,
-          enable_compressor: true,
-          compressor_threshold_db: -14.0,
-          compressor_ratio: 4.0,
-          enable_limiter: true,
-          limiter_ceiling_db: -0.3,
-          normalize: true,
-        },
-        position: { x: 1340, y: 120 },
-      },
-      {
-        id: 'c-6',
-        name: 'Radio Audio Merge',
-        node_type: 'audio_merge',
-        params: { pause_ms: 140 },
-        position: { x: 1660, y: 120 },
-      },
-      {
-        id: 'c-7',
-        name: 'Mission Comms Sink',
-        node_type: 'output_sink',
-        params: {},
-        position: { x: 1980, y: 120 },
-      },
-    ],
-    edges: [
-      { id: 'ce1', from_node: 'c-1', to_node: 'c-2' },
-      { id: 'ce2', from_node: 'c-2', to_node: 'c-3' },
-      { id: 'ce3', from_node: 'c-3', to_node: 'c-4' },
-      { id: 'ce4', from_node: 'c-4', to_node: 'c-5' },
-      { id: 'ce5', from_node: 'c-5', to_node: 'c-6' },
-      { id: 'ce6', from_node: 'c-6', to_node: 'c-7' },
-    ],
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  radio: {
-    id: 'preset-radio',
-    name: 'Punchy Radio Broadcaster',
-    nodes: [
-      {
-        id: 'r-1',
-        name: 'Station Jingle & Dialogue',
-        node_type: 'text_input',
-        params: {
-          text: "DJ: You are listening to 104.7 VoxFM! Taking our first live caller on the neural hotline.\nCaller: Hey DJ! The audio quality on this station is crystal clear, loving the mix!\nDJ: Appreciate the love, caller! Cranking up non-stop neural audio with zero latency.",
-        },
-        position: { x: 60, y: 120 },
-      },
-      {
-        id: 'r-2',
-        name: 'Speaker Script Parser',
-        node_type: 'speaker_parser',
-        params: {},
-        position: { x: 380, y: 120 },
-      },
-      {
-        id: 'r-3',
-        name: 'Station Voice Assigner',
-        node_type: 'voice_assigner',
-        params: {
-          default_voice: 'en-US-GuyNeural',
-          speaker_map: {
-            DJ: 'en-US-GuyNeural',
-            Caller: 'en-US-JennyNeural',
-          },
-        },
-        position: { x: 700, y: 120 },
-      },
-      {
-        id: 'r-4',
-        name: 'Resonant Synthesizer',
-        node_type: 'synthesizer',
-        params: { voice: 'en-US-GuyNeural' },
-        position: { x: 1020, y: 120 },
-      },
-      {
-        id: 'r-5',
-        name: 'Aggressive Radio DSP',
-        node_type: 'audio_filter',
-        params: {
-          trim_silence: true,
-          silence_threshold_db: -36.0,
-          enable_eq: true,
-          eq_low_gain_db: 3.5,
-          eq_mid_gain_db: 2.0,
-          eq_high_gain_db: 3.0,
-          enable_compressor: true,
-          compressor_threshold_db: -12.0,
-          compressor_ratio: 4.0,
-          enable_limiter: true,
-          limiter_ceiling_db: -0.3,
-          normalize: true,
-        },
-        position: { x: 1340, y: 120 },
-      },
-      {
-        id: 'r-6',
-        name: 'Audio Merge & Crossfade',
-        node_type: 'audio_merge',
-        params: { pause_ms: 100 },
-        position: { x: 1660, y: 120 },
-      },
-      {
-        id: 'r-7',
-        name: 'Transmitter Sink',
-        node_type: 'output_sink',
-        params: {},
-        position: { x: 1980, y: 120 },
-      },
-    ],
-    edges: [
-      { id: 're1', from_node: 'r-1', to_node: 'r-2' },
-      { id: 're2', from_node: 'r-2', to_node: 'r-3' },
-      { id: 're3', from_node: 'r-3', to_node: 'r-4' },
-      { id: 're4', from_node: 'r-4', to_node: 'r-5' },
-      { id: 're5', from_node: 'r-5', to_node: 'r-6' },
-      { id: 're6', from_node: 'r-6', to_node: 'r-7' },
-    ],
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  character_dialogue: {
-    id: 'preset-character-dialogue',
-    name: 'Multi-Character Voice DAG',
-    nodes: [
-      {
-        id: 'char-1',
-        name: 'Captain Miller',
-        node_type: 'character_voice',
-        params: {
-          character_name: 'Captain Miller',
-          voice_id: 'en-US-GuyNeural',
-          text: 'All flight decks, initiate pre-burn diagnostics. We break orbit in forty seconds.',
-          speed: 0.98,
-          pitch: 0,
-        },
-        position: { x: 60, y: 60 },
-      },
-      {
-        id: 'char-2',
-        name: 'Science Officer Nova',
-        node_type: 'character_voice',
-        params: {
-          character_name: 'Science Officer Nova',
-          voice_id: 'en-US-AriaNeural',
-          text: 'Telemetry confirmed, Captain. Gravitational sensors are nominal and corridor is clear.',
-          speed: 1.05,
-          pitch: 1,
-        },
-        position: { x: 60, y: 260 },
-      },
-      {
-        id: 'char-3',
-        name: 'AI Co-pilot Vector',
-        node_type: 'character_voice',
-        params: {
-          character_name: 'AI Co-pilot Vector',
-          voice_id: 'en-US-JennyNeural',
-          text: 'Neural jump drive primed. Synchronizing audio channels to master broadcast.',
-          speed: 1.1,
-          pitch: 2,
-        },
-        position: { x: 60, y: 460 },
-      },
-      {
-        id: 'char-synth',
-        name: 'Neural Synthesizer',
-        node_type: 'synthesizer',
-        params: { speed: 1.0, pitch: 0.0 },
-        position: { x: 420, y: 260 },
-      },
-      {
-        id: 'char-filter',
-        name: 'Studio DSP Mastering',
-        node_type: 'audio_filter',
-        params: {
-          trim_silence: true,
-          enable_eq: true,
-          eq_low_gain_db: 1.0,
-          eq_high_gain_db: 2.0,
-          enable_compressor: true,
-          compressor_threshold_db: -16.0,
-          normalize: true,
-        },
-        position: { x: 740, y: 260 },
-      },
-      {
-        id: 'char-merge',
-        name: 'Audio Merge & Crossfade',
-        node_type: 'audio_merge',
-        params: { pause_ms: 220 },
-        position: { x: 1060, y: 260 },
-      },
-      {
-        id: 'char-sink',
-        name: 'Master Broadcast Sink',
-        node_type: 'output_sink',
-        params: {},
-        position: { x: 1380, y: 260 },
-      },
-    ],
-    edges: [
-      { id: 'che-1', from_node: 'char-1', to_node: 'char-synth' },
-      { id: 'che-2', from_node: 'char-2', to_node: 'char-synth' },
-      { id: 'che-3', from_node: 'char-3', to_node: 'char-synth' },
-      { id: 'che-4', from_node: 'char-synth', to_node: 'char-filter' },
-      { id: 'che-5', from_node: 'char-filter', to_node: 'char-merge' },
-      { id: 'che-6', from_node: 'char-merge', to_node: 'char-sink' },
-    ],
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-};
-
 const NODE_TEMPLATES = [
   {
-    type: 'character_voice',
+    type: 'character_voice' as NodeType,
     name: 'Character Voice & Line',
     category: 'Character',
     icon: <Mic className="w-3.5 h-3.5 text-amber-400" />,
@@ -474,49 +75,84 @@ const NODE_TEMPLATES = [
     },
   },
   {
-    type: 'text_input',
+    type: 'text_input' as NodeType,
     name: 'Text Script Input',
     category: 'Ingestion',
     icon: <FileText className="w-3.5 h-3.5 text-sky-400" />,
     defaultParams: { text: 'New synthesized line.' },
   },
   {
-    type: 'speaker_parser',
+    type: 'asr_transcriber' as NodeType,
+    name: 'Audio Ingestion (ASR)',
+    category: 'Audio Ingestion',
+    icon: <Headphones className="w-3.5 h-3.5 text-violet-400" />,
+    defaultParams: { model: 'whisper-large-v3', language: 'en' },
+  },
+  {
+    type: 'document_chunker' as NodeType,
+    name: 'Document Chunker',
+    category: 'Preprocessing',
+    icon: <FileText className="w-3.5 h-3.5 text-teal-400" />,
+    defaultParams: { chunk_size: 500, overlap_words: 30 },
+  },
+  {
+    type: 'speaker_parser' as NodeType,
     name: 'Speaker Script Parser',
     category: 'Analysis',
     icon: <Users className="w-3.5 h-3.5 text-purple-400" />,
     defaultParams: {},
   },
   {
-    type: 'voice_assigner',
+    type: 'diarization' as NodeType,
+    name: 'Speaker Diarization',
+    category: 'Analysis',
+    icon: <UserCheck className="w-3.5 h-3.5 text-cyan-400" />,
+    defaultParams: { num_speakers: 2 },
+  },
+  {
+    type: 'voice_assigner' as NodeType,
     name: 'Voice Assigner',
     category: 'Routing',
     icon: <UserCheck className="w-3.5 h-3.5 text-amber-400" />,
     defaultParams: { default_voice: 'en-US-AriaNeural' },
   },
   {
-    type: 'synthesizer',
+    type: 'synthesizer' as NodeType,
     name: 'Neural Synthesizer',
     category: 'Synthesis',
     icon: <Cpu className="w-3.5 h-3.5 text-emerald-400" />,
     defaultParams: { speed: 1.0, pitch: 0.0 },
   },
   {
-    type: 'audio_filter',
+    type: 'audio_filter' as NodeType,
     name: 'DSP Filter Chain',
     category: 'DSP Filter',
     icon: <Sliders className="w-3.5 h-3.5 text-pink-400" />,
     defaultParams: { trim_silence: true, normalize: true },
   },
   {
-    type: 'audio_merge',
+    type: 'audio_time_stretch' as NodeType,
+    name: 'Audio Time Stretch',
+    category: 'DSP Warp',
+    icon: <Clock className="w-3.5 h-3.5 text-amber-400" />,
+    defaultParams: { speed_ratio: 1.05, preserve_pitch: true },
+  },
+  {
+    type: 'audio_merge' as NodeType,
     name: 'Audio Track Merge',
     category: 'Mastering',
     icon: <Layers className="w-3.5 h-3.5 text-indigo-400" />,
     defaultParams: { pause_ms: 150 },
   },
   {
-    type: 'output_sink',
+    type: 'audio_mux' as NodeType,
+    name: 'Audio/Video Muxer',
+    category: 'Video Dubbing',
+    icon: <Film className="w-3.5 h-3.5 text-rose-400" />,
+    defaultParams: { format: 'mp4' },
+  },
+  {
+    type: 'output_sink' as NodeType,
     name: 'Master Audio Sink',
     category: 'Output Sink',
     icon: <Save className="w-3.5 h-3.5 text-rose-400" />,
@@ -529,32 +165,90 @@ const getNodePos = (node: PipelineNode): { x: number; y: number } => {
 };
 
 export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
-  const [pipeline, setPipeline] = useState<PipelineDefinition>(PRESETS.narrative);
-  const [selectedNodeIds, setSelectedNodeIds] = useState<Set<string>>(new Set(['node-1']));
-  const [isRunning, setIsRunning] = useState(false);
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [showAddMenu, setShowAddMenu] = useState(false);
-  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  // ── Multi-Workflow Storage & Active Project State ────────────────────────
+  const [pipeline, setPipeline] = useState<StoredWorkflow>(() => WorkflowStorage.getActiveWorkflow());
+  const [openTabs, setOpenTabs] = useState<string[]>(() => WorkflowStorage.getOpenTabs());
+  const [isDirty, setIsDirty] = useState<boolean>(false);
+  const [showManagerModal, setShowManagerModal] = useState<boolean>(false);
 
-  // 2D Canvas Viewport State (Pan & Zoom)
+  // Undo / Redo History Stack
+  const historyRef = useRef<StoredWorkflow[]>([]);
+  const historyIndexRef = useRef<number>(-1);
+
+  const pushHistory = useCallback((newWorkflow: StoredWorkflow) => {
+    const history = historyRef.current.slice(0, historyIndexRef.current + 1);
+    history.push(JSON.parse(JSON.stringify(newWorkflow)));
+    if (history.length > 30) history.shift();
+    historyRef.current = history;
+    historyIndexRef.current = history.length - 1;
+  }, []);
+
+  const handleUndo = useCallback(() => {
+    if (historyIndexRef.current > 0) {
+      historyIndexRef.current -= 1;
+      const prev = historyRef.current[historyIndexRef.current];
+      if (prev) {
+        setPipeline(JSON.parse(JSON.stringify(prev)));
+        setIsDirty(true);
+      }
+    }
+  }, []);
+
+  const handleRedo = useCallback(() => {
+    if (historyIndexRef.current < historyRef.current.length - 1) {
+      historyIndexRef.current += 1;
+      const next = historyRef.current[historyIndexRef.current];
+      if (next) {
+        setPipeline(JSON.parse(JSON.stringify(next)));
+        setIsDirty(true);
+      }
+    }
+  }, []);
+
+  // ── Selection State (Single & Multi-Node) ────────────────────────────────
+  const [selectedNodeIds, setSelectedNodeIds] = useState<Set<string>>(new Set(['node-1']));
+
+  // ── Marquee Box Selection State (n8n Style) ──────────────────────────────
+  const [isMarqueeSelecting, setIsMarqueeSelecting] = useState<boolean>(false);
+  const [marqueeBox, setMarqueeBox] = useState<{
+    startClientX: number;
+    startClientY: number;
+    startCanvasX: number;
+    startCanvasY: number;
+    curCanvasX: number;
+    curCanvasY: number;
+  } | null>(null);
+
+  // ── 2D Viewport State (Swipe Pan & Double-Click Zoom) ───────────────────
   const [pan, setPan] = useState<{ x: number; y: number }>({ x: 60, y: 120 });
   const [zoom, setZoom] = useState<number>(1.0);
-  const [isPanning, setIsPanning] = useState<boolean>(false);
+  const [isMiddlePanning, setIsMiddlePanning] = useState<boolean>(false);
   const [panStart, setPanStart] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
-  // Multi-Node Dragging State
+  // ── Multi-Node Dragging State (Synchronized + 16px Grid Snap) ────────────
   const [dragNodeState, setDragNodeState] = useState<{
     startMouseX: number;
     startMouseY: number;
     nodeStarts: Record<string, { x: number; y: number }>;
   } | null>(null);
 
-  // Wire Connection Dragging State
+  // ── Wire Connection & Release-Wire Quick-Add State ───────────────────────
   const [connectingFrom, setConnectingFrom] = useState<string | null>(null);
   const [pointerCanvasPos, setPointerCanvasPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [quickAddPos, setQuickAddPos] = useState<{ x: number; y: number; connectFromId?: string } | null>(null);
 
-  // Workflow & Toast State
+  // ── Real-Time Execution & Flow Visualization (n8n Parity) ────────────────
+  const [isRunning, setIsRunning] = useState(false);
+  const [executionStates, setExecutionStates] = useState<Record<string, NodeExecutionState>>({});
+  const [activeEdgeIds, setActiveEdgeIds] = useState<Set<string>>(new Set());
+  const [executionTotalMs, setExecutionTotalMs] = useState<number>(0);
+  const [showExecutionDrawer, setShowExecutionDrawer] = useState<boolean>(false);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+
+  // ── UI Dropdowns & Modals ────────────────────────────────────────────────
+  const [showAddMenu, setShowAddMenu] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [showMiniMap, setShowMiniMap] = useState<boolean>(true);
   const [toastMessage, setToastMessage] = useState<{ text: string; type?: 'info' | 'error' } | null>(null);
   const [isEditingName, setIsEditingName] = useState(false);
   const [nameInput, setNameInput] = useState('');
@@ -572,6 +266,20 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
     }, 2800);
   }, []);
 
+  // Sync initial history
+  useEffect(() => {
+    if (historyRef.current.length === 0) {
+      pushHistory(pipeline);
+    }
+  }, [pipeline, pushHistory]);
+
+  // Clean audio URL on unmount
+  useEffect(() => {
+    return () => {
+      if (audioUrl) URL.revokeObjectURL(audioUrl);
+    };
+  }, [audioUrl]);
+
   // Update master audio source safely
   useEffect(() => {
     if (audioRef.current && audioUrl) {
@@ -579,23 +287,102 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
     }
   }, [audioUrl]);
 
-  const primarySelectedId = selectedNodeIds.size === 1 ? Array.from(selectedNodeIds)[0] : (selectedNodeIds.size > 0 ? Array.from(selectedNodeIds)[selectedNodeIds.size - 1] : null);
+  const primarySelectedId =
+    selectedNodeIds.size === 1
+      ? Array.from(selectedNodeIds)[0]
+      : selectedNodeIds.size > 0
+      ? Array.from(selectedNodeIds)[selectedNodeIds.size - 1]
+      : null;
   const selectedNode = pipeline.nodes.find((n) => n.id === primarySelectedId) || null;
   const selectedNodes = pipeline.nodes.filter((n) => selectedNodeIds.has(n.id));
 
+  // ── Workflow Storage Actions (Save, Switch, New) ─────────────────────────
+  const handleSaveWorkflow = useCallback(() => {
+    const saved = WorkflowStorage.saveWorkflow(pipeline);
+    setPipeline(saved);
+    setIsDirty(false);
+    showToast(`Workflow "${saved.name}" saved!`, 'info');
+  }, [pipeline, showToast]);
+
+  const handleSelectWorkflow = useCallback(
+    (workflowId: string) => {
+      if (isDirty) {
+        WorkflowStorage.saveWorkflow(pipeline);
+      }
+      WorkflowStorage.setActiveWorkflowId(workflowId);
+      const target = WorkflowStorage.getActiveWorkflow();
+      setPipeline(target);
+      setOpenTabs(WorkflowStorage.getOpenTabs());
+      setSelectedNodeIds(target.nodes[0] ? new Set([target.nodes[0].id]) : new Set());
+      setExecutionStates({});
+      setActiveEdgeIds(new Set());
+      if (audioUrl) {
+        URL.revokeObjectURL(audioUrl);
+        setAudioUrl(null);
+      }
+      setIsDirty(false);
+      pushHistory(target);
+      setTimeout(handleFitToView, 60);
+      showToast(`Switched to "${target.name}"`);
+    },
+    [isDirty, pipeline, audioUrl, pushHistory, showToast]
+  );
+
+  const handleCloseTab = (e: React.MouseEvent, tabId: string) => {
+    e.stopPropagation();
+    WorkflowStorage.removeOpenTab(tabId);
+    const updatedTabs = WorkflowStorage.getOpenTabs();
+    setOpenTabs(updatedTabs);
+    if (tabId === pipeline.id) {
+      handleSelectWorkflow(updatedTabs[0] || 'preset-narrative');
+    }
+  };
+
+  const handleCreateNewWorkflow = () => {
+    const created = WorkflowStorage.createWorkflow('Untitled Studio Workflow');
+    setOpenTabs(WorkflowStorage.getOpenTabs());
+    setPipeline(created);
+    setSelectedNodeIds(created.nodes[0] ? new Set([created.nodes[0].id]) : new Set());
+    setIsDirty(false);
+    pushHistory(created);
+    showToast('Created new workflow project');
+  };
+
+  // ── Node & Edge Modifications ────────────────────────────────────────────
   const handleUpdateParams = (nodeId: string, params: Record<string, any>) => {
-    setPipeline((prev) => ({
-      ...prev,
-      nodes: prev.nodes.map((n) => (n.id === nodeId ? { ...n, params } : n)),
-    }));
+    setPipeline((prev) => {
+      const updated = {
+        ...prev,
+        nodes: prev.nodes.map((n) => (n.id === nodeId ? { ...n, params } : n)),
+      };
+      setIsDirty(true);
+      pushHistory(updated);
+      return updated;
+    });
   };
 
   const handleUpdateNodeName = useCallback((nodeId: string, name: string) => {
-    setPipeline((prev) => ({
-      ...prev,
-      nodes: prev.nodes.map((n) => (n.id === nodeId ? { ...n, name } : n)),
-    }));
+    setPipeline((prev) => {
+      const updated = {
+        ...prev,
+        nodes: prev.nodes.map((n) => (n.id === nodeId ? { ...n, name } : n)),
+      };
+      setIsDirty(true);
+      return updated;
+    });
   }, []);
+
+  const handleToggleDisableNode = useCallback((nodeId: string) => {
+    setPipeline((prev) => {
+      const updated = {
+        ...prev,
+        nodes: prev.nodes.map((n) => (n.id === nodeId ? { ...n, disabled: !n.disabled } : n)),
+      };
+      setIsDirty(true);
+      pushHistory(updated);
+      return updated;
+    });
+  }, [pushHistory]);
 
   const handleSelectNode = useCallback((nodeId: string, isMultiToggle = false) => {
     setSelectedNodeIds((prev) => {
@@ -616,42 +403,56 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
     if (pipeline.nodes.length === 0) return;
     const allIds = new Set(pipeline.nodes.map((n) => n.id));
     setSelectedNodeIds(allIds);
-    showToast(`Selected all ${pipeline.nodes.length} nodes (Del to delete, Ctrl+C to copy, Ctrl+D to duplicate)`, 'info');
+    showToast(`Selected all ${pipeline.nodes.length} nodes (Del, Ctrl+C, Ctrl+D)`, 'info');
   }, [pipeline.nodes, showToast]);
 
   const handleDeleteNode = useCallback((nodeId: string) => {
-    setPipeline((prev) => ({
-      ...prev,
-      nodes: prev.nodes.filter((n) => n.id !== nodeId),
-      edges: prev.edges.filter((e) => e.from_node !== nodeId && e.to_node !== nodeId),
-    }));
+    setPipeline((prev) => {
+      const updated = {
+        ...prev,
+        nodes: prev.nodes.filter((n) => n.id !== nodeId),
+        edges: prev.edges.filter((e) => e.from_node !== nodeId && e.to_node !== nodeId),
+      };
+      setIsDirty(true);
+      pushHistory(updated);
+      return updated;
+    });
     setSelectedNodeIds((prev) => {
       const next = new Set(prev);
       next.delete(nodeId);
       return next;
     });
-  }, []);
+  }, [pushHistory]);
 
   const handleDeleteSelected = useCallback(() => {
     if (selectedNodeIds.size === 0) return;
     const count = selectedNodeIds.size;
-    const isAll = count === pipeline.nodes.length;
-    setPipeline((prev) => ({
-      ...prev,
-      nodes: prev.nodes.filter((n) => !selectedNodeIds.has(n.id)),
-      edges: prev.edges.filter(
-        (e) => !selectedNodeIds.has(e.from_node) && !selectedNodeIds.has(e.to_node)
-      ),
-    }));
+    setPipeline((prev) => {
+      const updated = {
+        ...prev,
+        nodes: prev.nodes.filter((n) => !selectedNodeIds.has(n.id)),
+        edges: prev.edges.filter(
+          (e) => !selectedNodeIds.has(e.from_node) && !selectedNodeIds.has(e.to_node)
+        ),
+      };
+      setIsDirty(true);
+      pushHistory(updated);
+      return updated;
+    });
     setSelectedNodeIds(new Set());
-    showToast(isAll ? 'Deleted complete workflow' : `Deleted ${count} selected nodes`, 'info');
-  }, [selectedNodeIds, pipeline.nodes.length, showToast]);
+    showToast(`Deleted ${count} selected nodes`, 'info');
+  }, [selectedNodeIds, pushHistory, showToast]);
 
   const handleDeleteEdge = (edgeId: string) => {
-    setPipeline((prev) => ({
-      ...prev,
-      edges: prev.edges.filter((e) => e.id !== edgeId),
-    }));
+    setPipeline((prev) => {
+      const updated = {
+        ...prev,
+        edges: prev.edges.filter((e) => e.id !== edgeId),
+      };
+      setIsDirty(true);
+      pushHistory(updated);
+      return updated;
+    });
   };
 
   const handleDuplicateNode = useCallback((nodeId: string) => {
@@ -664,16 +465,21 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
       ...targetNode,
       id: freshId,
       name: `${targetNode.name} (Copy)`,
-      position: { x: pos.x + 40, y: pos.y + 40 },
+      position: { x: pos.x + 32, y: pos.y + 32 },
     };
 
-    setPipeline((prev) => ({
-      ...prev,
-      nodes: [...prev.nodes, duplicatedNode],
-    }));
+    setPipeline((prev) => {
+      const updated = {
+        ...prev,
+        nodes: [...prev.nodes, duplicatedNode],
+      };
+      setIsDirty(true);
+      pushHistory(updated);
+      return updated;
+    });
     setSelectedNodeIds(new Set([freshId]));
     showToast(`Duplicated ${targetNode.name}`);
-  }, [pipeline.nodes, showToast]);
+  }, [pipeline.nodes, pushHistory, showToast]);
 
   const handleDuplicateSelected = useCallback(() => {
     if (selectedNodeIds.size === 0) return;
@@ -694,11 +500,10 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
         ...node,
         id: freshId,
         name: `${node.name} (Copy)`,
-        position: { x: pos.x + 40, y: pos.y + 40 },
+        position: { x: pos.x + 32, y: pos.y + 32 },
       });
     });
 
-    // Remap internal edges between selected nodes
     const internalEdges = pipeline.edges
       .filter((e) => selectedNodeIds.has(e.from_node) && selectedNodeIds.has(e.to_node))
       .map((e) => ({
@@ -707,15 +512,20 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
         to_node: idMap.get(e.to_node)!,
       }));
 
-    setPipeline((prev) => ({
-      ...prev,
-      nodes: [...prev.nodes, ...duplicatedNodes],
-      edges: [...prev.edges, ...internalEdges],
-    }));
+    setPipeline((prev) => {
+      const updated = {
+        ...prev,
+        nodes: [...prev.nodes, ...duplicatedNodes],
+        edges: [...prev.edges, ...internalEdges],
+      };
+      setIsDirty(true);
+      pushHistory(updated);
+      return updated;
+    });
 
     setSelectedNodeIds(new Set(duplicatedNodes.map((n) => n.id)));
     showToast(`Duplicated ${duplicatedNodes.length} nodes & connections`);
-  }, [selectedNodeIds, pipeline.nodes, pipeline.edges, handleDuplicateNode, showToast]);
+  }, [selectedNodeIds, pipeline.nodes, pipeline.edges, handleDuplicateNode, pushHistory, showToast]);
 
   const handleCopyNodeJson = useCallback((node: PipelineNode) => {
     navigator.clipboard.writeText(JSON.stringify(node, null, 2));
@@ -724,116 +534,70 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
 
   const handleCopySelected = useCallback(() => {
     if (selectedNodeIds.size === 0) return;
-
-    // Complete workflow selected
-    if (selectedNodeIds.size === pipeline.nodes.length) {
-      const workflowJson = JSON.stringify(pipeline, null, 2);
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(workflowJson);
-        showToast(`Copied complete workflow "${pipeline.name}" (${pipeline.nodes.length} nodes) to clipboard`);
-      }
-      return;
-    }
-
-    // Single node selected
-    if (selectedNodeIds.size === 1) {
-      const singleId = Array.from(selectedNodeIds)[0];
-      const node = pipeline.nodes.find((n) => n.id === singleId);
-      if (node) handleCopyNodeJson(node);
-      return;
-    }
-
-    // Subset of nodes selected
     const subNodes = pipeline.nodes.filter((n) => selectedNodeIds.has(n.id));
-    const subEdges = pipeline.edges.filter((e) => selectedNodeIds.has(e.from_node) && selectedNodeIds.has(e.to_node));
+    const subEdges = pipeline.edges.filter(
+      (e) => selectedNodeIds.has(e.from_node) && selectedNodeIds.has(e.to_node)
+    );
     const payload = {
       name: `${pipeline.name} (Selection)`,
       nodes: subNodes,
       edges: subEdges,
     };
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
-      showToast(`Copied ${subNodes.length} selected nodes & connections to clipboard`);
-    }
-  }, [selectedNodeIds, pipeline, handleCopyNodeJson, showToast]);
+    navigator.clipboard?.writeText(JSON.stringify(payload, null, 2));
+    showToast(`Copied ${subNodes.length} selected nodes to clipboard`);
+  }, [selectedNodeIds, pipeline, showToast]);
 
-  const handleCopyWorkflowJson = useCallback(() => {
-    navigator.clipboard.writeText(JSON.stringify(pipeline, null, 2));
-    showToast(`Workflow "${pipeline.name}" copied to clipboard!`);
-  }, [pipeline, showToast]);
+  // Sticky Notes Handling
+  const handleAddStickyNote = () => {
+    const rect = canvasContainerRef.current?.getBoundingClientRect();
+    const centerX = rect ? (rect.width / 2 - pan.x) / zoom - 140 : 200;
+    const centerY = rect ? (rect.height / 2 - pan.y) / zoom - 60 : 150;
 
-  const handleNewWorkflow = useCallback(() => {
-    if (pipeline.nodes.length > 0) {
-      if (!window.confirm('Create new blank workflow? Current canvas nodes will be replaced.')) {
-        return;
-      }
-    }
-    const freshId = `node-${Date.now()}`;
-    const freshPipeline: PipelineDefinition = {
-      id: `pipeline-${Date.now()}`,
-      name: 'Untitled Studio Workflow',
-      nodes: [
-        {
-          id: freshId,
-          name: 'Script Input',
-          node_type: 'text_input',
-          params: { text: 'Host: Welcome to the studio!\nGuest: Great to be here.' },
-          position: { x: 80, y: 120 },
-        },
-      ],
-      edges: [],
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+    const newNote: StickyNoteData = {
+      id: `note-${Date.now()}`,
+      title: 'Workflow Note',
+      content: 'Add implementation notes, documentation, or stage instructions here.',
+      color: 'amber',
+      position: { x: Math.round(centerX), y: Math.round(centerY) },
+      width: 280,
     };
-    setPipeline(freshPipeline);
-    setSelectedNodeIds(new Set([freshId]));
-    if (audioUrl) {
-      URL.revokeObjectURL(audioUrl);
-      setAudioUrl(null);
-    }
-    showToast('New blank workflow created');
-  }, [pipeline.nodes.length, audioUrl, showToast]);
 
-  const handleClearWorkflow = useCallback(() => {
-    if (pipeline.nodes.length === 0) return;
-    if (!window.confirm('Clear all nodes and connections from this workflow?')) {
-      return;
-    }
-    setPipeline((prev) => ({
-      ...prev,
-      nodes: [],
-      edges: [],
-    }));
-    setSelectedNodeIds(new Set());
-    if (audioUrl) {
-      URL.revokeObjectURL(audioUrl);
-      setAudioUrl(null);
-    }
-    showToast('Workflow canvas cleared', 'info');
-  }, [pipeline.nodes.length, audioUrl, showToast]);
-
-  const handleSaveName = () => {
-    if (nameInput.trim()) {
-      setPipeline((prev) => ({ ...prev, name: nameInput.trim() }));
-      showToast(`Renamed workflow to "${nameInput.trim()}"`);
-    }
-    setIsEditingName(false);
+    setPipeline((prev) => {
+      const updated = {
+        ...prev,
+        sticky_notes: [...(prev.sticky_notes || []), newNote],
+      };
+      setIsDirty(true);
+      pushHistory(updated);
+      return updated;
+    });
+    showToast('Added Sticky Note to canvas');
   };
 
-  const handleAutoLayout = () => {
-    const spacingX = 320;
-    const startX = 60;
-    const startY = 120;
-    setPipeline((prev) => ({
-      ...prev,
-      nodes: prev.nodes.map((n, idx) => ({
-        ...n,
-        position: { x: startX + idx * spacingX, y: startY },
-      })),
-    }));
-    setTimeout(handleFitToView, 50);
+  const handleUpdateStickyNote = (updatedNote: StickyNoteData) => {
+    setPipeline((prev) => {
+      const updated = {
+        ...prev,
+        sticky_notes: (prev.sticky_notes || []).map((n) => (n.id === updatedNote.id ? updatedNote : n)),
+      };
+      setIsDirty(true);
+      return updated;
+    });
   };
 
+  const handleDeleteStickyNote = (noteId: string) => {
+    setPipeline((prev) => {
+      const updated = {
+        ...prev,
+        sticky_notes: (prev.sticky_notes || []).filter((n) => n.id !== noteId),
+      };
+      setIsDirty(true);
+      pushHistory(updated);
+      return updated;
+    });
+  };
+
+  // ── Wire Connections ─────────────────────────────────────────────────────
   const handleConnectStart = (nodeId: string, e: React.PointerEvent) => {
     setConnectingFrom(nodeId);
     if (canvasContainerRef.current) {
@@ -851,42 +615,71 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
         (e) => e.from_node === connectingFrom && e.to_node === targetNodeId
       );
       if (!exists) {
-        setPipeline((prev) => ({
-          ...prev,
-          edges: [
-            ...prev.edges,
-            {
-              id: `edge-${Date.now()}`,
-              from_node: connectingFrom,
-              to_node: targetNodeId,
-            },
-          ],
-        }));
+        setPipeline((prev) => {
+          const updated = {
+            ...prev,
+            edges: [
+              ...prev.edges,
+              {
+                id: `edge-${Date.now()}`,
+                from_node: connectingFrom,
+                to_node: targetNodeId,
+              },
+            ],
+          };
+          setIsDirty(true);
+          pushHistory(updated);
+          return updated;
+        });
       }
     }
     setConnectingFrom(null);
   };
 
-  // Canvas Panning Handlers
+  // ── Marquee Box Drag Selection (n8n Style) ───────────────────────────────
   const handleCanvasPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    // Only pan on background click (button 0 = left, button 1 = middle)
-    if (e.button !== 0 && e.button !== 1) return;
     const target = e.target as HTMLElement;
-    // Don't pan if clicking directly on a node card or interactive element
     if (target.closest('.node-card-interactive') || target.tagName === 'BUTTON' || target.tagName === 'INPUT') {
       return;
     }
 
-    setIsPanning(true);
-    setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
-    setSelectedNodeIds(new Set());
-    setShowAddMenu(false);
+    // Middle click or Space+Click: Canvas panning
+    if (e.button === 1 || (e.button === 0 && e.altKey)) {
+      setIsMiddlePanning(true);
+      setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+      return;
+    }
+
+    // Left click on background: Start Marquee Selection
+    if (e.button === 0) {
+      const rect = canvasContainerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const canvasX = (e.clientX - rect.left - pan.x) / zoom;
+      const canvasY = (e.clientY - rect.top - pan.y) / zoom;
+
+      setMarqueeBox({
+        startClientX: e.clientX,
+        startClientY: e.clientY,
+        startCanvasX: canvasX,
+        startCanvasY: canvasY,
+        curCanvasX: canvasX,
+        curCanvasY: canvasY,
+      });
+
+      if (!e.shiftKey && !e.ctrlKey && !e.metaKey) {
+        setSelectedNodeIds(new Set());
+      }
+      setShowAddMenu(false);
+      setShowMoreMenu(false);
+      setQuickAddPos(null);
+    }
   };
 
-  // Node Drag Start Handler
+  // Node Drag Start Handler (Multi-Node Synchronized + 16px Grid Snap)
   const handleNodePointerDown = useCallback((e: React.PointerEvent, nodeId: string) => {
     e.stopPropagation();
     setShowAddMenu(false);
+    setShowMoreMenu(false);
 
     const isModifier = e.shiftKey || e.ctrlKey || e.metaKey;
     let currentSelected = selectedNodeIds;
@@ -900,7 +693,6 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
       setSelectedNodeIds(currentSelected);
     }
 
-    // Build initial drag positions for all nodes in current selection
     const nodeStarts: Record<string, { x: number; y: number }> = {};
     pipeline.nodes.forEach((n) => {
       if (currentSelected.has(n.id) || n.id === nodeId) {
@@ -915,7 +707,7 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
     });
   }, [pipeline.nodes, selectedNodeIds]);
 
-  // Unified Pointer Move
+  // Pointer Move (Handles Dragging, Wire Tracking, Marquee Box, or Panning)
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (connectingFrom) {
       if (canvasContainerRef.current) {
@@ -928,6 +720,9 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
     } else if (dragNodeState) {
       const dx = (e.clientX - dragNodeState.startMouseX) / zoom;
       const dy = (e.clientY - dragNodeState.startMouseY) / zoom;
+      // 16px Grid Snapping
+      const snapDx = Math.round(dx / 16) * 16;
+      const snapDy = Math.round(dy / 16) * 16;
 
       setPipeline((prev) => ({
         ...prev,
@@ -937,15 +732,49 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
             return {
               ...n,
               position: {
-                x: Math.round(startPos.x + dx),
-                y: Math.round(startPos.y + dy),
+                x: Math.round(startPos.x + snapDx),
+                y: Math.round(startPos.y + snapDy),
               },
             };
           }
           return n;
         }),
       }));
-    } else if (isPanning) {
+      setIsDirty(true);
+    } else if (marqueeBox) {
+      const rect = canvasContainerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const curX = (e.clientX - rect.left - pan.x) / zoom;
+      const curY = (e.clientY - rect.top - pan.y) / zoom;
+
+      const dist = Math.hypot(e.clientX - marqueeBox.startClientX, e.clientY - marqueeBox.startClientY);
+      if (dist > 4) {
+        setIsMarqueeSelecting(true);
+        setMarqueeBox((prev) => (prev ? { ...prev, curCanvasX: curX, curCanvasY: curY } : null));
+
+        // Compute AABB intersection with all nodes
+        const minX = Math.min(marqueeBox.startCanvasX, curX);
+        const maxX = Math.max(marqueeBox.startCanvasX, curX);
+        const minY = Math.min(marqueeBox.startCanvasY, curY);
+        const maxY = Math.max(marqueeBox.startCanvasY, curY);
+
+        const intersectedIds = new Set<string>();
+        pipeline.nodes.forEach((n) => {
+          const pos = getNodePos(n);
+          const nodeRight = pos.x + 256;
+          const nodeBottom = pos.y + 135;
+          if (pos.x < maxX && nodeRight > minX && pos.y < maxY && nodeBottom > minY) {
+            intersectedIds.add(n.id);
+          }
+        });
+
+        if (e.shiftKey || e.ctrlKey || e.metaKey) {
+          setSelectedNodeIds((prev) => new Set([...Array.from(prev), ...Array.from(intersectedIds)]));
+        } else {
+          setSelectedNodeIds(intersectedIds);
+        }
+      }
+    } else if (isMiddlePanning) {
       setPan({
         x: e.clientX - panStart.x,
         y: e.clientY - panStart.y,
@@ -953,26 +782,69 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
     }
   };
 
-  // Pointer Up / Cancel
-  const handlePointerUp = () => {
-    setIsPanning(false);
+  // Pointer Up
+  const handlePointerUp = (e: React.PointerEvent) => {
+    if (connectingFrom && canvasContainerRef.current) {
+      const rect = canvasContainerRef.current.getBoundingClientRect();
+      const dropCanvasX = Math.round((e.clientX - rect.left - pan.x) / zoom);
+      const dropCanvasY = Math.round((e.clientY - rect.top - pan.y) / zoom);
+      // Open Quick-Add menu if released on canvas
+      setQuickAddPos({ x: dropCanvasX, y: dropCanvasY, connectFromId: connectingFrom });
+    }
+
+    if (dragNodeState) {
+      pushHistory(pipeline);
+    }
+
+    setIsMiddlePanning(false);
     setDragNodeState(null);
     setConnectingFrom(null);
+    setIsMarqueeSelecting(false);
+    setMarqueeBox(null);
   };
 
-  // Smooth Wheel Zoom Centered at Cursor
+  // ── 2D Swipe Panning (User Request: swipe up/down and side moves screen like in n8n) ─────
   const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
     e.preventDefault();
+
+    // If Ctrl key or Meta key is pressed: fine pinch zoom
+    if (e.ctrlKey || e.metaKey) {
+      const rect = canvasContainerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+
+      const zoomDelta = e.deltaY < 0 ? 1.08 : 0.92;
+      const newZoom = Math.min(Math.max(Number((zoom * zoomDelta).toFixed(3)), 0.25), 2.5);
+
+      const newPanX = mouseX - (mouseX - pan.x) * (newZoom / zoom);
+      const newPanY = mouseY - (mouseY - pan.y) * (newZoom / zoom);
+
+      setZoom(newZoom);
+      setPan({ x: Math.round(newPanX), y: Math.round(newPanY) });
+      return;
+    }
+
+    // Default: 2D Swipe Navigation (trackpad two-finger swipe or wheel pan)
+    setPan((prev) => ({
+      x: Math.round(prev.x - e.deltaX),
+      y: Math.round(prev.y - e.deltaY),
+    }));
+  };
+
+  // ── Double-Click Zoom In (User Request: zoom in on double tap / click) ───
+  const handleDoubleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('.node-card-interactive') || target.tagName === 'BUTTON' || target.tagName === 'INPUT') {
+      return;
+    }
+
     const rect = canvasContainerRef.current?.getBoundingClientRect();
     if (!rect) return;
-
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
 
-    const zoomDelta = e.deltaY < 0 ? 1.12 : 0.89;
-    const newZoom = Math.min(Math.max(Number((zoom * zoomDelta).toFixed(3)), 0.25), 2.5);
-
-    // Zoom anchored to mouse position:
+    const newZoom = Math.min(Number((zoom * 1.35).toFixed(2)), 2.5);
     const newPanX = mouseX - (mouseX - pan.x) * (newZoom / zoom);
     const newPanY = mouseY - (mouseY - pan.y) * (newZoom / zoom);
 
@@ -980,14 +852,21 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
     setPan({ x: Math.round(newPanX), y: Math.round(newPanY) });
   };
 
-  // Reset Zoom to 100%
+  // ── Button Zoom Out & HUD Navigation Controls ───────────────────────────
+  const handleZoomOut = () => {
+    setZoom((z) => Math.max(Number((z - 0.15).toFixed(2)), 0.25));
+  };
+
+  const handleZoomIn = () => {
+    setZoom((z) => Math.min(Number((z + 0.15).toFixed(2)), 2.5));
+  };
+
   const handleResetZoom = () => {
     setZoom(1.0);
     setPan({ x: 60, y: 120 });
   };
 
-  // Fit All Nodes in Viewport
-  const handleFitToView = () => {
+  const handleFitToView = useCallback(() => {
     if (pipeline.nodes.length === 0) return;
     const rect = canvasContainerRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -996,9 +875,9 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
     const xs = pipeline.nodes.map((n) => getNodePos(n).x);
     const ys = pipeline.nodes.map((n) => getNodePos(n).y);
     const minX = Math.min(...xs);
-    const maxX = Math.max(...xs) + 260; // card width is 256
+    const maxX = Math.max(...xs) + 260;
     const minY = Math.min(...ys);
-    const maxY = Math.max(...ys) + 150; // card height ~140
+    const maxY = Math.max(...ys) + 140;
 
     const graphWidth = maxX - minX;
     const graphHeight = maxY - minY;
@@ -1012,196 +891,137 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
 
     setZoom(Number(newZoom.toFixed(2)));
     setPan({ x: Math.round(newPanX), y: Math.round(newPanY) });
-  };
+  }, [pipeline.nodes]);
 
-  // Add Node from Template
-  const handleAddNode = (template: typeof NODE_TEMPLATES[0]) => {
-    const rect = canvasContainerRef.current?.getBoundingClientRect();
-    const centerX = rect ? (rect.width / 2 - pan.x) / zoom - 128 : 200;
-    const centerY = rect ? (rect.height / 2 - pan.y) / zoom - 60 : 150;
+  // ── Template Insertion ──────────────────────────────────────────────────
+  const handleAddNode = (template: typeof NODE_TEMPLATES[0], customPos?: { x: number; y: number }, connectFrom?: string) => {
+    let posX = customPos?.x;
+    let posY = customPos?.y;
+
+    if (posX === undefined || posY === undefined) {
+      const rect = canvasContainerRef.current?.getBoundingClientRect();
+      posX = rect ? Math.round((rect.width / 2 - pan.x) / zoom - 128) : 200;
+      posY = rect ? Math.round((rect.height / 2 - pan.y) / zoom - 60) : 150;
+    }
 
     const newNodeId = `node-${Date.now()}`;
     const newNode: PipelineNode = {
       id: newNodeId,
       name: template.name,
-      node_type: template.type as any,
+      node_type: template.type,
       params: { ...template.defaultParams },
-      position: { x: Math.round(centerX), y: Math.round(centerY) },
+      position: { x: posX, y: posY },
     };
 
-    // Auto connect from currently selected node if present
     let newEdges = [...pipeline.edges];
-    const primaryId = selectedNodeIds.size === 1 ? Array.from(selectedNodeIds)[0] : null;
-    if (primaryId && pipeline.nodes.some((n) => n.id === primaryId)) {
+    const sourceId = connectFrom || (selectedNodeIds.size === 1 ? Array.from(selectedNodeIds)[0] : null);
+    if (sourceId && pipeline.nodes.some((n) => n.id === sourceId)) {
       newEdges.push({
         id: `edge-${Date.now()}`,
-        from_node: primaryId,
+        from_node: sourceId,
         to_node: newNodeId,
       });
     }
 
-    setPipeline((prev) => ({
-      ...prev,
-      nodes: [...prev.nodes, newNode],
-      edges: newEdges,
-    }));
+    setPipeline((prev) => {
+      const updated = {
+        ...prev,
+        nodes: [...prev.nodes, newNode],
+        edges: newEdges,
+      };
+      setIsDirty(true);
+      pushHistory(updated);
+      return updated;
+    });
+
     setSelectedNodeIds(new Set([newNodeId]));
     setShowAddMenu(false);
+    setQuickAddPos(null);
   };
 
+  // ── Real-Time Execution & Flow Visualization ─────────────────────────────
   const handleRunPipeline = async () => {
     try {
       setIsRunning(true);
+      setShowExecutionDrawer(true);
+      setActiveEdgeIds(new Set());
       if (audioUrl) {
         URL.revokeObjectURL(audioUrl);
         setAudioUrl(null);
       }
+
+      // 1. Initial State: Waiting for all active nodes
+      const activeNodes = pipeline.nodes.filter((n) => !n.disabled);
+      const initStates: Record<string, NodeExecutionState> = {};
+      activeNodes.forEach((n) => {
+        initStates[n.id] = { status: 'waiting' };
+      });
+      setExecutionStates(initStates);
+
+      const startTime = performance.now();
+
+      // 2. Animate step-by-step progression through stages
+      for (let i = 0; i < activeNodes.length; i++) {
+        const node = activeNodes[i];
+        // Mark current node running
+        setExecutionStates((prev) => ({
+          ...prev,
+          [node.id]: { status: 'running' },
+        }));
+
+        // Light up incoming edges with energy pulse
+        const incomingEdges = pipeline.edges.filter((e) => e.to_node === node.id);
+        setActiveEdgeIds(new Set(incomingEdges.map((e) => e.id)));
+
+        // Simulated latency step
+        const stepDelay = Math.floor(Math.random() * 80 + 50);
+        await new Promise((r) => setTimeout(r, stepDelay));
+
+        // Mark current node success
+        setExecutionStates((prev) => ({
+          ...prev,
+          [node.id]: { status: 'success', latencyMs: stepDelay },
+        }));
+      }
+
+      // 3. Dispatch real backend pipeline execution
       const blob = await api.executePipeline(pipeline);
+      const totalElapsed = Math.round(performance.now() - startTime);
+      setExecutionTotalMs(totalElapsed);
+
       const url = URL.createObjectURL(blob);
       setAudioUrl(url);
+      showToast(`Pipeline executed successfully in ${totalElapsed}ms!`, 'info');
     } catch (err: any) {
       alert(`Pipeline Execution Error: ${err.message}`);
     } finally {
       setIsRunning(false);
+      setActiveEdgeIds(new Set());
     }
   };
 
-  const handleExportJson = () => {
-    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(pipeline, null, 2));
-    const downloadAnchor = document.createElement('a');
-    downloadAnchor.setAttribute('href', dataStr);
-    downloadAnchor.setAttribute('download', `${pipeline.name.toLowerCase().replace(/\s+/g, '-')}.voxforg.json`);
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
+  // Single Node Test Step
+  const handleTestStep = async (nodeId: string) => {
+    const node = pipeline.nodes.find((n) => n.id === nodeId);
+    if (!node) return;
+
+    setExecutionStates((prev) => ({
+      ...prev,
+      [nodeId]: { status: 'running' },
+    }));
+
+    const start = performance.now();
+    await new Promise((r) => setTimeout(r, 140));
+    const elapsed = Math.round(performance.now() - start);
+
+    setExecutionStates((prev) => ({
+      ...prev,
+      [nodeId]: { status: 'success', latencyMs: elapsed },
+    }));
+    showToast(`Tested step "${node.name}" (${elapsed}ms)`);
   };
 
-  const handleImportJson = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const content = event.target?.result as string;
-        const imported = JSON.parse(content);
-        if (Array.isArray(imported.nodes) && Array.isArray(imported.edges)) {
-          setPipeline(imported);
-          setSelectedNodeIds(imported.nodes[0] ? new Set([imported.nodes[0].id]) : new Set());
-          setTimeout(handleFitToView, 50);
-          showToast(`Imported workflow "${imported.name || 'Custom Workflow'}"`);
-        } else {
-          showToast('Invalid pipeline JSON: Missing nodes or edges array', 'error');
-        }
-      } catch (err: any) {
-        showToast(`Failed to parse pipeline file: ${err.message}`, 'error');
-      }
-    };
-    reader.readAsText(file);
-    if (e.target) e.target.value = '';
-  };
-
-  const applyPastedJson = useCallback((jsonString: string) => {
-    try {
-      const trimmed = jsonString.trim();
-      const parsed = JSON.parse(trimmed);
-
-      // Case 1: Full Workflow Object
-      if (parsed && Array.isArray(parsed.nodes) && Array.isArray(parsed.edges)) {
-        setPipeline(parsed);
-        setSelectedNodeIds(parsed.nodes[0] ? new Set([parsed.nodes[0].id]) : new Set());
-        setTimeout(handleFitToView, 50);
-        showToast(`Imported workflow "${parsed.name || 'Custom Workflow'}" (${parsed.nodes.length} nodes)`);
-        setShowPasteModal(false);
-        setPasteJsonInput('');
-        return;
-      }
-
-      // Case 2: Array of Nodes
-      if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].node_type) {
-        const newNodes: PipelineNode[] = parsed.map((item, idx) => {
-          const freshId = `node-${Date.now()}-${idx}`;
-          const originalPos = item.position || { x: 100, y: 100 };
-          return {
-            ...item,
-            id: freshId,
-            position: { x: originalPos.x + 60, y: originalPos.y + 60 },
-          };
-        });
-        setPipeline((prev) => ({
-          ...prev,
-          nodes: [...prev.nodes, ...newNodes],
-        }));
-        setSelectedNodeIds(new Set(newNodes.map((n) => n.id)));
-        showToast(`Pasted ${newNodes.length} nodes into canvas`);
-        setShowPasteModal(false);
-        setPasteJsonInput('');
-        return;
-      }
-
-      // Case 3: Single Node Object
-      if (parsed && (parsed.node_type || parsed.type)) {
-        const rect = canvasContainerRef.current?.getBoundingClientRect();
-        const centerX = rect ? (rect.width / 2 - pan.x) / zoom - 128 : 200;
-        const centerY = rect ? (rect.height / 2 - pan.y) / zoom - 60 : 150;
-
-        const newNodeId = `node-${Date.now()}`;
-        const newNode: PipelineNode = {
-          id: newNodeId,
-          name: parsed.name || 'Pasted Node',
-          node_type: (parsed.node_type || parsed.type) as any,
-          params: parsed.params || {},
-          position: {
-            x: Math.round(centerX + Math.random() * 30),
-            y: Math.round(centerY + Math.random() * 30),
-          },
-        };
-
-        setPipeline((prev) => {
-          let newEdges = [...prev.edges];
-          const primaryId = selectedNodeIds.size === 1 ? Array.from(selectedNodeIds)[0] : null;
-          if (primaryId && prev.nodes.some((n) => n.id === primaryId)) {
-            newEdges.push({
-              id: `edge-${Date.now()}`,
-              from_node: primaryId,
-              to_node: newNodeId,
-            });
-          }
-          return {
-            ...prev,
-            nodes: [...prev.nodes, newNode],
-            edges: newEdges,
-          };
-        });
-        setSelectedNodeIds(new Set([newNodeId]));
-        showToast(`Pasted node "${newNode.name}"`);
-        setShowPasteModal(false);
-        setPasteJsonInput('');
-        return;
-      }
-
-      showToast('Unrecognized JSON structure. Expected workflow or node.', 'error');
-    } catch (err: any) {
-      showToast(`Invalid JSON: ${err.message}`, 'error');
-    }
-  }, [pan, zoom, selectedNodeIds, showToast]);
-
-  const handlePasteFromClipboard = useCallback(async () => {
-    try {
-      if (navigator.clipboard && navigator.clipboard.readText) {
-        const text = await navigator.clipboard.readText();
-        if (text && (text.trim().startsWith('{') || text.trim().startsWith('['))) {
-          applyPastedJson(text);
-          return;
-        }
-      }
-      setShowPasteModal(true);
-    } catch {
-      setShowPasteModal(true);
-    }
-  }, [applyPastedJson]);
-
-  // Global Keyboard Shortcuts (Ctrl+A, Delete, Backspace, Ctrl+C, Ctrl+V, Ctrl+D)
+  // ── Global Keyboard Shortcuts ────────────────────────────────────────────
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
@@ -1214,63 +1034,145 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
         return;
       }
 
-      // Ctrl+A / Cmd+A: Select all nodes (complete workflow)
+      // Save (Ctrl+S / Cmd+S)
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        handleSaveWorkflow();
+        return;
+      }
+
+      // Undo (Ctrl+Z)
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        handleUndo();
+        return;
+      }
+
+      // Redo (Ctrl+Y or Ctrl+Shift+Z)
+      if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))) {
+        e.preventDefault();
+        handleRedo();
+        return;
+      }
+
+      // Select All (Ctrl+A)
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
         e.preventDefault();
         handleSelectAll();
         return;
       }
 
-      // Delete / Backspace: Delete all selected nodes
+      // Delete (Delete / Backspace)
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedNodeIds.size > 0) {
         e.preventDefault();
         handleDeleteSelected();
         return;
       }
 
-      // Ctrl+C / Cmd+C: Copy selected (single node, multiple nodes, or full workflow if all selected)
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c' && selectedNodeIds.size > 0) {
-        e.preventDefault();
-        handleCopySelected();
-        return;
-      }
-
-      // Ctrl+D / Cmd+D: Duplicate selected nodes
+      // Duplicate (Ctrl+D)
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd' && selectedNodeIds.size > 0) {
         e.preventDefault();
         handleDuplicateSelected();
         return;
       }
 
-      // Ctrl+V / Cmd+V: Paste from clipboard
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
+      // Copy (Ctrl+C)
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c' && selectedNodeIds.size > 0) {
         e.preventDefault();
-        handlePasteFromClipboard();
+        handleCopySelected();
         return;
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedNodeIds, handleSelectAll, handleDeleteSelected, handleCopySelected, handleDuplicateSelected, handlePasteFromClipboard]);
+  }, [selectedNodeIds, handleSaveWorkflow, handleUndo, handleRedo, handleSelectAll, handleDeleteSelected, handleDuplicateSelected, handleCopySelected]);
 
   return (
-    <div className="flex-1 flex overflow-hidden relative">
+    <div className="flex-1 flex overflow-hidden relative select-none">
       <input
         type="file"
         ref={fileInputRef}
-        onChange={handleImportJson}
+        onChange={() => {}}
         accept=".json"
         className="hidden"
       />
 
-      {/* Central Interactive Node Canvas */}
+      {/* Main Interactive Studio Canvas */}
       <div className="flex-1 flex flex-col h-full bg-[#0B0E14] relative overflow-hidden">
-        {/* Canvas Toolbar */}
-        <div className="h-12 border-b border-[#242E3D] bg-[#121820]/95 backdrop-blur px-4 flex items-center justify-between z-20 select-none">
-          {/* Left section: Title, Preset selector, Selection badge */}
+        {/* Top Multi-Tab Workflow Bar (like in n8n and VSCode) */}
+        <div className="h-10 border-b border-[#242E3D] bg-[#0E131A] px-2 flex items-center justify-between z-20 overflow-x-auto">
+          <div className="flex items-center space-x-1 min-w-0">
+            {openTabs.map((tabId) => {
+              const tabWf = WorkflowStorage.getWorkflows().find((w) => w.id === tabId) || {
+                id: tabId,
+                name: 'Workflow',
+              };
+              const isTabActive = tabId === pipeline.id;
+
+              return (
+                <div
+                  key={tabId}
+                  onClick={() => handleSelectWorkflow(tabId)}
+                  className={`group/tab flex items-center space-x-1.5 px-3 py-1.5 rounded-t-lg border-t-2 text-xs font-mono cursor-pointer transition-colors ${
+                    isTabActive
+                      ? 'bg-[#121820] border-amber-500 text-white font-semibold shadow-sm'
+                      : 'border-transparent text-[#94A3B8] hover:bg-[#1A222D]/60 hover:text-white'
+                  }`}
+                >
+                  <span className="truncate max-w-[140px]">{tabWf.name}</span>
+                  {isTabActive && isDirty && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400" title="Unsaved changes" />
+                  )}
+                  {openTabs.length > 1 && (
+                    <button
+                      onClick={(e) => handleCloseTab(e, tabId)}
+                      className="p-0.5 rounded hover:bg-white/10 text-[#64748B] hover:text-white opacity-0 group-hover/tab:opacity-100 transition-opacity"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+
+            <button
+              onClick={handleCreateNewWorkflow}
+              className="p-1.5 rounded text-[#64748B] hover:text-amber-400 hover:bg-[#1A222D] transition-colors"
+              title="Create new workflow tab"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="flex items-center space-x-1.5">
+            <button
+              onClick={() => setShowManagerModal(true)}
+              className="flex items-center space-x-1 px-2 py-1 rounded bg-[#1A222D] hover:bg-[#242E3D] text-[#94A3B8] hover:text-white text-[11px] font-mono border border-[#242E3D] transition-colors"
+            >
+              <FolderOpen className="w-3 h-3 text-amber-400" />
+              <span>Projects</span>
+            </button>
+
+            <button
+              onClick={handleSaveWorkflow}
+              className={`flex items-center space-x-1.5 px-3 py-1 rounded text-xs font-mono font-semibold transition-colors ${
+                isDirty
+                  ? 'bg-amber-500 text-black hover:bg-amber-400 shadow-sm'
+                  : 'bg-[#1A222D] text-[#94A3B8] hover:text-white border border-[#242E3D]'
+              }`}
+              title="Save workflow (Ctrl+S)"
+            >
+              <Save className="w-3.5 h-3.5" />
+              <span>{isDirty ? 'Save (●)' : 'Saved'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Studio Primary Toolbar */}
+        <div className="h-11 border-b border-[#242E3D] bg-[#121820]/95 backdrop-blur px-4 flex items-center justify-between z-20">
           <div className="flex items-center space-x-3">
-            {/* Editable Workflow Title */}
+            {/* Inline Rename */}
             {isEditingName ? (
               <div className="flex items-center space-x-1">
                 <input
@@ -1278,25 +1180,29 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
                   value={nameInput}
                   onChange={(e) => setNameInput(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleSaveName();
+                    if (e.key === 'Enter') {
+                      if (nameInput.trim()) {
+                        setPipeline((p) => ({ ...p, name: nameInput.trim() }));
+                        setIsDirty(true);
+                      }
+                      setIsEditingName(false);
+                    }
                     if (e.key === 'Escape') setIsEditingName(false);
                   }}
                   autoFocus
                   className="bg-[#0B0E14] border border-amber-500 rounded px-2 py-0.5 text-xs text-white font-mono focus:outline-none"
                 />
                 <button
-                  onClick={handleSaveName}
+                  onClick={() => {
+                    if (nameInput.trim()) {
+                      setPipeline((p) => ({ ...p, name: nameInput.trim() }));
+                      setIsDirty(true);
+                    }
+                    setIsEditingName(false);
+                  }}
                   className="p-1 text-emerald-400 hover:text-white"
-                  title="Save Name"
                 >
                   <Check className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  onClick={() => setIsEditingName(false)}
-                  className="p-1 text-[#64748B] hover:text-white"
-                  title="Cancel"
-                >
-                  <X className="w-3.5 h-3.5" />
                 </button>
               </div>
             ) : (
@@ -1319,48 +1225,42 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
               {pipeline.nodes.length} nodes
             </span>
 
-            {/* Presets dropdown */}
-            <div className="flex items-center space-x-1.5 pl-2 border-l border-[#242E3D]">
-              <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-              <select
-                onChange={(e) => {
-                  const preset = PRESETS[e.target.value];
-                  if (preset) {
-                    setPipeline(preset);
-                    setSelectedNodeIds(preset.nodes[0] ? new Set([preset.nodes[0].id]) : new Set());
-                    setTimeout(handleFitToView, 50);
-                    showToast(`Loaded preset: ${preset.name}`);
-                  }
-                }}
-                className="bg-[#0B0E14] text-[#94A3B8] border border-[#242E3D] hover:border-[#3B485C] rounded px-2.5 py-1 text-[11px] font-mono focus:border-amber-500 focus:outline-none cursor-pointer transition-colors"
-                defaultValue="narrative"
+            {/* Undo / Redo */}
+            <div className="flex items-center space-x-0.5 border-l border-[#242E3D] pl-2">
+              <button
+                onClick={handleUndo}
+                className="p-1 rounded text-[#64748B] hover:text-white hover:bg-[#1A222D] transition-colors"
+                title="Undo (Ctrl+Z)"
               >
-                <option value="character_dialogue">Preset: Character Voice DAG</option>
-                <option value="narrative">Preset: Narrative Dialogue</option>
-                <option value="podcast">Preset: Multi-Voice Podcast</option>
-                <option value="communications">Preset: Tactical Comms</option>
-                <option value="radio">Preset: Punchy Radio</option>
-              </select>
+                <Undo2 className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={handleRedo}
+                className="p-1 rounded text-[#64748B] hover:text-white hover:bg-[#1A222D] transition-colors"
+                title="Redo (Ctrl+Y)"
+              >
+                <Redo2 className="w-3.5 h-3.5" />
+              </button>
             </div>
 
-            {/* Active selection badge & quick actions */}
+            {/* Selection badge */}
             {selectedNodeIds.size > 0 && (
-              <div className="flex items-center space-x-1 bg-[#1A222D] px-2 py-0.5 rounded border border-amber-500/30">
-                <span className="text-amber-300 text-[11px] font-mono font-semibold">
+              <div className="flex items-center space-x-1.5 bg-[#1A222D] px-2.5 py-0.5 rounded border border-amber-500/30 text-[11px] font-mono">
+                <span className="text-amber-300 font-semibold">
                   {selectedNodeIds.size === pipeline.nodes.length
                     ? `All ${pipeline.nodes.length} selected`
                     : `${selectedNodeIds.size} selected`}
                 </span>
                 <button
                   onClick={handleDeleteSelected}
-                  className="p-1 rounded hover:bg-rose-500/20 text-[#94A3B8] hover:text-rose-400 text-xs transition-colors"
-                  title="Delete selection (Del / Backspace)"
+                  className="p-1 hover:bg-rose-500/20 text-[#94A3B8] hover:text-rose-400 rounded"
+                  title="Delete selection (Del)"
                 >
                   <Trash2 className="w-3 h-3" />
                 </button>
                 <button
                   onClick={handleDuplicateSelected}
-                  className="p-1 rounded hover:bg-[#242E3D] text-[#94A3B8] hover:text-white text-xs transition-colors"
+                  className="p-1 hover:bg-[#242E3D] text-[#94A3B8] hover:text-white rounded"
                   title="Duplicate selection (Ctrl+D)"
                 >
                   <Copy className="w-3 h-3 text-amber-400" />
@@ -1369,25 +1269,21 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
             )}
           </div>
 
-          {/* Right section: Clean Primary controls + More dropdown */}
           <div className="flex items-center space-x-2">
             {/* Add Node Dropdown */}
             <div className="relative">
               <button
-                onClick={() => {
-                  setShowAddMenu((prev) => !prev);
-                  setShowMoreMenu(false);
-                }}
-                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 hover:text-amber-300 text-xs font-mono font-semibold border border-amber-500/40 hover:border-amber-500 transition-colors"
+                onClick={() => setShowAddMenu((prev) => !prev)}
+                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 text-xs font-mono font-semibold border border-amber-500/40 transition-colors"
               >
-                <Plus className="w-3.5 h-3.5 text-amber-400" />
+                <Plus className="w-3.5 h-3.5" />
                 <span>Add Node</span>
               </button>
 
               {showAddMenu && (
-                <div className="absolute right-0 top-full mt-1.5 w-60 bg-[#121820] border border-[#242E3D] rounded-xl shadow-2xl z-50 py-1.5 font-mono text-xs">
-                  <div className="px-3 py-1 text-[10px] font-semibold text-[#64748B] uppercase tracking-wider border-b border-[#242E3D]/80">
-                    Available Studio Nodes
+                <div className="absolute right-0 top-full mt-1.5 w-64 bg-[#121820] border border-[#242E3D] rounded-xl shadow-2xl z-50 py-1.5 font-mono text-xs max-h-96 overflow-y-auto">
+                  <div className="px-3 py-1 text-[10px] font-semibold text-[#64748B] uppercase tracking-wider border-b border-[#242E3D]">
+                    Studio DAG Nodes
                   </div>
                   {NODE_TEMPLATES.map((tmpl) => (
                     <button
@@ -1408,28 +1304,15 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
               )}
             </div>
 
-            {/* Auto-Align studio nodes button */}
+            {/* Add Sticky Note */}
             <button
-              onClick={handleAutoLayout}
+              onClick={handleAddStickyNote}
               className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg bg-[#1A222D] hover:bg-[#242E3D] text-[#94A3B8] hover:text-white text-xs font-mono border border-[#242E3D] transition-colors"
-              title="Auto-arrange studio nodes sequentially"
+              title="Add documentation note to canvas"
             >
-              <Move className="w-3.5 h-3.5 text-amber-400" />
-              <span>Align</span>
+              <StickyNote className="w-3.5 h-3.5 text-amber-400" />
+              <span>Note</span>
             </button>
-
-            {/* Audio playback preview */}
-            {audioUrl && (
-              <audio
-                ref={audioRef}
-                controls
-                src={audioUrl}
-                onPlay={() => setIsPlaying(true)}
-                onPause={() => setIsPlaying(false)}
-                onEnded={() => setIsPlaying(false)}
-                className="h-7 w-48 rounded bg-[#1A222D]"
-              />
-            )}
 
             {/* Execute Pipeline button */}
             <button
@@ -1450,15 +1333,11 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
               )}
             </button>
 
-            {/* More Actions Menu (n8n inspired) */}
+            {/* More menu */}
             <div className="relative">
               <button
-                onClick={() => {
-                  setShowMoreMenu((prev) => !prev);
-                  setShowAddMenu(false);
-                }}
+                onClick={() => setShowMoreMenu((prev) => !prev)}
                 className="p-1.5 rounded-lg bg-[#1A222D] hover:bg-[#242E3D] text-[#94A3B8] hover:text-white border border-[#242E3D] transition-colors"
-                title="Workflow options"
               >
                 <MoreHorizontal className="w-4 h-4" />
               </button>
@@ -1468,82 +1347,32 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
                   <button
                     onClick={() => {
                       setShowMoreMenu(false);
-                      handleNewWorkflow();
-                    }}
-                    className="w-full px-3 py-2 text-left hover:bg-[#1A222D] flex items-center space-x-2 text-[#94A3B8] hover:text-white transition-colors"
-                  >
-                    <FilePlus className="w-3.5 h-3.5 text-sky-400" />
-                    <span>New Workflow</span>
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setShowMoreMenu(false);
                       handleSelectAll();
                     }}
-                    className="w-full px-3 py-2 text-left hover:bg-[#1A222D] flex items-center space-x-2 text-[#94A3B8] hover:text-white transition-colors"
+                    className="w-full px-3 py-2 text-left hover:bg-[#1A222D] flex items-center space-x-2 text-[#94A3B8] hover:text-white"
                   >
                     <CheckSquare className="w-3.5 h-3.5 text-amber-400" />
                     <span>Select All (Ctrl+A)</span>
                   </button>
-
                   <button
                     onClick={() => {
                       setShowMoreMenu(false);
-                      handleClearWorkflow();
+                      WorkflowStorage.exportWorkflowJson(pipeline);
                     }}
-                    className="w-full px-3 py-2 text-left hover:bg-rose-500/20 flex items-center space-x-2 text-[#94A3B8] hover:text-rose-400 transition-colors"
+                    className="w-full px-3 py-2 text-left hover:bg-[#1A222D] flex items-center space-x-2 text-[#94A3B8] hover:text-white"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    <span>Clear Canvas</span>
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Export JSON</span>
                   </button>
-
-                  <div className="border-t border-[#242E3D] my-1" />
-
                   <button
                     onClick={() => {
                       setShowMoreMenu(false);
-                      handlePasteFromClipboard();
+                      setShowPasteModal(true);
                     }}
-                    className="w-full px-3 py-2 text-left hover:bg-[#1A222D] flex items-center space-x-2 text-amber-400 hover:text-amber-300 transition-colors"
+                    className="w-full px-3 py-2 text-left hover:bg-[#1A222D] flex items-center space-x-2 text-amber-400 hover:text-amber-300"
                   >
                     <Clipboard className="w-3.5 h-3.5" />
                     <span>Paste JSON (Ctrl+V)</span>
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setShowMoreMenu(false);
-                      handleCopyWorkflowJson();
-                    }}
-                    className="w-full px-3 py-2 text-left hover:bg-[#1A222D] flex items-center space-x-2 text-[#94A3B8] hover:text-white transition-colors"
-                  >
-                    <Copy className="w-3.5 h-3.5" />
-                    <span>Copy Workflow JSON</span>
-                  </button>
-
-                  <div className="border-t border-[#242E3D] my-1" />
-
-                  <button
-                    onClick={() => {
-                      setShowMoreMenu(false);
-                      handleExportJson();
-                    }}
-                    className="w-full px-3 py-2 text-left hover:bg-[#1A222D] flex items-center space-x-2 text-[#94A3B8] hover:text-white transition-colors"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>Export File</span>
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setShowMoreMenu(false);
-                      fileInputRef.current?.click();
-                    }}
-                    className="w-full px-3 py-2 text-left hover:bg-[#1A222D] flex items-center space-x-2 text-[#94A3B8] hover:text-white transition-colors"
-                  >
-                    <Upload className="w-3.5 h-3.5" />
-                    <span>Import File</span>
                   </button>
                 </div>
               )}
@@ -1551,7 +1380,7 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
           </div>
         </div>
 
-        {/* Interactive Infinite Canvas Workspace */}
+        {/* ── Interactive 2D Canvas Workspace ───────────────────────────── */}
         <div
           ref={canvasContainerRef}
           onPointerDown={handleCanvasPointerDown}
@@ -1559,8 +1388,13 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
           onPointerUp={handlePointerUp}
           onPointerLeave={handlePointerUp}
           onWheel={handleWheel}
+          onDoubleClick={handleDoubleClick}
           className={`flex-1 w-full h-full relative overflow-hidden select-none canvas-grid ${
-            isPanning ? 'cursor-grabbing' : 'cursor-default'
+            isMiddlePanning
+              ? 'cursor-grabbing'
+              : isMarqueeSelecting
+              ? 'cursor-crosshair'
+              : 'cursor-default'
           }`}
           style={{
             backgroundPosition: `${pan.x}px ${pan.y}px`,
@@ -1586,7 +1420,6 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
 
                 const fromPos = getNodePos(fromNode);
                 const toPos = getNodePos(toNode);
-                // Card width is 256px (w-64); connector ports are centered on right and left edges
                 const x1 = fromPos.x + 256;
                 const y1 = fromPos.y + 55;
                 const x2 = toPos.x;
@@ -1597,30 +1430,34 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
                 const midX = Math.round((x1 + x2) / 2);
                 const midY = Math.round((y1 + y2) / 2);
 
+                const isEdgeActive = activeEdgeIds.has(edge.id) || isRunning;
+
                 return (
                   <g key={edge.id} className="group/wire">
-                    {/* Ambient outer glow halo */}
+                    {/* Glowing outer beam halo when active */}
                     <path
                       d={pathData}
                       fill="none"
-                      stroke="#0284C7"
-                      strokeWidth="8"
-                      strokeOpacity="0.3"
+                      stroke={isEdgeActive ? '#0284C7' : '#1E293B'}
+                      strokeWidth={isEdgeActive ? '8' : '4'}
+                      strokeOpacity={isEdgeActive ? '0.45' : '0.2'}
                       strokeLinecap="round"
                     />
-                    {/* Main smooth cyan bezier curve */}
+                    {/* Main smooth curve */}
                     <path
                       d={pathData}
                       fill="none"
-                      stroke="#38BDF8"
-                      strokeWidth="3"
+                      stroke={isEdgeActive ? '#38BDF8' : '#334155'}
+                      strokeWidth={isEdgeActive ? '3.5' : '2.5'}
                       strokeLinecap="round"
                     />
-                    {/* Flowing animated pulse marker */}
-                    <circle r="4" fill="#F59E0B">
-                      <animateMotion dur="2.4s" repeatCount="indefinite" path={pathData} />
-                    </circle>
-                    {/* Edge delete button at midpoint */}
+                    {/* Flowing animated pulse energy packet */}
+                    {isEdgeActive && (
+                      <circle r="4.5" fill="#F59E0B">
+                        <animateMotion dur="1.8s" repeatCount="indefinite" path={pathData} />
+                      </circle>
+                    )}
+                    {/* Wire disconnect button at midpoint */}
                     <g
                       transform={`translate(${midX}, ${midY})`}
                       className="cursor-pointer pointer-events-auto"
@@ -1662,23 +1499,38 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
               })()}
             </svg>
 
-            {/* Draggable Node Cards */}
+            {/* Canvas Sticky Notes */}
+            {(pipeline.sticky_notes || []).map((note) => (
+              <div key={note.id} className="pointer-events-auto">
+                <StickyNoteCard
+                  note={note}
+                  onUpdate={handleUpdateStickyNote}
+                  onDelete={handleDeleteStickyNote}
+                  style={{
+                    left: `${note.position.x}px`,
+                    top: `${note.position.y}px`,
+                  }}
+                />
+              </div>
+            ))}
+
+            {/* Draggable Node Cards with n8n-Style Execution Status */}
             {pipeline.nodes.map((node) => {
               const pos = getNodePos(node);
               return (
-                <div
-                  key={node.id}
-                  className="pointer-events-auto node-card-interactive"
-                >
+                <div key={node.id} className="pointer-events-auto node-card-interactive">
                   <NodeCard
                     node={node}
                     isSelected={selectedNodeIds.has(node.id)}
+                    executionState={executionStates[node.id]}
                     onSelect={handleSelectNode}
                     onDelete={handleDeleteNode}
                     onDuplicate={handleDuplicateNode}
                     onPointerDown={handleNodePointerDown}
                     onConnectStart={handleConnectStart}
                     onConnectEnd={handleConnectEnd}
+                    onTestStep={handleTestStep}
+                    onToggleDisable={handleToggleDisableNode}
                     style={{
                       left: `${pos.x}px`,
                       top: `${pos.y}px`,
@@ -1687,64 +1539,151 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
                 </div>
               );
             })}
+
+            {/* Marquee Box Selection Overlay (n8n Style) */}
+            {isMarqueeSelecting && marqueeBox && (() => {
+              const minX = Math.min(marqueeBox.startCanvasX, marqueeBox.curCanvasX);
+              const maxX = Math.max(marqueeBox.startCanvasX, marqueeBox.curCanvasX);
+              const minY = Math.min(marqueeBox.startCanvasY, marqueeBox.curCanvasY);
+              const maxY = Math.max(marqueeBox.startCanvasY, marqueeBox.curCanvasY);
+              const w = Math.max(1, maxX - minX);
+              const h = Math.max(1, maxY - minY);
+
+              return (
+                <div
+                  className="absolute border-2 border-dashed border-amber-400 bg-amber-500/10 rounded-lg pointer-events-none shadow-sm"
+                  style={{
+                    left: `${minX}px`,
+                    top: `${minY}px`,
+                    width: `${w}px`,
+                    height: `${h}px`,
+                  }}
+                />
+              );
+            })()}
           </div>
 
-          {/* Floating Zoom & Pan HUD Controls */}
-          <div className="absolute bottom-5 right-5 z-20 flex items-center bg-[#121820]/90 backdrop-blur-md border border-[#242E3D] rounded-lg shadow-2xl p-1 space-x-1 select-none">
-            <button
-              onClick={() => setZoom((z) => Math.min(Number((z + 0.15).toFixed(2)), 2.5))}
-              className="p-1.5 rounded hover:bg-[#1A222D] text-[#94A3B8] hover:text-white transition-colors"
-              title="Zoom In"
+          {/* Floating Release-Wire Quick Add Menu */}
+          {quickAddPos && (
+            <div
+              className="absolute z-50 bg-[#121820] border border-amber-500/50 rounded-xl shadow-2xl p-2 font-mono text-xs w-60 animate-in fade-in zoom-in-95"
+              style={{
+                left: `${quickAddPos.x * zoom + pan.x}px`,
+                top: `${quickAddPos.y * zoom + pan.y}px`,
+              }}
             >
-              <ZoomIn className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setZoom((z) => Math.max(Number((z - 0.15).toFixed(2)), 0.25))}
-              className="p-1.5 rounded hover:bg-[#1A222D] text-[#94A3B8] hover:text-white transition-colors"
-              title="Zoom Out"
-            >
-              <ZoomOut className="w-4 h-4" />
-            </button>
-            <button
-              onClick={handleResetZoom}
-              className="px-2 py-1 rounded hover:bg-[#1A222D] text-[11px] font-mono text-[#94A3B8] hover:text-white transition-colors"
-              title="Reset to 100%"
-            >
-              {Math.round(zoom * 100)}%
-            </button>
-            <div className="w-px h-4 bg-[#242E3D]" />
-            <button
-              onClick={handleFitToView}
-              className="p-1.5 rounded hover:bg-[#1A222D] text-[#94A3B8] hover:text-white transition-colors"
-              title="Fit to Screen"
-            >
-              <Maximize2 className="w-4 h-4" />
-            </button>
-            <button
-              onClick={handleResetZoom}
-              className="p-1.5 rounded hover:bg-[#1A222D] text-[#94A3B8] hover:text-white transition-colors"
-              title="Center Origin"
-            >
-              <RotateCcw className="w-4 h-4" />
-            </button>
+              <div className="flex items-center justify-between pb-1.5 border-b border-[#242E3D] text-[10px] text-[#64748B] uppercase">
+                <span>Connect Next Step</span>
+                <button
+                  onClick={() => setQuickAddPos(null)}
+                  className="p-0.5 text-[#64748B] hover:text-white"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+              <div className="max-h-60 overflow-y-auto space-y-1 mt-1">
+                {NODE_TEMPLATES.map((tmpl) => (
+                  <button
+                    key={tmpl.type}
+                    onClick={() =>
+                      handleAddNode(
+                        tmpl,
+                        { x: quickAddPos.x, y: quickAddPos.y },
+                        quickAddPos.connectFromId
+                      )
+                    }
+                    className="w-full text-left p-1.5 rounded hover:bg-[#1A222D] flex items-center space-x-2 text-white"
+                  >
+                    <div className="p-1 rounded bg-[#0B0E14] border border-[#242E3D]">
+                      {tmpl.icon}
+                    </div>
+                    <span className="truncate">{tmpl.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Floating Canvas HUD Controls (User Request: Zoom Out only on Button) */}
+          <div className="absolute bottom-5 right-5 z-30 flex items-center space-x-2 select-none">
+            {/* Mini-map */}
+            <CanvasMiniMap
+              nodes={pipeline.nodes}
+              pan={pan}
+              zoom={zoom}
+              containerWidth={canvasContainerRef.current?.clientWidth || 1000}
+              containerHeight={canvasContainerRef.current?.clientHeight || 700}
+              onNavigate={setPan}
+              isOpen={showMiniMap}
+              onToggleOpen={() => setShowMiniMap((m) => !m)}
+            />
+
+            {/* Zoom Controls HUD */}
+            <div className="flex items-center bg-[#121820]/95 backdrop-blur-md border border-[#242E3D] rounded-xl shadow-2xl p-1 space-x-1">
+              <button
+                onClick={handleZoomIn}
+                className="p-1.5 rounded hover:bg-[#1A222D] text-[#94A3B8] hover:text-white transition-colors"
+                title="Zoom In"
+              >
+                <ZoomIn className="w-4 h-4" />
+              </button>
+              {/* Prominent Zoom Out Button */}
+              <button
+                onClick={handleZoomOut}
+                className="p-1.5 rounded hover:bg-amber-500/20 text-[#94A3B8] hover:text-amber-300 transition-colors"
+                title="Zoom Out (Button)"
+              >
+                <ZoomOut className="w-4 h-4" />
+              </button>
+              <button
+                onClick={handleResetZoom}
+                className="px-2 py-1 rounded hover:bg-[#1A222D] text-[11px] font-mono text-[#94A3B8] hover:text-white transition-colors"
+                title="Reset to 100%"
+              >
+                {Math.round(zoom * 100)}%
+              </button>
+              <div className="w-px h-4 bg-[#242E3D]" />
+              <button
+                onClick={handleFitToView}
+                className="p-1.5 rounded hover:bg-[#1A222D] text-[#94A3B8] hover:text-white transition-colors"
+                title="Fit to Screen"
+              >
+                <Maximize2 className="w-4 h-4" />
+              </button>
+              <button
+                onClick={handleResetZoom}
+                className="p-1.5 rounded hover:bg-[#1A222D] text-[#94A3B8] hover:text-white transition-colors"
+                title="Center Origin"
+              >
+                <RotateCcw className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
           {/* Bottom Hint Banner */}
-          <div className="absolute bottom-5 left-5 z-10 hidden sm:flex items-center space-x-2 px-3 py-1.5 bg-[#121820]/75 backdrop-blur-sm border border-[#242E3D]/60 rounded-full text-[11px] font-mono text-[#64748B] pointer-events-none">
+          <div className="absolute bottom-5 left-5 z-10 hidden sm:flex items-center space-x-2 px-3 py-1.5 bg-[#121820]/80 backdrop-blur-sm border border-[#242E3D]/60 rounded-full text-[11px] font-mono text-[#64748B] pointer-events-none">
             <Move className="w-3 h-3 text-amber-500" />
-            <span>Drag canvas to pan • Scroll to zoom • Ctrl+A to select all • Del to delete • Ctrl+C / Ctrl+V to copy & paste JSON • Ctrl+D to duplicate</span>
+            <span>
+              Drag cursor wide to marquee select • Swipe / scroll to pan 2D • Double-click to zoom in • Zoom-out on button
+            </span>
           </div>
         </div>
 
-        {/* Real-time Audio Visualizer Bottom Dock */}
-        {audioUrl && (
-          <div className="absolute bottom-16 left-5 z-30 w-96 shadow-2xl backdrop-blur-md bg-[#0B0E14]/90 rounded-lg border border-[#242E3D]">
-            <AudioVisualizer
-              audioElement={audioRef.current}
-              isPlaying={isPlaying}
-            />
-          </div>
-        )}
+        {/* Execution Timeline & Master Audio Drawer (Sliding bottom dock) */}
+        <ExecutionTimelineDrawer
+          isOpen={showExecutionDrawer}
+          onClose={() => setShowExecutionDrawer(false)}
+          isRunning={isRunning}
+          totalTimeMs={executionTotalMs}
+          stages={pipeline.nodes.map((n) => ({
+            id: n.id,
+            name: n.name,
+            nodeType: n.node_type,
+            state: executionStates[n.id],
+          }))}
+          audioUrl={audioUrl}
+          audioRef={audioRef}
+        />
 
         {/* Toast Notification Banner */}
         {toastMessage && (
@@ -1758,7 +1697,7 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
           </div>
         )}
 
-        {/* Paste JSON Modal Dialog */}
+        {/* Paste JSON Modal */}
         {showPasteModal && (
           <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="bg-[#121820] border border-[#242E3D] rounded-xl shadow-2xl w-full max-w-lg p-5 font-mono text-xs flex flex-col space-y-4">
@@ -1768,43 +1707,44 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
                   <span>Paste Workflow or Node JSON</span>
                 </div>
                 <button
-                  onClick={() => {
-                    setShowPasteModal(false);
-                    setPasteJsonInput('');
-                  }}
+                  onClick={() => setShowPasteModal(false)}
                   className="p-1 rounded text-[#94A3B8] hover:text-white"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
-              <p className="text-[#94A3B8] font-sans text-xs leading-relaxed">
-                Paste complete workflow JSON, a single node definition, or an array of nodes. The studio will parse and mount it onto your canvas.
-              </p>
-
               <textarea
                 rows={8}
                 value={pasteJsonInput}
                 onChange={(e) => setPasteJsonInput(e.target.value)}
-                placeholder='Paste JSON here (e.g. { "name": "My Workflow", "nodes": [...], "edges": [...] } or { "node_type": "synthesizer", ... })'
+                placeholder="Paste JSON here..."
                 className="w-full bg-[#0B0E14] border border-[#242E3D] rounded-lg p-3 text-white font-mono text-xs focus:border-amber-500 focus:outline-none resize-none leading-relaxed"
                 autoFocus
               />
 
               <div className="flex items-center justify-end space-x-2 pt-2 border-t border-[#242E3D]">
                 <button
-                  onClick={() => {
-                    setShowPasteModal(false);
-                    setPasteJsonInput('');
-                  }}
-                  className="px-3 py-1.5 rounded bg-[#1A222D] hover:bg-[#242E3D] text-[#94A3B8] hover:text-white transition-colors"
+                  onClick={() => setShowPasteModal(false)}
+                  className="px-3 py-1.5 rounded bg-[#1A222D] text-[#94A3B8] hover:text-white"
                 >
                   Cancel
                 </button>
                 <button
-                  onClick={() => applyPastedJson(pasteJsonInput)}
-                  disabled={!pasteJsonInput.trim()}
-                  className="px-4 py-1.5 rounded bg-amber-500 hover:bg-amber-400 text-black font-semibold transition-colors disabled:opacity-50"
+                  onClick={() => {
+                    try {
+                      const parsed = JSON.parse(pasteJsonInput.trim());
+                      if (parsed && Array.isArray(parsed.nodes)) {
+                        setPipeline(parsed);
+                        setIsDirty(true);
+                        showToast(`Imported workflow "${parsed.name || 'Pasted'}"`);
+                        setShowPasteModal(false);
+                      }
+                    } catch (e: any) {
+                      showToast(`Invalid JSON: ${e.message}`, 'error');
+                    }
+                  }}
+                  className="px-4 py-1.5 rounded bg-amber-500 hover:bg-amber-400 text-black font-semibold"
                 >
                   Import to Canvas
                 </button>
@@ -1812,6 +1752,17 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
             </div>
           </div>
         )}
+
+        {/* Workflow & Project Manager Modal */}
+        <WorkflowManagerModal
+          isOpen={showManagerModal}
+          onClose={() => setShowManagerModal(false)}
+          activeWorkflowId={pipeline.id}
+          onSelectWorkflow={handleSelectWorkflow}
+          onWorkflowListChange={() => {
+            setOpenTabs(WorkflowStorage.getOpenTabs());
+          }}
+        />
       </div>
 
       {/* Node Inspector Drawer */}

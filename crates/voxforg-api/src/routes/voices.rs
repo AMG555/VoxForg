@@ -28,6 +28,21 @@ pub async fn list_voices(
         .await
         .unwrap_or_default();
 
+    // Include persistent cloned voice profiles so they are discoverable app-wide
+    let profiles = state.voice_profiles.list().await;
+    for p in profiles {
+        voices.push(Voice {
+            id: p.id.clone(),
+            name: format!("{} (Cloned)", p.name),
+            engine_id: p.engine_id.clone(),
+            language: p.language.clone(),
+            gender: p.gender.unwrap_or(voxforg_core::models::Gender::Neutral),
+            sample_rate_hz: 24000,
+            tags: vec!["cloned".to_string(), "zero-shot".to_string()],
+            description: p.description.or_else(|| Some("Zero-shot cloned voice profile".to_string())),
+        });
+    }
+
     if let Some(lang) = &query.language {
         voices.retain(|v| v.language.starts_with(lang));
     }
@@ -38,3 +53,4 @@ pub async fn list_voices(
     let total = voices.len();
     Json(VoicesResponse { voices, total })
 }
+

@@ -2,7 +2,8 @@ use async_trait::async_trait;
 use chrono::Utc;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use tokio::sync::mpsc;
+use std::sync::Arc;
+use tokio::sync::{mpsc, RwLock};
 use uuid::Uuid;
 use voxforg_core::error::{Result, VoxForgError};
 use voxforg_core::models::{
@@ -11,12 +12,56 @@ use voxforg_core::models::{
 
 use crate::traits::{EngineCapabilities, SynthesisRequest, TtsEngine};
 
+fn decode_audio_payload(payload: &str) -> Vec<u8> {
+    let trimmed = payload.trim();
+    // 1. Try hex decode if all characters are valid hex
+    if trimmed.chars().all(|c| c.is_ascii_hexdigit()) && trimmed.len() % 2 == 0 {
+        if let Ok(bytes) = hex::decode(trimmed) {
+            return bytes;
+        }
+    }
+    // 2. Base64 decode
+    decode_base64(trimmed).unwrap_or_else(|| trimmed.as_bytes().to_vec())
+}
+
+fn decode_base64(input: &str) -> Option<Vec<u8>> {
+    let mut table = [0xFFu8; 256];
+    for (i, &b) in b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/".iter().enumerate() {
+        table[b as usize] = i as u8;
+    }
+    table[b'-' as usize] = 62;
+    table[b'_' as usize] = 63;
+
+    let filtered: Vec<u8> = input.bytes().filter(|&b| !b.is_ascii_whitespace()).collect();
+    if filtered.is_empty() {
+        return None;
+    }
+    let mut out = Vec::with_capacity(filtered.len() * 3 / 4);
+    let mut buf = 0u32;
+    let mut bits = 0;
+
+    for &b in &filtered {
+        if b == b'=' { break; }
+        let val = table[b as usize];
+        if val == 0xFF { continue; }
+        buf = (buf << 6) | (val as u32);
+        bits += 6;
+        if bits >= 8 {
+            bits -= 8;
+            out.push((buf >> bits) as u8);
+            buf &= (1 << bits) - 1;
+        }
+    }
+    if out.is_empty() { None } else { Some(out) }
+}
+
 /// Qwen3-TTS Neural Engine with reference-audio zero-shot voice cloning capabilities.
 pub struct Qwen3TtsEngine {
     sample_rate: u32,
     clone_count: AtomicUsize,
     endpoint_url: Option<String>,
     client: reqwest::Client,
+    cloned_profiles: Arc<RwLock<HashMap<String, VoiceProfile>>>,
 }
 
 impl Default for Qwen3TtsEngine {
@@ -43,6 +88,7 @@ impl Qwen3TtsEngine {
                 .timeout(std::time::Duration::from_secs(60))
                 .build()
                 .unwrap_or_default(),
+            cloned_profiles: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -58,15 +104,28 @@ impl Qwen3TtsEngine {
             return embedding;
         }
 
-        // Compute normalized spectral and statistical projection
-        let chunk_size = (pcm_data.len() / 512).max(1);
+        let len = pcm_data.len();
+        let energy: f64 = pcm_data.iter().map(|&s| (s as f64).powi(2)).sum::<f64>() / len as f64;
+        let rms = energy.sqrt() / 32768.0;
+
+        let mut zcr_count = 0usize;
+        for i in 1..len {
+            if (pcm_data[i] >= 0 && pcm_data[i - 1] < 0) || (pcm_data[i] < 0 && pcm_data[i - 1] >= 0) {
+                zcr_count += 1;
+            }
+        }
+        let zcr = zcr_count as f64 / len as f64;
+
+        let chunk_size = (len / 512).max(1);
         for (i, slot) in embedding.iter_mut().enumerate() {
-            let start = (i * chunk_size).min(pcm_data.len());
-            let end = ((i + 1) * chunk_size).min(pcm_data.len());
+            let start = (i * chunk_size).min(len);
+            let end = ((i + 1) * chunk_size).min(len);
             if start < end {
-                let sum: f64 = pcm_data[start..end].iter().map(|&s| s as f64).sum();
-                let mean = (sum / (end - start) as f64) / 32768.0;
-                *slot = (mean * std::f64::consts::PI).sin() as f32;
+                let slice = &pcm_data[start..end];
+                let mean: f64 = slice.iter().map(|&s| s as f64).sum::<f64>() / slice.len() as f64 / 32768.0;
+                let variance: f64 = slice.iter().map(|&s| ((s as f64 / 32768.0) - mean).powi(2)).sum::<f64>() / slice.len() as f64;
+                let val = (mean * 0.4 + variance.sqrt() * 0.4 + zcr * 0.1 + rms * 0.1).sin();
+                *slot = val as f32;
             }
         }
         embedding
@@ -108,7 +167,7 @@ impl TtsEngine for Qwen3TtsEngine {
     }
 
     async fn voices(&self) -> Result<Vec<Voice>> {
-        Ok(vec![
+        let mut list = vec![
             Voice {
                 id: "qwen3-female-conversational".to_string(),
                 name: "Qwen3 Conversational Female".to_string(),
@@ -137,10 +196,44 @@ impl TtsEngine for Qwen3TtsEngine {
                     "Deep, authoritative narration voice for long-form content".to_string(),
                 ),
             },
-        ])
+        ];
+
+        // Append cloned profiles so resolve_voice finds them
+        let profiles = self.cloned_profiles.read().await;
+        for p in profiles.values() {
+            list.push(Voice {
+                id: p.id.clone(),
+                name: format!("{} (Cloned)", p.name),
+                engine_id: self.id().to_string(),
+                language: p.language.clone(),
+                gender: p.gender.clone().unwrap_or(Gender::Neutral),
+                sample_rate_hz: self.sample_rate,
+                tags: vec!["cloned".to_string(), "zero-shot".to_string()],
+                description: p.description.clone().or_else(|| Some("Zero-shot cloned voice profile".to_string())),
+            });
+        }
+
+        Ok(list)
     }
 
     async fn synthesize(&self, request: &SynthesisRequest) -> Result<AudioChunk> {
+        // If this is a cloned voice request, dispatch to synthesize_cloned
+        let profile_opt = {
+            let profiles = self.cloned_profiles.read().await;
+            profiles.get(&request.voice_id).cloned()
+        };
+
+        if let Some(profile) = profile_opt {
+            let cloned_req = ClonedSynthesisRequest {
+                text: request.text.clone(),
+                profile,
+                speed: request.speed,
+                pitch: request.pitch,
+                format: request.format,
+            };
+            return self.synthesize_cloned(&cloned_req).await;
+        }
+
         let fallback_voice = if request.voice_id.contains("female") {
             "en-US-AriaNeural"
         } else {
@@ -208,13 +301,16 @@ impl TtsEngine for Qwen3TtsEngine {
         }
 
         let embedding = if let Some(ref b64) = request.reference_audio_base64 {
-            let bytes = hex::decode(b64.as_bytes()).unwrap_or_else(|_| b64.as_bytes().to_vec());
-            let pcm: Vec<i16> = bytes
-                .as_chunks::<2>()
-                .0
-                .iter()
-                .map(|c| i16::from_le_bytes([c[0], c[1]]))
-                .collect();
+            let bytes = decode_audio_payload(b64);
+            let pcm = if bytes.starts_with(b"RIFF") {
+                voxforg_audio::WavEncoder::decode_wav_to_pcm16(&bytes)
+                    .map(|(samples, _, _)| samples)
+                    .unwrap_or_else(|_| {
+                        bytes.as_chunks::<2>().0.iter().map(|c| i16::from_le_bytes([c[0], c[1]])).collect()
+                    })
+            } else {
+                bytes.as_chunks::<2>().0.iter().map(|c| i16::from_le_bytes([c[0], c[1]])).collect()
+            };
             Self::extract_speaker_embedding(&pcm)
         } else {
             vec![0.1f32; 512]
@@ -228,8 +324,8 @@ impl TtsEngine for Qwen3TtsEngine {
         metadata.insert("zero_shot".to_string(), "true".to_string());
         metadata.extend(request.metadata.clone());
 
-        Ok(VoiceProfile {
-            id: profile_id,
+        let profile = VoiceProfile {
+            id: profile_id.clone(),
             name: request.name.clone(),
             engine_id: self.id().to_string(),
             description: request.description.clone(),
@@ -246,8 +342,13 @@ impl TtsEngine for Qwen3TtsEngine {
             ]),
             metadata,
             created_at: Utc::now(),
-        })
+        };
+
+        self.cloned_profiles.write().await.insert(profile_id, profile.clone());
+
+        Ok(profile)
     }
+
 
     async fn synthesize_cloned(&self, request: &ClonedSynthesisRequest) -> Result<AudioChunk> {
         // If upstream microservice is configured, dispatch real cloning request
@@ -295,22 +396,39 @@ impl TtsEngine for Qwen3TtsEngine {
             }
         }
 
+        let mut pitch_offset = request.pitch;
+        if let Some(ref emb) = request.profile.embedding {
+            let avg_centroid = emb.iter().take(16).sum::<f32>() / 16.0;
+            pitch_offset += (avg_centroid * 2.0).clamp(-4.0, 4.0);
+        }
+
         let fallback_voice = match request.profile.gender {
             Some(Gender::Male) => "en-US-GuyNeural",
             Some(Gender::Female) => "en-US-AriaNeural",
-            _ => "en-US-AriaNeural",
+            _ => "en-US-JennyNeural",
         };
         let edge = crate::edge_tts::EdgeTtsEngine::new();
         let synth_req = SynthesisRequest {
             text: request.text.clone(),
             voice_id: fallback_voice.to_string(),
             speed: request.speed,
-            pitch: request.pitch,
+            pitch: pitch_offset,
             format: request.format,
         };
-        edge.synthesize(&synth_req).await
+        let mut chunk = edge.synthesize(&synth_req).await?;
+
+        // Studio peak normalization to ensure crisp loudness and clarity
+        let max_amp = chunk.pcm_data.iter().map(|&s| s.abs()).max().unwrap_or(0) as f32;
+        if max_amp > 100.0 && max_amp < 28000.0 {
+            let gain = (28000.0 / max_amp).min(1.6);
+            for s in &mut chunk.pcm_data {
+                *s = ((*s as f32 * gain).clamp(-32767.0, 32767.0)) as i16;
+            }
+        }
+        Ok(chunk)
     }
 }
+
 
 fn auto_detect_local_port(port: u16) -> bool {
     use std::net::{SocketAddr, TcpStream};

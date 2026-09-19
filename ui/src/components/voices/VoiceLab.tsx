@@ -18,6 +18,7 @@ import {
 import { Voice } from '../../types';
 import { api } from '../../services/api';
 import { AudioVisualizer } from '../common/AudioVisualizer';
+import { AudioProcessor, AudioQualityAssessment } from '../../services/audioProcessor';
 
 interface VoiceLabProps {
   voices: Voice[];
@@ -60,6 +61,8 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices }) => {
   const [cloneAudioBase64, setCloneAudioBase64] = useState<string>('');
   const [cloneFileName, setCloneFileName] = useState<string>('');
   const [isCloning, setIsCloning] = useState<boolean>(false);
+  const [audioQuality, setAudioQuality] = useState<AudioQualityAssessment | null>(null);
+  const [isAutoTranscribing, setIsAutoTranscribing] = useState<boolean>(false);
 
   // Microphone recording state
   const [isRecording, setIsRecording] = useState<boolean>(false);
@@ -67,6 +70,7 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices }) => {
   const [recordedAudioUrl, setRecordedAudioUrl] = useState<string | null>(null);
   const [isPreviewPlaying, setIsPreviewPlaying] = useState<boolean>(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const speechRecognitionRef = useRef<any>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<any>(null);
   const previewAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -81,6 +85,9 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices }) => {
       }
       if (timerRef.current) {
         clearInterval(timerRef.current);
+      }
+      if (speechRecognitionRef.current) {
+        try { speechRecognitionRef.current.stop(); } catch {}
       }
     };
   }, [audioUrl, recordedAudioUrl]);
@@ -188,6 +195,33 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices }) => {
       const mediaRecorder = new MediaRecorder(stream, recorderOptions);
       mediaRecorderRef.current = mediaRecorder;
 
+      // Start automatic speech recognition to transcribe reference speech
+      if (typeof window !== 'undefined') {
+        const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        if (SpeechRec) {
+          try {
+            const recognizer = new SpeechRec();
+            recognizer.continuous = true;
+            recognizer.interimResults = true;
+            recognizer.lang = 'en-US';
+            recognizer.onresult = (event: any) => {
+              let transcript = '';
+              for (let i = 0; i < event.results.length; i++) {
+                transcript += event.results[i][0].transcript + ' ';
+              }
+              if (transcript.trim()) {
+                setCloneTranscript(transcript.trim());
+              }
+            };
+            recognizer.onerror = () => setIsAutoTranscribing(false);
+            recognizer.onend = () => setIsAutoTranscribing(false);
+            recognizer.start();
+            speechRecognitionRef.current = recognizer;
+            setIsAutoTranscribing(true);
+          } catch {}
+        }
+      }
+
       mediaRecorder.ondataavailable = (event) => {
         if (event.data && event.data.size > 0) {
           audioChunksRef.current.push(event.data);
@@ -196,22 +230,32 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices }) => {
 
       mediaRecorder.onstop = async () => {
         const chosenMime = mediaRecorder.mimeType || supportedMime || 'audio/webm';
-        const audioBlob = new Blob(audioChunksRef.current, { type: chosenMime });
-        if (recordedAudioUrl) {
-          URL.revokeObjectURL(recordedAudioUrl);
-        }
-        const url = URL.createObjectURL(audioBlob);
-        setRecordedAudioUrl(url);
+        const rawBlob = new Blob(audioChunksRef.current, { type: chosenMime });
 
-        // Convert blob to base64
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const base64data = reader.result as string;
-          const base64 = base64data.includes(',') ? base64data.split(',')[1] : base64data;
-          setCloneAudioBase64(base64);
-          setCloneFileName(`Microphone Sample (${recordingSeconds}s)`);
-        };
-        reader.readAsDataURL(audioBlob);
+        try {
+          // Preprocess: 80Hz rumble cut, silence gating, -1.0 dBFS normalization, 24kHz 16-bit WAV
+          const result = await AudioProcessor.preprocessForCloning(rawBlob);
+          if (recordedAudioUrl) {
+            URL.revokeObjectURL(recordedAudioUrl);
+          }
+          const url = URL.createObjectURL(result.wavBlob);
+          setRecordedAudioUrl(url);
+          setCloneAudioBase64(result.wavBase64);
+          setAudioQuality(result.metrics);
+          setCloneFileName(`Enhanced Studio WAV (${result.durationFormatted})`);
+        } catch {
+          // Fallback to direct raw blob if Web Audio decode is unsupported
+          const url = URL.createObjectURL(rawBlob);
+          setRecordedAudioUrl(url);
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const base64data = reader.result as string;
+            const base64 = base64data.includes(',') ? base64data.split(',')[1] : base64data;
+            setCloneAudioBase64(base64);
+            setCloneFileName(`Microphone Sample (${recordingSeconds}s)`);
+          };
+          reader.readAsDataURL(rawBlob);
+        }
 
         // Stop all audio tracks to release microphone hardware
         stream.getTracks().forEach((track) => track.stop());
@@ -243,6 +287,13 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices }) => {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
+    if (speechRecognitionRef.current) {
+      try {
+        speechRecognitionRef.current.stop();
+      } catch {}
+      speechRecognitionRef.current = null;
+    }
+    setIsAutoTranscribing(false);
     setIsRecording(false);
   };
 
@@ -253,22 +304,40 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices }) => {
     setRecordedAudioUrl(null);
     setCloneAudioBase64('');
     setCloneFileName('');
+    setAudioQuality(null);
     setRecordingSeconds(0);
+    if (speechRecognitionRef.current) {
+      try {
+        speechRecognitionRef.current.stop();
+      } catch {}
+      speechRecognitionRef.current = null;
+    }
+    setIsAutoTranscribing(false);
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setCloneFileName(file.name);
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = reader.result as string;
-        const base64 = result.includes(',') ? result.split(',')[1] : result;
-        setCloneAudioBase64(base64);
-      };
-      reader.readAsDataURL(file);
+      try {
+        const result = await AudioProcessor.preprocessForCloning(file);
+        if (recordedAudioUrl) URL.revokeObjectURL(recordedAudioUrl);
+        setRecordedAudioUrl(URL.createObjectURL(result.wavBlob));
+        setCloneAudioBase64(result.wavBase64);
+        setAudioQuality(result.metrics);
+        setCloneFileName(`${file.name} (Enhanced 24kHz Studio WAV)`);
+      } catch {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = reader.result as string;
+          const base64 = result.includes(',') ? result.split(',')[1] : result;
+          setCloneAudioBase64(base64);
+        };
+        reader.readAsDataURL(file);
+      }
     }
   };
+
 
   const handleCloneSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -833,11 +902,64 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices }) => {
                     />
                   </label>
                 )}
+
+                {/* Real-Time Audio Quality Diagnostics */}
+                {audioQuality && (
+                  <div className="bg-[#0B0E14] border border-amber-500/30 rounded-xl p-3 space-y-2.5 font-mono text-xs shadow-inner">
+                    <div className="flex items-center justify-between border-b border-[#242E3D] pb-1.5">
+                      <div className="flex items-center space-x-1.5 text-amber-400 font-semibold text-[11px] uppercase tracking-wider">
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>Acoustic Quality Diagnostics</span>
+                      </div>
+                      <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3" />
+                        <span>24kHz Studio WAV</span>
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 text-[11px]">
+                      <div className="bg-[#121820] p-2 rounded border border-[#242E3D]">
+                        <div className="text-[#64748B] text-[10px] uppercase">Duration</div>
+                        <div className={`font-semibold mt-0.5 ${audioQuality.durationQuality === 'optimal' ? 'text-emerald-400' : 'text-amber-400'}`}>
+                          {audioQuality.durationSeconds}s
+                        </div>
+                      </div>
+                      <div className="bg-[#121820] p-2 rounded border border-[#242E3D]">
+                        <div className="text-[#64748B] text-[10px] uppercase">Clarity SNR</div>
+                        <div className={`font-semibold mt-0.5 ${audioQuality.clarityRating === 'excellent' ? 'text-emerald-400' : 'text-amber-400'}`}>
+                          ~{audioQuality.snrEstimateDb} dB ({audioQuality.clarityRating})
+                        </div>
+                      </div>
+                      <div className="bg-[#121820] p-2 rounded border border-[#242E3D]">
+                        <div className="text-[#64748B] text-[10px] uppercase">Peak Level</div>
+                        <div className="font-semibold text-white mt-0.5">
+                          {audioQuality.peakDbfs} dBFS
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="text-[10px] text-[#94A3B8] flex items-center space-x-1.5 bg-[#121820] px-2.5 py-1.5 rounded border border-[#242E3D]">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                      <span className="truncate">{audioQuality.clarityMessage} • 80Hz rumble filter & -1dBFS normalization applied</span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-[#94A3B8] mb-1">
-                  Reference Transcript <span className="text-[#64748B] lowercase">(optional, improves alignment)</span>
+                  Reference Transcript{' '}
+                  {isAutoTranscribing ? (
+                    <span className="text-amber-400 font-mono text-[10px] animate-pulse">
+                      (Listening & Auto-Transcribing...)
+                    </span>
+                  ) : cloneTranscript ? (
+                    <span className="text-emerald-400 font-mono text-[10px]">
+                      (✓ Spoken Transcript Captured)
+                    </span>
+                  ) : (
+                    <span className="text-[#64748B] lowercase font-normal">(optional, auto-transcribes on microphone)</span>
+                  )}
                 </label>
                 <textarea
                   rows={2}

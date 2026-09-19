@@ -6,7 +6,21 @@ export type NodeType =
   | 'synthesizer'
   | 'audio_filter'
   | 'audio_merge'
-  | 'output_sink';
+  | 'output_sink'
+  | 'asr_transcriber'
+  | 'diarization'
+  | 'document_chunker'
+  | 'audio_time_stretch'
+  | 'audio_mux';
+
+export type NodeExecutionStatus = 'idle' | 'waiting' | 'running' | 'success' | 'error';
+
+export interface NodeExecutionState {
+  status: NodeExecutionStatus;
+  latencyMs?: number;
+  message?: string;
+  outputPreview?: any;
+}
 
 export interface PipelineNode {
   id: string;
@@ -14,7 +28,9 @@ export interface PipelineNode {
   node_type: NodeType;
   params: Record<string, any>;
   position?: { x: number; y: number };
+  disabled?: boolean;
 }
+
 
 export interface PipelineEdge {
   id: string;

@@ -1,4 +1,4 @@
-import { X, Sliders, Trash2, Wand2, Volume2, Mic, Copy, Clipboard } from 'lucide-react';
+import { X, Sliders, Trash2, Wand2, Volume2, Mic, Copy, Clipboard, FileText, Layers, Gauge, Radio, Users } from 'lucide-react';
 import { PipelineNode, Voice } from '../../types';
 
 interface NodeInspectorProps {
@@ -900,6 +900,200 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
                 <span>Status:</span>
                 <span className="text-emerald-400 font-bold">READY TO RENDER</span>
               </div>
+            </div>
+          </div>
+        )}
+
+        {node.node_type === 'asr_transcriber' && (
+          <div className="space-y-4 bg-[#0B0E14] p-3.5 rounded-lg border border-[#242E3D]">
+            <div className="flex items-center space-x-2 text-sky-400 font-semibold text-xs border-b border-[#242E3D] pb-2">
+              <Radio className="w-4 h-4" />
+              <span>ASR Audio Transcriber</span>
+            </div>
+            <div>
+              <label className="block text-[11px] font-mono uppercase text-[#94A3B8] mb-1">
+                Model Engine
+              </label>
+              <select
+                value={node.params.model || 'whisper-large-v3'}
+                onChange={(e) => handleChange('model', e.target.value)}
+                className="w-full bg-[#121820] border border-[#242E3D] rounded px-3 py-1.5 text-white text-xs font-mono focus:border-sky-400 focus:outline-none"
+              >
+                <option value="whisper-large-v3">Whisper Large v3 (Studio Accuracy)</option>
+                <option value="whisper-base">Whisper Base (Low Latency)</option>
+                <option value="web-speech-native">Browser Native Web Speech</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-[11px] font-mono uppercase text-[#94A3B8] mb-1">
+                Language
+              </label>
+              <select
+                value={node.params.language || 'auto'}
+                onChange={(e) => handleChange('language', e.target.value)}
+                className="w-full bg-[#121820] border border-[#242E3D] rounded px-3 py-1.5 text-white text-xs font-mono focus:border-sky-400 focus:outline-none"
+              >
+                <option value="auto">Auto-Detect</option>
+                <option value="en">English (en-US / en-GB)</option>
+                <option value="es">Spanish (es-ES)</option>
+                <option value="fr">French (fr-FR)</option>
+                <option value="de">German (de-DE)</option>
+                <option value="ja">Japanese (ja-JP)</option>
+              </select>
+            </div>
+            <div className="flex items-center justify-between pt-1">
+              <span className="text-[11px] text-[#94A3B8]">Word Timestamps</span>
+              <input
+                type="checkbox"
+                checked={node.params.word_timestamps ?? true}
+                onChange={(e) => handleChange('word_timestamps', e.target.checked)}
+                className="rounded accent-sky-500 cursor-pointer"
+              />
+            </div>
+          </div>
+        )}
+
+        {node.node_type === 'diarization' && (
+          <div className="space-y-4 bg-[#0B0E14] p-3.5 rounded-lg border border-[#242E3D]">
+            <div className="flex items-center space-x-2 text-indigo-400 font-semibold text-xs border-b border-[#242E3D] pb-2">
+              <Users className="w-4 h-4" />
+              <span>Multi-Speaker Diarization</span>
+            </div>
+            <div>
+              <div className="flex justify-between text-[11px] font-mono text-[#94A3B8] mb-1">
+                <span>Max Speakers</span>
+                <span className="text-indigo-400 font-bold">{node.params.max_speakers ?? 4}</span>
+              </div>
+              <input
+                type="range"
+                min="1"
+                max="8"
+                step="1"
+                value={node.params.max_speakers ?? 4}
+                onChange={(e) => handleChange('max_speakers', parseInt(e.target.value, 10))}
+                className="w-full accent-indigo-500 cursor-pointer"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-mono uppercase text-[#94A3B8] mb-1">
+                Speaker Label Prefix
+              </label>
+              <input
+                type="text"
+                value={node.params.speaker_prefix || 'Speaker'}
+                onChange={(e) => handleChange('speaker_prefix', e.target.value)}
+                placeholder="Speaker"
+                className="w-full bg-[#121820] border border-[#242E3D] rounded px-3 py-1.5 text-white text-xs font-mono focus:border-indigo-400 focus:outline-none"
+              />
+            </div>
+          </div>
+        )}
+
+        {node.node_type === 'document_chunker' && (
+          <div className="space-y-4 bg-[#0B0E14] p-3.5 rounded-lg border border-[#242E3D]">
+            <div className="flex items-center space-x-2 text-emerald-400 font-semibold text-xs border-b border-[#242E3D] pb-2">
+              <FileText className="w-4 h-4" />
+              <span>Document & Text Chunker</span>
+            </div>
+            <div>
+              <label className="block text-[11px] font-mono uppercase text-[#94A3B8] mb-1">
+                Splitting Strategy
+              </label>
+              <select
+                value={node.params.chunk_strategy || 'by_sentence'}
+                onChange={(e) => handleChange('chunk_strategy', e.target.value)}
+                className="w-full bg-[#121820] border border-[#242E3D] rounded px-3 py-1.5 text-white text-xs font-mono focus:border-emerald-400 focus:outline-none"
+              >
+                <option value="by_sentence">By Sentence (Natural Flow)</option>
+                <option value="by_paragraph">By Paragraph / Scene</option>
+                <option value="by_token_limit">Token Window Budget</option>
+              </select>
+            </div>
+            <div>
+              <div className="flex justify-between text-[11px] font-mono text-[#94A3B8] mb-1">
+                <span>Max Chunk Size (chars)</span>
+                <span className="text-emerald-400 font-bold">{node.params.max_chunk_chars ?? 600}</span>
+              </div>
+              <input
+                type="range"
+                min="100"
+                max="3000"
+                step="50"
+                value={node.params.max_chunk_chars ?? 600}
+                onChange={(e) => handleChange('max_chunk_chars', parseInt(e.target.value, 10))}
+                className="w-full accent-emerald-500 cursor-pointer"
+              />
+            </div>
+          </div>
+        )}
+
+        {node.node_type === 'audio_time_stretch' && (
+          <div className="space-y-4 bg-[#0B0E14] p-3.5 rounded-lg border border-[#242E3D]">
+            <div className="flex items-center space-x-2 text-cyan-400 font-semibold text-xs border-b border-[#242E3D] pb-2">
+              <Gauge className="w-4 h-4" />
+              <span>Time Stretch & Tempo</span>
+            </div>
+            <div>
+              <div className="flex justify-between text-[11px] font-mono text-[#94A3B8] mb-1">
+                <span>Speed Ratio</span>
+                <span className="text-cyan-400 font-bold">{(node.params.stretch_ratio ?? 1.0).toFixed(2)}x</span>
+              </div>
+              <input
+                type="range"
+                min="0.5"
+                max="2.0"
+                step="0.05"
+                value={node.params.stretch_ratio ?? 1.0}
+                onChange={(e) => handleChange('stretch_ratio', parseFloat(e.target.value))}
+                className="w-full accent-cyan-500 cursor-pointer"
+              />
+            </div>
+            <div className="flex items-center justify-between pt-1">
+              <span className="text-[11px] text-[#94A3B8]">Preserve Pitch (WSOLA)</span>
+              <input
+                type="checkbox"
+                checked={node.params.preserve_pitch ?? true}
+                onChange={(e) => handleChange('preserve_pitch', e.target.checked)}
+                className="rounded accent-cyan-500 cursor-pointer"
+              />
+            </div>
+          </div>
+        )}
+
+        {node.node_type === 'audio_mux' && (
+          <div className="space-y-4 bg-[#0B0E14] p-3.5 rounded-lg border border-[#242E3D]">
+            <div className="flex items-center space-x-2 text-violet-400 font-semibold text-xs border-b border-[#242E3D] pb-2">
+              <Layers className="w-4 h-4" />
+              <span>Multi-Track Audio MUX</span>
+            </div>
+            <div>
+              <label className="block text-[11px] font-mono uppercase text-[#94A3B8] mb-1">
+                Mix Routing
+              </label>
+              <select
+                value={node.params.mix_mode || 'stereo_master'}
+                onChange={(e) => handleChange('mix_mode', e.target.value)}
+                className="w-full bg-[#121820] border border-[#242E3D] rounded px-3 py-1.5 text-white text-xs font-mono focus:border-violet-400 focus:outline-none"
+              >
+                <option value="stereo_master">Stereo Master (Combined L/R)</option>
+                <option value="stems_export">Individual Stems (Isolated)</option>
+                <option value="binaural">3D Binaural Spatial</option>
+              </select>
+            </div>
+            <div>
+              <div className="flex justify-between text-[11px] font-mono text-[#94A3B8] mb-1">
+                <span>Ducking Attenuation</span>
+                <span className="text-violet-400 font-bold">{node.params.ducking_db ?? -12} dB</span>
+              </div>
+              <input
+                type="range"
+                min="-30"
+                max="0"
+                step="1"
+                value={node.params.ducking_db ?? -12}
+                onChange={(e) => handleChange('ducking_db', parseInt(e.target.value, 10))}
+                className="w-full accent-violet-500 cursor-pointer"
+              />
             </div>
           </div>
         )}
