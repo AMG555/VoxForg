@@ -73,13 +73,15 @@ VoxForg eliminates vendor lock-in by abstracting 10+ local and cloud speech engi
 ### Key Capabilities
 
 - **Unified Multi-Engine Orchestration**: Support for ultra-fast local engines (Piper, KittenTTS, Kokoro-82M), heavy neural synthesizers (Qwen3-TTS, ChatTTS, StyleTTS2), and zero-cost cloud relays (Edge-TTS) without code changes.
+- **Workflows Dashboard (n8n-Style Project Hub)**: Central dashboard to manage multiple speech pipelines. Search and filter across tags (`Podcast`, `Tactical`, `Dubbing`, `Radio`), duplicate templates, import/export full pipeline JSON schemas, and switch projects via clean breadcrumbs.
+- **Visual Pipeline Canvas & DAG Ergonomics**: 2D infinite node-based DAG canvas with smooth 2D pan, pointer-anchored focal zoom (`0.25x` to `2.5x`), marquee multi-selection, 16px magnetic grid snapping, multi-node JSON clipboard copying (`Ctrl+C`), and searchable quick-add node palette (`Tab` or `/`). Features dynamic connection wire beacons, hover cut, Kahn's topological execution ordering, per-node bypass toggles, and real-time millisecond latency telemetry.
 - **Automated Speech Recognition (ASR)**: Native Whisper inference engine with sliding-window VAD energy segmentation, generating OpenAI-compatible transcriptions, word timestamps, and SRT/VTT subtitle files (`POST /v1/audio/transcriptions`).
-- **Zero-Shot Voice Cloning & Persistent Profiles**: Extract 512-dimensional speaker embeddings from reference audio samples using Qwen3-TTS conditioning and save persistent, reusable `VoiceProfile` presets (`POST /v1/voices/clone`).
+- **Zero-Shot Voice Cloning & Studio Pre-Processing**: Studio-grade acoustic pipeline featuring 80Hz Butterworth high-pass filtering, adaptive noise gating, true peak normalization to -0.5 dBFS, and 24kHz linear PCM transcoding to extract 512-D neural speaker identity embeddings (`POST /v1/voices/clone`). Persistent across browser local storage and backend database.
+- **Full Automation Connectivity (n8n & Webhooks)**: Connects natively to n8n workflows via drop-in OpenAI Audio nodes (`http://localhost:8080/v1`), direct HTTP Request binary audio nodes, webhook-triggered DAG pipeline execution (`POST /v1/pipeline/execute`), and programmatic voice cloning.
+- **Model Context Protocol (MCP) Server**: Built-in JSON-RPC 2.0 stdio server (`voxforg mcp`) exposing 8 tools (`synthesize_speech`, `clone_voice`, `transcribe_audio`, `execute_pipeline`, `list_voices`, `list_models`, `benchmark_engine`, `get_cluster_status`) directly to Claude Desktop, Cursor, Antigravity, and Windsurf.
 - **Production Video Dubbing & Audiobook DAG Workflows**: Turnkey DAG templates chaining ASR, Speaker Diarization, Voice Mapping, Time-Stretch tempo alignment, and Audio Muxing for video tracks and multi-chapter audiobook publishing.
 - **Model Catalog & Weights Manager**: Built-in weights manager validating host RAM and GPU VRAM constraints before installing curated open weights (Kokoro, Piper, Whisper, Qwen3, Silero) with cryptographic SHA-256 verification (`/v1/catalog/models`).
-- **Model Context Protocol (MCP) Server**: Native JSON-RPC 2.0 stdio server (`voxforg mcp`) exposing 8 speech tools directly to Claude Desktop, Cursor, and autonomous LLM agent workstations.
 - **Hardware-Aware Adaptive Dispatch**: Automated hardware probe detecting CPU vector extensions (AVX2, AVX-512, NEON) and GPU accelerators (NVIDIA CUDA, Apple MPS, DirectML) to dynamically allocate optimal engine models.
-- **Visual Pipeline Canvas & Multi-Voice Studio**: 2D infinite node-based DAG canvas with smooth cursor zoom (`0.25x` to `2.5x`), pan navigation, freeform node dragging, and dynamic glowing Bezier wires. Purpose-built for multi-voice studio combining (podcasts with Host + Guest, tactical communications with Dispatch + Pilot, radio broadcasting, narrative sci-fi dialogue). Features script speaker auto-detection, studio DSP mastering (3-band parametric EQ, dynamic compression, brickwall limiter, silence trimmer), customizable inter-speaker pacing, and master audio export via `POST /v1/pipeline/execute`.
 - **Tri-Tier Storage Architecture**:
   - **Embedded / Desktop**: Zero-dependency SQLite with WAL mode.
   - **Self-Hosted Docker**: High-concurrency PostgreSQL with connection pooling.
@@ -270,6 +272,36 @@ response = client.audio.speech.create(
 
 response.stream_to_file("speech.wav")
 ```
+
+---
+
+### 7. n8n Workflow Automation Integration
+
+Connect VoxForg to [n8n](https://n8n.io) to automate speech pipelines, customer voice replies, and multi-speaker podcast generation:
+
+- **OpenAI Node (Drop-in)**: Point your n8n OpenAI node's Base URL to `http://localhost:8080/v1` to generate speech without changing your existing workflow logic.
+- **HTTP Request Node**: Invoke `POST http://localhost:8080/v1/audio/speech` with response format set to `File (Binary)` to dispatch audio to Telegram, WhatsApp, Slack, or Discord bots.
+- **Webhook DAG Execution**: Trigger full multi-speaker DAG pipelines with `POST http://localhost:8080/v1/pipeline/execute` passing exported pipeline JSON.
+- **Automated Voice Cloning**: Conditionally clone caller voices via `POST http://localhost:8080/v1/voices/clone`.
+
+---
+
+### 8. Model Context Protocol (MCP) Server
+
+VoxForg runs a native JSON-RPC 2.0 stdio server (`voxforg mcp`) allowing LLM coding assistants (Claude Desktop, Cursor, Antigravity, Windsurf) to execute speech tools autonomously:
+
+```json
+{
+  "mcpServers": {
+    "voxforg": {
+      "command": "voxforg",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+Exposes 8 core tools: `synthesize_speech`, `clone_voice`, `transcribe_audio`, `execute_pipeline`, `list_voices`, `list_models`, `benchmark_engine`, and `get_cluster_status`.
 
 ---
 
