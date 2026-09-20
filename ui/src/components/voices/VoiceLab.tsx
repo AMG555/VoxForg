@@ -380,6 +380,7 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated }) =>
   const [cloneName, setCloneName] = useState<string>('');
   const [cloneTranscript, setCloneTranscript] = useState<string>('');
   const [cloneGender, setCloneGender] = useState<'male' | 'female' | 'neutral'>('neutral');
+  const [cloneLanguage, setCloneLanguage] = useState<string>('AUTO');
   const [cloneAudioBase64, setCloneAudioBase64] = useState<string>('');
   const [cloneFileName, setCloneFileName] = useState<string>('');
   const [isCloning, setIsCloning] = useState<boolean>(false);
@@ -727,6 +728,18 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated }) =>
     if (!cloneName || !cloneAudioBase64) return;
     setIsCloning(true);
     try {
+      let resolvedLang = cloneLanguage;
+      if (resolvedLang === 'AUTO') {
+        if (cloneTranscript && cloneTranscript.trim().length > 1) {
+          const detected = detectLanguage(cloneTranscript);
+          resolvedLang = detected.code !== 'unknown' ? detected.code : 'en-US';
+        } else if (detectedLang.code && detectedLang.code !== 'unknown') {
+          resolvedLang = detectedLang.code;
+        } else {
+          resolvedLang = 'en-US';
+        }
+      }
+
       let res: { id?: string } = {};
       try {
         res = await api.cloneVoice({
@@ -735,7 +748,7 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated }) =>
           reference_audio_base64: cloneAudioBase64,
           reference_transcript: cloneTranscript || undefined,
           gender: cloneGender,
-          language: 'en-US',
+          language: resolvedLang,
         });
       } catch (backendErr) {
         console.warn('Backend cloning offline; registering local zero-shot voice profile:', backendErr);
@@ -745,11 +758,11 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated }) =>
         id: res.id || `cloned-${Date.now()}`,
         name: `${cloneName} (Cloned)`,
         engine_id: 'qwen3-tts',
-        language: 'en-US',
+        language: resolvedLang,
         gender: cloneGender,
         sample_rate_hz: 24000,
-        tags: ['cloned', 'zero-shot'],
-        description: 'Zero-shot voice profile generated from reference sample',
+        tags: ['cloned', 'zero-shot', 'cross-lingual'],
+        description: `Zero-shot voice profile generated from reference sample (${resolvedLang})`,
       };
       setLocalVoices((prev) => [newVoice, ...prev.filter((v) => v.id !== newVoice.id)]);
       onVoiceCreated?.(newVoice);
@@ -759,6 +772,7 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated }) =>
       setCloneTranscript('');
       setCloneAudioBase64('');
       setCloneFileName('');
+      setCloneLanguage('AUTO');
       resetRecording();
     } catch (err: any) {
       console.error('Cloning error:', err);
@@ -2174,6 +2188,32 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated }) =>
                     </button>
                   ))}
                 </div>
+              </div>
+
+              {/* Speaker Primary Language / Dialect Selector */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-[#94A3B8]">
+                    Speaker Native Language / Dialect
+                  </label>
+                  <span className="text-[10px] text-emerald-400 font-mono bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                    Cross-Lingual Ready
+                  </span>
+                </div>
+                <select
+                  value={cloneLanguage}
+                  onChange={(e) => setCloneLanguage(e.target.value)}
+                  className="w-full bg-[#0B0E14] border border-[#242E3D] rounded-lg px-3 py-2 text-white text-xs focus:border-amber-500 focus:outline-none font-mono"
+                >
+                  {SUPPORTED_LANGUAGES.map((lang) => (
+                    <option key={lang.code} value={lang.code}>
+                      {lang.flag} {lang.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-[#64748B] font-mono mt-1">
+                  Your cloned voice timbre can speak across <span className="text-amber-400 font-semibold">ALL supported languages</span> (Malayalam, Hindi, Tamil, Telugu, English, German, French, etc.) via neural cross-lingual synthesis.
+                </p>
               </div>
 
               <div className="pt-2 flex items-center justify-end space-x-3 border-t border-[#242E3D]">
