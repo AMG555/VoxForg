@@ -274,7 +274,8 @@ impl TtsEngine for Qwen3TtsEngine {
         } else {
             Some(Gender::Male)
         };
-        let fallback_voice = resolve_cross_lingual_base_voice(fallback_gender.as_ref(), &request.text, "en-US");
+        let fallback_voice =
+            resolve_cross_lingual_base_voice(fallback_gender.as_ref(), &request.text, "en-US");
         let edge = crate::edge_tts::EdgeTtsEngine::new();
         let synth_req = SynthesisRequest {
             text: request.text.clone(),
@@ -485,7 +486,9 @@ pub fn resolve_cross_lingual_base_voice(
     let is_male = matches!(gender, Some(Gender::Male));
 
     // 1. Script detection (Unicode ranges) or profile language tag
-    let has_malayalam = text.chars().any(|c| (0x0D00..=0x0D7F).contains(&(c as u32)))
+    let has_malayalam = text
+        .chars()
+        .any(|c| (0x0D00..=0x0D7F).contains(&(c as u32)))
         || profile_lang.starts_with("ml");
     if has_malayalam {
         return if is_male {
@@ -495,7 +498,9 @@ pub fn resolve_cross_lingual_base_voice(
         };
     }
 
-    let has_hindi = text.chars().any(|c| (0x0900..=0x097F).contains(&(c as u32)))
+    let has_hindi = text
+        .chars()
+        .any(|c| (0x0900..=0x097F).contains(&(c as u32)))
         || profile_lang.starts_with("hi");
     if has_hindi {
         return if is_male {
@@ -505,7 +510,9 @@ pub fn resolve_cross_lingual_base_voice(
         };
     }
 
-    let has_tamil = text.chars().any(|c| (0x0B80..=0x0BFF).contains(&(c as u32)))
+    let has_tamil = text
+        .chars()
+        .any(|c| (0x0B80..=0x0BFF).contains(&(c as u32)))
         || profile_lang.starts_with("ta");
     if has_tamil {
         return if is_male {
@@ -515,7 +522,9 @@ pub fn resolve_cross_lingual_base_voice(
         };
     }
 
-    let has_telugu = text.chars().any(|c| (0x0C00..=0x0C7F).contains(&(c as u32)))
+    let has_telugu = text
+        .chars()
+        .any(|c| (0x0C00..=0x0C7F).contains(&(c as u32)))
         || profile_lang.starts_with("te");
     if has_telugu {
         return if is_male {
@@ -525,7 +534,9 @@ pub fn resolve_cross_lingual_base_voice(
         };
     }
 
-    let has_kannada = text.chars().any(|c| (0x0C80..=0x0CFF).contains(&(c as u32)))
+    let has_kannada = text
+        .chars()
+        .any(|c| (0x0C80..=0x0CFF).contains(&(c as u32)))
         || profile_lang.starts_with("kn");
     if has_kannada {
         return if is_male {
@@ -535,7 +546,9 @@ pub fn resolve_cross_lingual_base_voice(
         };
     }
 
-    let has_bengali = text.chars().any(|c| (0x0980..=0x09FF).contains(&(c as u32)))
+    let has_bengali = text
+        .chars()
+        .any(|c| (0x0980..=0x09FF).contains(&(c as u32)))
         || profile_lang.starts_with("bn");
     if has_bengali {
         return if is_male {
@@ -545,7 +558,9 @@ pub fn resolve_cross_lingual_base_voice(
         };
     }
 
-    let has_gujarati = text.chars().any(|c| (0x0A80..=0x0AFF).contains(&(c as u32)))
+    let has_gujarati = text
+        .chars()
+        .any(|c| (0x0A80..=0x0AFF).contains(&(c as u32)))
         || profile_lang.starts_with("gu");
     if has_gujarati {
         return if is_male {
@@ -555,7 +570,9 @@ pub fn resolve_cross_lingual_base_voice(
         };
     }
 
-    let has_punjabi = text.chars().any(|c| (0x0A00..=0x0A7F).contains(&(c as u32)))
+    let has_punjabi = text
+        .chars()
+        .any(|c| (0x0A00..=0x0A7F).contains(&(c as u32)))
         || profile_lang.starts_with("pa");
     if has_punjabi {
         return if is_male {
@@ -565,13 +582,17 @@ pub fn resolve_cross_lingual_base_voice(
         };
     }
 
-    let has_japanese = text.chars().any(|c| (0x3040..=0x30FF).contains(&(c as u32)))
+    let has_japanese = text
+        .chars()
+        .any(|c| (0x3040..=0x30FF).contains(&(c as u32)))
         || profile_lang.starts_with("ja");
     if has_japanese {
         return "ja-JP-NanamiNeural";
     }
 
-    let has_chinese = text.chars().any(|c| (0x4E00..=0x9FFF).contains(&(c as u32)))
+    let has_chinese = text
+        .chars()
+        .any(|c| (0x4E00..=0x9FFF).contains(&(c as u32)))
         || profile_lang.starts_with("zh");
     if has_chinese {
         return "zh-CN-XiaoxiaoNeural";
@@ -661,43 +682,28 @@ mod tests {
     #[test]
     fn test_resolve_cross_lingual_base_voice() {
         // Malayalam text with male gender -> ml-IN-MidhunNeural
-        let ml_voice_male = resolve_cross_lingual_base_voice(
-            Some(&Gender::Male),
-            "നമസ്കാരം സുഖമാണോ",
-            "en-US",
-        );
+        let ml_voice_male =
+            resolve_cross_lingual_base_voice(Some(&Gender::Male), "നമസ്കാരം സുഖമാണോ", "en-US");
         assert_eq!(ml_voice_male, "ml-IN-MidhunNeural");
 
         // Malayalam text with female gender -> ml-IN-SobhanaNeural
-        let ml_voice_female = resolve_cross_lingual_base_voice(
-            Some(&Gender::Female),
-            "നമസ്കാരം",
-            "en-US",
-        );
+        let ml_voice_female =
+            resolve_cross_lingual_base_voice(Some(&Gender::Female), "നമസ്കാരം", "en-US");
         assert_eq!(ml_voice_female, "ml-IN-SobhanaNeural");
 
         // Hindi text -> hi-IN-SwaraNeural
-        let hi_voice = resolve_cross_lingual_base_voice(
-            Some(&Gender::Female),
-            "नमस्ते भारत",
-            "en-US",
-        );
+        let hi_voice =
+            resolve_cross_lingual_base_voice(Some(&Gender::Female), "नमस्ते भारत", "en-US");
         assert_eq!(hi_voice, "hi-IN-SwaraNeural");
 
         // German profile language -> de-DE-KatjaNeural
-        let de_voice = resolve_cross_lingual_base_voice(
-            Some(&Gender::Female),
-            "Guten Morgen",
-            "de-DE",
-        );
+        let de_voice =
+            resolve_cross_lingual_base_voice(Some(&Gender::Female), "Guten Morgen", "de-DE");
         assert_eq!(de_voice, "de-DE-KatjaNeural");
 
         // English text with male gender -> en-US-GuyNeural
-        let en_voice = resolve_cross_lingual_base_voice(
-            Some(&Gender::Male),
-            "Hello world",
-            "en-US",
-        );
+        let en_voice =
+            resolve_cross_lingual_base_voice(Some(&Gender::Male), "Hello world", "en-US");
         assert_eq!(en_voice, "en-US-GuyNeural");
     }
 }
