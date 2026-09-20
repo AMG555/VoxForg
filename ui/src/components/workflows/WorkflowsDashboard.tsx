@@ -8,18 +8,14 @@ import {
   Check,
   Download,
   Upload,
-  Layers,
   Sparkles,
   ArrowRight,
   FolderOpen,
   Mic,
   Clock,
-  Tag,
-  FileText,
   Radio,
   Film,
   X,
-  Play,
 } from 'lucide-react';
 import { StoredWorkflow, WorkflowStorage } from '../../services/workflowStorage';
 

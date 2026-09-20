@@ -83,7 +83,26 @@ impl TextNormalizer {
             let clean_lower = lower.trim_matches(|c: char| !c.is_alphabetic());
 
             // Break up overly long clauses at natural conjunctions with micro-pause commas
-            if matches!(clean_lower, "and" | "but" | "because" | "although" | "however" | "meanwhile" | "whereas" | "since")
+            // Includes English, Manglish, Hinglish, Tanglish, and native Indic conjunctions
+            let is_conjunction = matches!(
+                clean_lower,
+                // English
+                "and" | "but" | "because" | "although" | "however" | "meanwhile" | "whereas" | "since" |
+                // Manglish (Malayalam Romanized)
+                "ennitt" | "enkilum" | "athukond" | "pinne" | "athinal" | "koodathe" | "allathe" |
+                // Hinglish (Hindi Romanized)
+                "aur" | "lekin" | "kyunki" | "magar" | "par" | "isliye" | "balki" |
+                // Tanglish (Tamil Romanized)
+                "aana" | "analum" | "athunala" | "pinna"
+            ) || matches!(
+                word.trim_matches(|c: char| c == ',' || c == '.' || c == '?' || c == '!'),
+                // Native Malayalam script
+                "എന്നിട്ട്" | "എങ്കിലും" | "അതുകൊണ്ട്" | "പിന്നെ" | "കൂടാതെ" | "പക്ഷേ" |
+                // Native Hindi Devanagari script
+                "और" | "लेकिन" | "क्योंकि" | "मगर" | "पर" | "इसलिए"
+            );
+
+            if is_conjunction
                 && i > 4
                 && i < words.len() - 3
                 && !result.ends_with(',')

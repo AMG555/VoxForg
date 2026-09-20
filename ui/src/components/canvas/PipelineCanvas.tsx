@@ -333,7 +333,6 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
       ? Array.from(selectedNodeIds)[selectedNodeIds.size - 1]
       : null;
   const selectedNode = pipeline.nodes.find((n) => n.id === primarySelectedId) || null;
-  const selectedNodes = pipeline.nodes.filter((n) => selectedNodeIds.has(n.id));
 
   // ── Workflow Storage Actions (Save, Switch, New) ─────────────────────────
   const handleSaveWorkflow = useCallback(() => {

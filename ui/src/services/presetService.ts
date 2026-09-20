@@ -1,4 +1,4 @@
-import { StudioMasteringConfig, DEFAULT_STUDIO_MASTERING } from './audioProcessor';
+import { StudioMasteringConfig } from './audioProcessor';
 
 export interface CustomVoicePreset {
   id: string;

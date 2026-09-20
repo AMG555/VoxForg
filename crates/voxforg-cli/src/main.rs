@@ -1,9 +1,4 @@
-// Hide the terminal window when launched by double-click on Windows.
-// The server still runs; the UI opens in the default browser.
-#![cfg_attr(
-    all(target_os = "windows", not(debug_assertions)),
-    windows_subsystem = "windows"
-)]
+// VoxForg Speech Workstation CLI & HTTP Server
 
 use std::net::SocketAddr;
 use std::path::PathBuf;

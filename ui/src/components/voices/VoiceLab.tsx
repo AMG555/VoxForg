@@ -17,18 +17,17 @@ import {
   Sliders,
   Globe,
   Radio,
-  Disc,
   Activity,
   Wand2,
   SlidersHorizontal,
-  Volume2,
   Download,
   FolderDown,
   Save,
-  FileText,
   Trash2,
   Plus,
   FileUp,
+  Languages,
+  ArrowRightLeft,
 } from 'lucide-react';
 import { Voice } from '../../types';
 import { api } from '../../services/api';
@@ -47,6 +46,14 @@ import {
   CustomVoicePreset,
   PresetService,
 } from '../../services/presetService';
+import {
+  detectLanguage,
+  DetectedLanguage,
+  SUPPORTED_LANGUAGES,
+} from '../../services/languageDetector';
+import {
+  transliterateToNativeScript,
+} from '../../services/transliterateService';
 
 interface VoiceLabProps {
   voices: Voice[];
@@ -90,6 +97,70 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated }) =>
   const [presetUploadStatus, setPresetUploadStatus] = useState<string | null>(null);
   const [isDraggingPreset, setIsDraggingPreset] = useState<boolean>(false);
   const presetFileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Language auto-detection, manual selection, and Romanized dialect transliteration
+  const [selectedLanguageCode, setSelectedLanguageCode] = useState<string>('AUTO');
+  const [autoTransliterateOnSynth, setAutoTransliterateOnSynth] = useState<boolean>(true);
+  const [transliterateToast, setTransliterateToast] = useState<string | null>(null);
+
+  const detectedLang: DetectedLanguage = React.useMemo(() => {
+    if (selectedLanguageCode !== 'AUTO') {
+      const opt = SUPPORTED_LANGUAGES.find((l) => l.code === selectedLanguageCode);
+      if (opt) {
+        return {
+          code: opt.code,
+          name: opt.name,
+          flag: opt.flag,
+          isRomanizedDialect: !!opt.isRomanized,
+          nativeTargetCode:
+            opt.code === 'ml-Latn'
+              ? 'ml-IN'
+              : opt.code === 'hi-Latn'
+              ? 'hi-IN'
+              : opt.code === 'ta-Latn'
+              ? 'ta-IN'
+              : undefined,
+          suggestedVoiceId: opt.code.startsWith('ml')
+            ? 'ml-IN-SobhanaNeural'
+            : opt.code.startsWith('hi')
+            ? 'hi-IN-SwaraNeural'
+            : opt.code.startsWith('ta')
+            ? 'ta-IN-PallaviNeural'
+            : opt.code.startsWith('te')
+            ? 'te-IN-ShrutiNeural'
+            : opt.code.startsWith('kn')
+            ? 'kn-IN-SapnaNeural'
+            : 'en-US-AriaNeural',
+          confidence: 1.0,
+        };
+      }
+    }
+    return detectLanguage(text);
+  }, [text, selectedLanguageCode]);
+
+  const handleTransliteratePrompt = () => {
+    const targetLang = detectedLang.code;
+    const transliterated = transliterateToNativeScript(text, targetLang);
+    if (transliterated !== text) {
+      setText(transliterated);
+      setTransliterateToast(`Transliterated ${detectedLang.name} to native script!`);
+      setTimeout(() => setTransliterateToast(null), 3500);
+    } else {
+      setTransliterateToast('Already in native script or no matched words.');
+      setTimeout(() => setTransliterateToast(null), 2500);
+    }
+  };
+
+  const handleSwitchToSuggestedVoice = () => {
+    if (detectedLang.suggestedVoiceId) {
+      const voice = localVoices.find((v) => v.id === detectedLang.suggestedVoiceId);
+      if (voice) {
+        setSelectedVoiceId(voice.id);
+        setTransliterateToast(`Switched voice to ${voice.name}!`);
+        setTimeout(() => setTransliterateToast(null), 3000);
+      }
+    }
+  };
 
   const toggleStudioMode = () => {
     const next = !studioMode;
@@ -364,10 +435,17 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated }) =>
       }
       // Pre-process text with conversational cadence humanization if enabled in Pro Studio mode
       let promptText = text;
+
+      // If Romanized dialect (Manglish/Hinglish/Tanglish) and auto-transliteration is enabled,
+      // convert to native script for the synthesis engine to pronounce naturally with native inflection
+      if (autoTransliterateOnSynth && detectedLang.isRomanizedDialect && detectedLang.nativeTargetCode) {
+        promptText = transliterateToNativeScript(promptText, detectedLang.code);
+      }
+
       if (studioMode && humanizeCadence) {
         promptText = promptText.replace(
-          /\b(and|but|because|although|however|meanwhile|since)\b/gi,
-          (match, p1, offset) => {
+          /\b(and|but|because|although|however|meanwhile|since|ennitt|enkilum|athukond|pinne|aur|lekin|kyunki|magar|isliye|aana|analum)\b/gi,
+          (_match, p1, offset) => {
             if (offset > 15 && offset < promptText.length - 15) {
               return `, ${p1}`;
             }
@@ -967,16 +1045,125 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated }) =>
             </div>
           )}
 
-          <div className="space-y-2">
-            <label className="block text-xs font-semibold uppercase tracking-wider text-[#94A3B8]">
-              Input Prompt
-            </label>
+          <div className="space-y-2.5">
+            {/* Multilingual Dialect Routing Bar */}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center space-x-2">
+                <label className="text-xs font-semibold uppercase tracking-wider text-[#94A3B8] flex items-center space-x-1.5">
+                  <Languages className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Input Prompt & Dialect Routing</span>
+                </label>
+
+                {/* Manual Language Selector Dropdown */}
+                <select
+                  value={selectedLanguageCode}
+                  onChange={(e) => setSelectedLanguageCode(e.target.value)}
+                  className="bg-[#0B0E14] border border-[#242E3D] rounded px-2.5 py-1 text-xs font-mono text-[#CBD5E1] hover:border-amber-500/50 focus:border-amber-500 focus:outline-none cursor-pointer"
+                  title="Choose input language manually or keep on Auto-Detect"
+                >
+                  {SUPPORTED_LANGUAGES.map((lang) => (
+                    <option key={lang.code} value={lang.code} className="bg-[#121820] text-white">
+                      {lang.flag} {lang.name}
+                    </option>
+                  ))}
+                </select>
+
+                {/* Detected Language Pill */}
+                <div className="flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full bg-[#121820] border border-[#242E3D] text-[11px] font-mono">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <span>{detectedLang.flag}</span>
+                  <span className="text-white font-medium">{detectedLang.name}</span>
+                  {selectedLanguageCode === 'AUTO' && (
+                    <span className="text-[10px] text-amber-400/80">
+                      ({Math.round(detectedLang.confidence * 100)}% match)
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="text-[11px] font-mono text-[#64748B]">
+                {text.length} chars • {text.trim().split(/\s+/).filter(Boolean).length} words
+              </div>
+            </div>
+
+            {/* Smart Dialect Assistant Banner (Manglish / Hinglish / Tanglish / Script alignment) */}
+            {(detectedLang.isRomanizedDialect || (detectedLang.suggestedVoiceId && !selectedVoice?.id.startsWith(detectedLang.code.split('-')[0]))) && (
+              <div className="p-3 rounded-lg bg-gradient-to-r from-purple-500/10 via-sky-500/10 to-amber-500/10 border border-purple-500/30 text-xs flex flex-wrap items-center justify-between gap-3 animate-in fade-in duration-150">
+                <div className="flex items-center space-x-2.5">
+                  <span className="text-xl shrink-0">{detectedLang.flag}</span>
+                  <div>
+                    <div className="font-semibold text-white flex items-center space-x-2">
+                      <span>
+                        {detectedLang.isRomanizedDialect
+                          ? `${detectedLang.name} Detected`
+                          : `${detectedLang.name} Script`}
+                      </span>
+                      <span className="px-1.5 py-0.5 rounded text-[9px] font-mono bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                        {detectedLang.isRomanizedDialect ? 'Romanized Dialect' : 'Native Script'}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-[#94A3B8] mt-0.5">
+                      {detectedLang.isRomanizedDialect
+                        ? 'Convert to native script for ultra-natural prosody, or let the engine auto-transliterate during synthesis.'
+                        : `Authentic ${detectedLang.name} speech synthesized with optimal native inflection.`}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  {detectedLang.isRomanizedDialect && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={handleTransliteratePrompt}
+                        className="flex items-center space-x-1 px-3 py-1 rounded bg-purple-500/20 hover:bg-purple-500 text-purple-200 hover:text-white border border-purple-500/40 text-[11px] font-semibold transition-colors"
+                        title="Transliterate Romanized dialect directly into native script"
+                      >
+                        <ArrowRightLeft className="w-3 h-3" />
+                        <span>Transliterate to Native Script</span>
+                      </button>
+
+                      <label className="flex items-center space-x-1 text-[11px] font-mono text-[#CBD5E1] cursor-pointer px-2 py-1 rounded bg-[#0B0E14] border border-[#242E3D]">
+                        <input
+                          type="checkbox"
+                          checked={autoTransliterateOnSynth}
+                          onChange={(e) => setAutoTransliterateOnSynth(e.target.checked)}
+                          className="accent-purple-500 w-3 h-3"
+                        />
+                        <span>Auto on Synth</span>
+                      </label>
+                    </>
+                  )}
+
+                  {detectedLang.suggestedVoiceId && selectedVoice?.id !== detectedLang.suggestedVoiceId && (
+                    <button
+                      type="button"
+                      onClick={handleSwitchToSuggestedVoice}
+                      className="flex items-center space-x-1 px-3 py-1 rounded bg-amber-500 hover:bg-amber-400 text-black text-[11px] font-semibold transition-colors shadow-sm"
+                      title={`Switch to recommended ${detectedLang.name} voice`}
+                    >
+                      <Mic className="w-3 h-3 fill-current" />
+                      <span>Switch Voice</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Transliteration Toast Alert */}
+            {transliterateToast && (
+              <div className="p-2 rounded bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-mono flex items-center space-x-2 animate-in fade-in duration-100">
+                <Check className="w-3.5 h-3.5 shrink-0" />
+                <span>{transliterateToast}</span>
+              </div>
+            )}
+
             <textarea
               rows={4}
               value={text}
               onChange={(e) => setText(e.target.value)}
               className="w-full bg-[#121820] border border-[#242E3D] rounded-lg p-3 text-white text-sm focus:border-amber-500 focus:outline-none resize-none leading-relaxed shadow-inner"
-              placeholder="Enter text to synthesize..."
+              placeholder='Type in any language or dialect (English, മലയാളം, Manglish "adipoli machane", हिन्दी, Hinglish "kya haal hai bhai", Tamil, etc.)...'
             />
           </div>
 
