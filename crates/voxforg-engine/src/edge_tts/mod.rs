@@ -51,9 +51,11 @@ impl EdgeTtsEngine {
         };
 
         let formatted_voice = format_edge_voice_name(&request.voice_id);
+        let xml_lang = extract_locale_from_voice_id(&request.voice_id);
 
         format!(
-            r#"<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'><voice name='{}'><prosody pitch='{}' rate='{}' volume='+0%'>{}</prosody></voice></speak>"#,
+            r#"<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='{}'><voice name='{}'><prosody pitch='{}' rate='{}' volume='+0%'>{}</prosody></voice></speak>"#,
+            quick_xml_escape(&xml_lang),
             quick_xml_escape(&formatted_voice),
             pitch_str,
             rate_str,
@@ -77,6 +79,24 @@ pub fn format_edge_voice_name(voice_id: &str) -> String {
         )
     } else {
         voice_id.to_string()
+    }
+}
+
+pub fn extract_locale_from_voice_id(voice_id: &str) -> String {
+    if voice_id.contains('(') && voice_id.contains(',') {
+        if let Some(start) = voice_id.find('(') {
+            if let Some(comma) = voice_id.find(',') {
+                if comma > start {
+                    return voice_id[start + 1..comma].trim().to_string();
+                }
+            }
+        }
+    }
+    let parts: Vec<&str> = voice_id.split('-').collect();
+    if parts.len() >= 2 && parts[0].len() >= 2 && parts[1].len() >= 2 {
+        format!("{}-{}", parts[0], parts[1])
+    } else {
+        "en-US".to_string()
     }
 }
 

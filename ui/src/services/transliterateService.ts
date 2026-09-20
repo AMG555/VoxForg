@@ -103,6 +103,66 @@ const MANGLISH_WORDS: Record<string, string> = {
   'output': 'ഔട്ട്പുട്ട്',
   'voxforg': 'വോക്സ്ഫോർജ്',
   'studio': 'സ്റ്റുഡിയോ',
+  'santhosham': 'സന്തോഷം',
+  'kandathil': 'കണ്ടതിൽ',
+  'swagatham': 'സ്വാഗതം',
+  'nandi': 'നന്ദി',
+  'parayunnu': 'പറയുന്നു',
+  'paranjathu': 'പറഞ്ഞത്',
+  'ariyaam': 'അറിയാം',
+  'venam': 'വേണം',
+  'venda': 'വേണ്ട',
+  'sahayam': 'സഹായം',
+  'sahayikkamo': 'സഹായിക്കാമോ',
+  'karyam': 'കാര്യം',
+  'karyangal': 'കാര്യങ്ങൾ',
+  'nammal': 'നമ്മൾ',
+  'samayam': 'സമയം',
+  'pettannu': 'പെട്ടെന്ന്',
+  'theerchayayum': 'തീർച്ചയായും',
+  'thettanu': 'തെറ്റാണ്',
+  'sathyamanu': 'സത്യമാണ്',
+  'kooduthal': 'കൂടുതൽ',
+  'kuravu': 'കുറവ്',
+  'dharalam': 'ധാരാളം',
+  'eppozhum': 'എപ്പോഴും',
+  'ippozhum': 'ഇപ്പോഴും',
+  'ethrayum': 'എത്രയും',
+  'ithrayum': 'ഇത്രയും',
+  'athrayum': 'അത്രയും',
+  'varunnu': 'വരുന്നു',
+  'pokunnu': 'പോകുന്നു',
+  'vanna': 'വന്ന',
+  'poya': 'പോയ',
+  'cheythu': 'ചെയ്തു',
+  'cheyyunnu': 'ചെയ്യുന്നു',
+  'puthiya': 'പുതിയ',
+  'pazhaya': 'പഴയ',
+  'valiya': 'വലിയ',
+  'cheriya': 'ചെറിയ',
+  'athra': 'അത്ര',
+  'ithra': 'ഇത്ര',
+  'ethra': 'എത്ര',
+  'aaru': 'ആര്',
+  'aaranu': 'ആരാണ്',
+  'enthanu': 'എന്താണ്',
+  'enganeanu': 'എങ്ങനെയാണ്',
+  'evideyanu': 'എവിടെയാണ്',
+  'ithaanu': 'ഇതാണ്',
+  'athaanu': 'അതാണ്',
+  'ithokke': 'ഇതൊക്കെ',
+  'athokke': 'അതൊക്കെ',
+  'enthellam': 'എന്തെല്ലാം',
+  'ellam': 'എല്ലാം',
+  'ellavarkkum': 'എല്ലാവർക്കും',
+  'ellavarum': 'എല്ലാവരും',
+  'mathram': 'മാത്രം',
+  'koodi': 'കൂടി',
+  'aanallo': 'ആണല്ലോ',
+  'undallo': 'ഉണ്ടല്ലോ',
+  'illallo': 'ഇല്ലല്ലോ',
+  'veendum': 'വീണ്ടും',
+  'neram': 'നേരം',
 };
 
 const HINGLISH_PHRASES: [RegExp, string][] = [
@@ -201,6 +261,75 @@ const TANGLISH_WORDS: Record<string, string> = {
   'voxforg': 'வாக்ஸ்ஃபோர்ஜ்',
 };
 
+function phoneticFallbackMalayalam(rawWord: string): string {
+  const word = rawWord.toLowerCase();
+  const CONSONANTS: [string, string][] = [
+    ['zh', 'ഴ'], ['ch', 'ച'], ['th', 'ത'], ['sh', 'ഷ'], ['kh', 'ഖ'],
+    ['gh', 'ഘ'], ['jh', 'ഝ'], ['dh', 'ധ'], ['bh', 'ഭ'], ['ph', 'ഫ'],
+    ['ng', 'ങ'], ['nj', 'ഞ'], ['k', 'ക'], ['g', 'ഗ'], ['j', 'ജ'],
+    ['t', 'ട'], ['d', 'ഡ'], ['n', 'ന'], ['p', 'പ'], ['b', 'ബ'],
+    ['m', 'മ'], ['y', 'യ'], ['r', 'ര'], ['l', 'ല'], ['v', 'വ'],
+    ['w', 'വ'], ['s', 'സ'], ['h', 'ഹ'],
+  ];
+
+  const VOWEL_SIGNS: [string, string][] = [
+    ['aa', 'ാ'], ['ee', 'ീ'], ['oo', 'ൂ'], ['ai', 'ൈ'], ['au', 'ൌ'],
+    ['ou', 'ൌ'], ['a', ''], ['i', 'ി'], ['u', 'ു'], ['e', 'െ'], ['o', 'ൊ'],
+  ];
+
+  const INDEPENDENT_VOWELS: [string, string][] = [
+    ['aa', 'ആ'], ['ee', 'ഈ'], ['oo', 'ഊ'], ['ai', 'ഐ'], ['au', 'ഔ'],
+    ['ou', 'ഔ'], ['a', 'അ'], ['i', 'ഇ'], ['u', 'ഉ'], ['e', 'എ'], ['o', 'ഒ'],
+  ];
+
+  let res = '';
+  let i = 0;
+  while (i < word.length) {
+    if (i === 0) {
+      let matchedVowel = false;
+      for (const [vStr, vMal] of INDEPENDENT_VOWELS) {
+        if (word.startsWith(vStr, i)) {
+          res += vMal;
+          i += vStr.length;
+          matchedVowel = true;
+          break;
+        }
+      }
+      if (matchedVowel) continue;
+    }
+
+    let matchedConsonant = false;
+    for (const [cStr, cMal] of CONSONANTS) {
+      if (word.startsWith(cStr, i)) {
+        res += cMal;
+        i += cStr.length;
+        matchedConsonant = true;
+
+        let matchedSign = false;
+        for (const [vStr, vSign] of VOWEL_SIGNS) {
+          if (word.startsWith(vStr, i)) {
+            res += vSign;
+            i += vStr.length;
+            matchedSign = true;
+            break;
+          }
+        }
+        if (!matchedSign) {
+          if (i >= word.length || !'aeiou'.includes(word[i])) {
+            res += '്';
+          }
+        }
+        break;
+      }
+    }
+    if (matchedConsonant) continue;
+
+    res += word[i];
+    i++;
+  }
+  return res;
+}
+
 /**
  * Transliterate Manglish text into native Malayalam Unicode script.
  */
@@ -217,6 +346,9 @@ export function transliterateManglishToMalayalam(text: string): string {
     const lower = match.toLowerCase();
     if (MANGLISH_WORDS[lower]) {
       return MANGLISH_WORDS[lower];
+    }
+    if (match.length > 2) {
+      return phoneticFallbackMalayalam(match);
     }
     return match;
   });

@@ -111,6 +111,36 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_edge_tts_multilingual_ssml_locale() {
+        let req_ml = SynthesisRequest {
+            text: "നമസ്കാരം".to_string(),
+            voice_id: "ml-IN-SobhanaNeural".to_string(),
+            speed: 1.0,
+            pitch: 0.0,
+            format: AudioContainerFormat::Wav,
+        };
+        let ssml_ml = EdgeTtsEngine::build_ssml(&req_ml);
+        assert!(
+            ssml_ml.contains("xml:lang='ml-IN'"),
+            "Expected ml-IN xml:lang, got: {ssml_ml}"
+        );
+        assert!(ssml_ml.contains("(ml-IN, SobhanaNeural)"));
+
+        let req_hi = SynthesisRequest {
+            text: "नमस्ते".to_string(),
+            voice_id: "hi-IN-SwaraNeural".to_string(),
+            speed: 1.0,
+            pitch: 0.0,
+            format: AudioContainerFormat::Wav,
+        };
+        let ssml_hi = EdgeTtsEngine::build_ssml(&req_hi);
+        assert!(
+            ssml_hi.contains("xml:lang='hi-IN'"),
+            "Expected hi-IN xml:lang, got: {ssml_hi}"
+        );
+    }
+
+    #[tokio::test]
     async fn test_registry_resolution() {
         let registry = EngineRegistry::new();
         let mock = Arc::new(MockTtsEngine::new(24000));

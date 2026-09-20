@@ -162,6 +162,24 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated }) =>
     }
   };
 
+  // Smart Voice Auto-Match: automatically switch active voice to match input language family
+  const [autoMatchVoice, setAutoMatchVoice] = useState<boolean>(true);
+
+  useEffect(() => {
+    if (autoMatchVoice && detectedLang.suggestedVoiceId && text.trim().length >= 2) {
+      const currentVoice = localVoices.find((v) => v.id === selectedVoiceId);
+      const targetPrefix = detectedLang.code.split('-')[0];
+      const currentPrefix = currentVoice?.language ? currentVoice.language.split('-')[0] : 'en';
+
+      if (currentPrefix !== targetPrefix) {
+        const match = localVoices.find((v) => v.id === detectedLang.suggestedVoiceId);
+        if (match) {
+          setSelectedVoiceId(match.id);
+        }
+      }
+    }
+  }, [detectedLang.suggestedVoiceId, detectedLang.code, autoMatchVoice, text, selectedVoiceId, localVoices]);
+
   const toggleStudioMode = () => {
     const next = !studioMode;
     setStudioMode(next);
@@ -455,10 +473,20 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated }) =>
       }
 
       let blob: Blob;
+      // Ensure target voice matches the language family if autoMatchVoice is active
+      let voiceToSynthesize = selectedVoice.id;
+      if (autoMatchVoice && detectedLang.suggestedVoiceId) {
+        const currentPrefix = selectedVoice.language ? selectedVoice.language.split('-')[0] : 'en';
+        const targetPrefix = detectedLang.code.split('-')[0];
+        if (currentPrefix !== targetPrefix) {
+          voiceToSynthesize = detectedLang.suggestedVoiceId;
+        }
+      }
+
       try {
         blob = await api.synthesizeDirect({
           input: promptText,
-          voice: selectedVoice.id,
+          voice: voiceToSynthesize,
           speed,
           pitch,
         });
@@ -1079,6 +1107,20 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated }) =>
                     </span>
                   )}
                 </div>
+
+                {/* Auto-Match Voice Checkbox */}
+                <label
+                  className="flex items-center space-x-1 text-[11px] font-mono text-[#CBD5E1] cursor-pointer px-2 py-0.5 rounded bg-[#0B0E14] border border-[#242E3D] hover:border-amber-500/40"
+                  title="Automatically switch neural voice to match the input language"
+                >
+                  <input
+                    type="checkbox"
+                    checked={autoMatchVoice}
+                    onChange={(e) => setAutoMatchVoice(e.target.checked)}
+                    className="accent-amber-500 w-3 h-3"
+                  />
+                  <span>Auto-Match Voice</span>
+                </label>
               </div>
 
               <div className="text-[11px] font-mono text-[#64748B]">
