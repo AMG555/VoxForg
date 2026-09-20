@@ -453,7 +453,10 @@ mod tests {
         };
 
         let res = engine.synthesize(&req).await;
-        assert!(res.is_err(), "Must return error when model is not installed");
+        assert!(
+            res.is_err(),
+            "Must return error when model is not installed"
+        );
         let err_msg = res.unwrap_err().to_string();
         assert!(err_msg.contains("not installed locally"));
     }

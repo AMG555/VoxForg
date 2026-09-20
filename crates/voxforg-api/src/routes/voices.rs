@@ -39,7 +39,9 @@ pub async fn list_voices(
             gender: p.gender.unwrap_or(voxforg_core::models::Gender::Neutral),
             sample_rate_hz: 24000,
             tags: vec!["cloned".to_string(), "zero-shot".to_string()],
-            description: p.description.or_else(|| Some("Zero-shot cloned voice profile".to_string())),
+            description: p
+                .description
+                .or_else(|| Some("Zero-shot cloned voice profile".to_string())),
         });
     }
 
@@ -53,4 +55,3 @@ pub async fn list_voices(
     let total = voices.len();
     Json(VoicesResponse { voices, total })
 }
-

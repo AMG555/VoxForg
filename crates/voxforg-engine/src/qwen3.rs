@@ -15,7 +15,7 @@ use crate::traits::{EngineCapabilities, SynthesisRequest, TtsEngine};
 fn decode_audio_payload(payload: &str) -> Vec<u8> {
     let trimmed = payload.trim();
     // 1. Try hex decode if all characters are valid hex
-    if trimmed.chars().all(|c| c.is_ascii_hexdigit()) && trimmed.len() % 2 == 0 {
+    if trimmed.chars().all(|c| c.is_ascii_hexdigit()) && trimmed.len().is_multiple_of(2) {
         if let Ok(bytes) = hex::decode(trimmed) {
             return bytes;
         }
@@ -26,13 +26,19 @@ fn decode_audio_payload(payload: &str) -> Vec<u8> {
 
 fn decode_base64(input: &str) -> Option<Vec<u8>> {
     let mut table = [0xFFu8; 256];
-    for (i, &b) in b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/".iter().enumerate() {
+    for (i, &b) in b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+        .iter()
+        .enumerate()
+    {
         table[b as usize] = i as u8;
     }
     table[b'-' as usize] = 62;
     table[b'_' as usize] = 63;
 
-    let filtered: Vec<u8> = input.bytes().filter(|&b| !b.is_ascii_whitespace()).collect();
+    let filtered: Vec<u8> = input
+        .bytes()
+        .filter(|&b| !b.is_ascii_whitespace())
+        .collect();
     if filtered.is_empty() {
         return None;
     }
@@ -41,9 +47,13 @@ fn decode_base64(input: &str) -> Option<Vec<u8>> {
     let mut bits = 0;
 
     for &b in &filtered {
-        if b == b'=' { break; }
+        if b == b'=' {
+            break;
+        }
         let val = table[b as usize];
-        if val == 0xFF { continue; }
+        if val == 0xFF {
+            continue;
+        }
         buf = (buf << 6) | (val as u32);
         bits += 6;
         if bits >= 8 {
@@ -52,7 +62,11 @@ fn decode_base64(input: &str) -> Option<Vec<u8>> {
             buf &= (1 << bits) - 1;
         }
     }
-    if out.is_empty() { None } else { Some(out) }
+    if out.is_empty() {
+        None
+    } else {
+        Some(out)
+    }
 }
 
 /// Qwen3-TTS Neural Engine with reference-audio zero-shot voice cloning capabilities.
@@ -110,7 +124,9 @@ impl Qwen3TtsEngine {
 
         let mut zcr_count = 0usize;
         for i in 1..len {
-            if (pcm_data[i] >= 0 && pcm_data[i - 1] < 0) || (pcm_data[i] < 0 && pcm_data[i - 1] >= 0) {
+            if (pcm_data[i] >= 0 && pcm_data[i - 1] < 0)
+                || (pcm_data[i] < 0 && pcm_data[i - 1] >= 0)
+            {
                 zcr_count += 1;
             }
         }
@@ -122,8 +138,13 @@ impl Qwen3TtsEngine {
             let end = ((i + 1) * chunk_size).min(len);
             if start < end {
                 let slice = &pcm_data[start..end];
-                let mean: f64 = slice.iter().map(|&s| s as f64).sum::<f64>() / slice.len() as f64 / 32768.0;
-                let variance: f64 = slice.iter().map(|&s| ((s as f64 / 32768.0) - mean).powi(2)).sum::<f64>() / slice.len() as f64;
+                let mean: f64 =
+                    slice.iter().map(|&s| s as f64).sum::<f64>() / slice.len() as f64 / 32768.0;
+                let variance: f64 = slice
+                    .iter()
+                    .map(|&s| ((s as f64 / 32768.0) - mean).powi(2))
+                    .sum::<f64>()
+                    / slice.len() as f64;
                 let val = (mean * 0.4 + variance.sqrt() * 0.4 + zcr * 0.1 + rms * 0.1).sin();
                 *slot = val as f32;
             }
@@ -209,7 +230,10 @@ impl TtsEngine for Qwen3TtsEngine {
                 gender: p.gender.clone().unwrap_or(Gender::Neutral),
                 sample_rate_hz: self.sample_rate,
                 tags: vec!["cloned".to_string(), "zero-shot".to_string()],
-                description: p.description.clone().or_else(|| Some("Zero-shot cloned voice profile".to_string())),
+                description: p
+                    .description
+                    .clone()
+                    .or_else(|| Some("Zero-shot cloned voice profile".to_string())),
             });
         }
 
@@ -306,10 +330,20 @@ impl TtsEngine for Qwen3TtsEngine {
                 voxforg_audio::WavEncoder::decode_wav_to_pcm16(&bytes)
                     .map(|(samples, _, _)| samples)
                     .unwrap_or_else(|_| {
-                        bytes.as_chunks::<2>().0.iter().map(|c| i16::from_le_bytes([c[0], c[1]])).collect()
+                        bytes
+                            .as_chunks::<2>()
+                            .0
+                            .iter()
+                            .map(|c| i16::from_le_bytes([c[0], c[1]]))
+                            .collect()
                     })
             } else {
-                bytes.as_chunks::<2>().0.iter().map(|c| i16::from_le_bytes([c[0], c[1]])).collect()
+                bytes
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
+                    .map(|c| i16::from_le_bytes([c[0], c[1]]))
+                    .collect()
             };
             Self::extract_speaker_embedding(&pcm)
         } else {
@@ -344,11 +378,13 @@ impl TtsEngine for Qwen3TtsEngine {
             created_at: Utc::now(),
         };
 
-        self.cloned_profiles.write().await.insert(profile_id, profile.clone());
+        self.cloned_profiles
+            .write()
+            .await
+            .insert(profile_id, profile.clone());
 
         Ok(profile)
     }
-
 
     async fn synthesize_cloned(&self, request: &ClonedSynthesisRequest) -> Result<AudioChunk> {
         // If upstream microservice is configured, dispatch real cloning request
@@ -428,7 +464,6 @@ impl TtsEngine for Qwen3TtsEngine {
         Ok(chunk)
     }
 }
-
 
 fn auto_detect_local_port(port: u16) -> bool {
     use std::net::{SocketAddr, TcpStream};
