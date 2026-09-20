@@ -104,17 +104,31 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
 
+    if (file.size > 10 * 1024 * 1024) {
+      alert('Workflow file exceeds 10MB limit');
+      if (e.target) e.target.value = '';
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
         const text = event.target?.result as string;
         const parsed = JSON.parse(text);
         if (Array.isArray(parsed.nodes) && Array.isArray(parsed.edges)) {
+          if (parsed.nodes.length > 500) {
+            alert('Workflow exceeds maximum allowed 500 nodes limit');
+            return;
+          }
+          if (parsed.edges.length > 2000) {
+            alert('Workflow exceeds maximum allowed 2000 edges limit');
+            return;
+          }
           const freshId = `wf-${Date.now()}`;
           const imported: StoredWorkflow = {
             ...parsed,
             id: freshId,
-            name: parsed.name ? `${parsed.name} (Imported)` : 'Imported Workflow',
+            name: parsed.name ? `${parsed.name.slice(0, 100)} (Imported)` : 'Imported Workflow',
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           };

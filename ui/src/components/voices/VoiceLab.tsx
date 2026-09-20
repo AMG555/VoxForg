@@ -331,6 +331,17 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated }) =>
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      if (file.size > 25 * 1024 * 1024) {
+        alert("Selected audio file exceeds 25MB limit. Please choose a shorter reference sample (3-15 seconds recommended).");
+        return;
+      }
+      const allowedExts = ['.wav', '.mp3', '.m4a', '.ogg', '.flac', '.webm', '.aac'];
+      const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+      if (!file.type.startsWith('audio/') && !allowedExts.includes(ext)) {
+        alert("Please upload a valid audio file (.wav, .mp3, .m4a, .ogg, .flac).");
+        return;
+      }
+
       setCloneFileName(file.name);
       try {
         const result = await AudioProcessor.preprocessForCloning(file);

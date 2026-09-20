@@ -21,6 +21,28 @@ pub async fn execute_pipeline(
     State(state): State<AppState>,
     Json(payload): Json<PipelineExecuteRequest>,
 ) -> Result<Response, (StatusCode, Json<ProblemDetails>)> {
+    if payload.pipeline.nodes.len() > 500 {
+        let err = ProblemDetails {
+            problem_type: "https://voxforg.org/errors/invalid-pipeline".to_string(),
+            title: "Pipeline Node Limit Exceeded".to_string(),
+            status: StatusCode::BAD_REQUEST.as_u16(),
+            detail: "Pipeline exceeds maximum permitted node count of 500 nodes".to_string(),
+            instance: "/v1/pipeline/execute".to_string(),
+        };
+        return Err((StatusCode::BAD_REQUEST, Json(err)));
+    }
+
+    if payload.pipeline.edges.len() > 2000 {
+        let err = ProblemDetails {
+            problem_type: "https://voxforg.org/errors/invalid-pipeline".to_string(),
+            title: "Pipeline Edge Limit Exceeded".to_string(),
+            status: StatusCode::BAD_REQUEST.as_u16(),
+            detail: "Pipeline exceeds maximum permitted edge count of 2000 edges".to_string(),
+            instance: "/v1/pipeline/execute".to_string(),
+        };
+        return Err((StatusCode::BAD_REQUEST, Json(err)));
+    }
+
     if let Some(text) = &payload.input_text {
         if text.len() > 50_000 {
             let err = ProblemDetails {

@@ -71,6 +71,59 @@ pub async fn clone_voice(
         ));
     }
 
+    if body.name.len() > 128 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ProblemDetails {
+                problem_type: "https://voxforg.org/errors/invalid-parameter".to_string(),
+                title: "Voice Name Too Long".to_string(),
+                status: 400,
+                detail: "The 'name' field cannot exceed 128 characters".to_string(),
+                instance: "/v1/voices/clone".to_string(),
+            }),
+        ));
+    }
+
+    if let Some(ref b64) = body.reference_audio_base64 {
+        if b64.len() > 35 * 1024 * 1024 {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                Json(ProblemDetails {
+                    problem_type: "https://voxforg.org/errors/payload-too-large".to_string(),
+                    title: "Audio Payload Too Large".to_string(),
+                    status: 400,
+                    detail: "Reference audio payload exceeds maximum permitted size (35MB)".to_string(),
+                    instance: "/v1/voices/clone".to_string(),
+                }),
+            ));
+        }
+    }
+
+    if let Some(ref path) = body.reference_audio_path {
+        let p = std::path::Path::new(path);
+        let has_traversal = p.components().any(|c| matches!(c, std::path::Component::ParentDir))
+            || path.contains('\0')
+            || path.trim().is_empty();
+        let is_audio = p
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|ext| matches!(ext.to_lowercase().as_str(), "wav" | "mp3" | "ogg" | "flac" | "m4a"))
+            .unwrap_or(false);
+
+        if has_traversal || !is_audio {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                Json(ProblemDetails {
+                    problem_type: "https://voxforg.org/errors/invalid-path".to_string(),
+                    title: "Invalid Reference Audio Path".to_string(),
+                    status: 400,
+                    detail: "Path traversal is strictly prohibited and file must have a recognized audio extension".to_string(),
+                    instance: "/v1/voices/clone".to_string(),
+                }),
+            ));
+        }
+    }
+
     if body.reference_audio_base64.is_none() && body.reference_audio_path.is_none() {
         return Err((
             StatusCode::BAD_REQUEST,

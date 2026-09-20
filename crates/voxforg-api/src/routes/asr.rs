@@ -199,14 +199,86 @@ pub async fn transcribe_audio(
     }
 }
 
-/// Helper function to parse input audio from base64 string or file path.
+fn is_safe_audio_path(path: &str) -> bool {
+    let p = std::path::Path::new(path);
+    if path.trim().is_empty() || path.contains('\0') {
+        return false;
+    }
+    for component in p.components() {
+        if matches!(component, std::path::Component::ParentDir) {
+            return false;
+        }
+    }
+    if let Some(ext) = p.extension().and_then(|e| e.to_str()) {
+        matches!(ext.to_lowercase().as_str(), "wav" | "wave")
+    } else {
+        false
+    }
+}
+
+fn decode_base64_str(input: &str) -> Option<Vec<u8>> {
+    let mut table = [0xFFu8; 256];
+    for (i, &b) in b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+        .iter()
+        .enumerate()
+    {
+        table[b as usize] = i as u8;
+    }
+    table[b'-' as usize] = 62;
+    table[b'_' as usize] = 63;
+
+    let filtered: Vec<u8> = input
+        .bytes()
+        .filter(|&b| !b.is_ascii_whitespace())
+        .collect();
+    if filtered.is_empty() {
+        return None;
+    }
+    let mut out = Vec::with_capacity(filtered.len() * 3 / 4);
+    let mut buf = 0u32;
+    let mut bits = 0;
+
+    for &b in &filtered {
+        if b == b'=' {
+            break;
+        }
+        let val = table[b as usize];
+        if val == 0xFF {
+            continue;
+        }
+        buf = (buf << 6) | (val as u32);
+        bits += 6;
+        if bits >= 8 {
+            bits -= 8;
+            out.push((buf >> bits) as u8);
+            buf &= (1 << bits) - 1;
+        }
+    }
+    if out.is_empty() {
+        None
+    } else {
+        Some(out)
+    }
+}
+
+/// Helper function to parse input audio from base64 string or file path with security checks.
 fn decode_audio_input(payload: &TranscriptionRequestPayload) -> Result<(Vec<i16>, u32), String> {
     if let Some(b64) = &payload.audio_base64 {
-        let clean = b64.trim();
-        let bytes = if let Ok(decoded) = hex::decode(clean) {
+        if b64.len() > 35 * 1024 * 1024 {
+            return Err("Audio payload exceeds maximum permitted size (35MB)".to_string());
+        }
+
+        let clean = if let Some(idx) = b64.find(',') {
+            b64[idx + 1..].trim()
+        } else {
+            b64.trim()
+        };
+
+        let bytes = if let Some(decoded) = decode_base64_str(clean) {
+            decoded
+        } else if let Ok(decoded) = hex::decode(clean) {
             decoded
         } else {
-            // Hex fallback or simple byte mapping
             clean.as_bytes().to_vec()
         };
 
@@ -240,6 +312,10 @@ fn decode_audio_input(payload: &TranscriptionRequestPayload) -> Result<(Vec<i16>
     }
 
     if let Some(path) = &payload.audio_path {
+        if !is_safe_audio_path(path) {
+            return Err("Invalid audio file path: directory traversal is strictly forbidden and file must be a .wav".to_string());
+        }
+
         if let Ok(mut reader) = hound::WavReader::open(path) {
             let spec = reader.spec();
             let samples: Result<Vec<i16>, _> = reader.samples::<i16>().collect();
@@ -247,7 +323,7 @@ fn decode_audio_input(payload: &TranscriptionRequestPayload) -> Result<(Vec<i16>
                 return Ok((s, spec.sample_rate));
             }
         }
-        return Err(format!("Could not read WAV file at '{path}'"));
+        return Err(format!("Could not read valid WAV file at '{path}'"));
     }
 
     Err("Either 'audio_base64' or 'audio_path' must be provided".to_string())

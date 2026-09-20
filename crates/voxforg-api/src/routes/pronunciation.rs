@@ -59,6 +59,18 @@ pub async fn upsert_entry(
             }),
         ));
     }
+    if body.term.len() > 250 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ProblemDetails {
+                problem_type: "https://voxforg.org/errors/invalid-parameter".to_string(),
+                title: "Term Too Long".to_string(),
+                status: 400,
+                detail: "The 'term' field cannot exceed 250 characters".to_string(),
+                instance: "/v1/pronunciation/dictionary".to_string(),
+            }),
+        ));
+    }
     if body.replacement.trim().is_empty() {
         return Err((
             StatusCode::BAD_REQUEST,
@@ -70,6 +82,32 @@ pub async fn upsert_entry(
                 instance: "/v1/pronunciation/dictionary".to_string(),
             }),
         ));
+    }
+    if body.replacement.len() > 1000 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ProblemDetails {
+                problem_type: "https://voxforg.org/errors/invalid-parameter".to_string(),
+                title: "Replacement Too Long".to_string(),
+                status: 400,
+                detail: "The 'replacement' field cannot exceed 1000 characters".to_string(),
+                instance: "/v1/pronunciation/dictionary".to_string(),
+            }),
+        ));
+    }
+    if let Some(ref note) = body.note {
+        if note.len() > 1000 {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                Json(ProblemDetails {
+                    problem_type: "https://voxforg.org/errors/invalid-parameter".to_string(),
+                    title: "Note Too Long".to_string(),
+                    status: 400,
+                    detail: "The 'note' field cannot exceed 1000 characters".to_string(),
+                    instance: "/v1/pronunciation/dictionary".to_string(),
+                }),
+            ));
+        }
     }
 
     let entry = DictionaryEntry {

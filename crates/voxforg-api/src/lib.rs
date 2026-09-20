@@ -27,7 +27,7 @@ pub fn create_app(state: AppState) -> Router {
             state.clone(),
             middleware::request_id_and_metrics,
         ))
-        .layer(DefaultBodyLimit::max(2 * 1024 * 1024))
+        .layer(DefaultBodyLimit::max(32 * 1024 * 1024))
         .layer(cors)
         .layer(TraceLayer::new_for_http())
         .fallback(routes::embedded_ui::static_handler)

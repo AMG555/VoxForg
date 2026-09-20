@@ -1440,21 +1440,35 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
 
+    if (file.size > 10 * 1024 * 1024) {
+      showToast('Workflow JSON file exceeds 10MB limit', 'error');
+      e.target.value = '';
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
         const text = event.target?.result as string;
         const parsed = JSON.parse(text);
         if (parsed && Array.isArray(parsed.nodes)) {
+          if (parsed.nodes.length > 500) {
+            showToast('Workflow exceeds maximum allowed 500 nodes limit', 'error');
+            return;
+          }
+          if (Array.isArray(parsed.edges) && parsed.edges.length > 2000) {
+            showToast('Workflow exceeds maximum allowed 2000 edges limit', 'error');
+            return;
+          }
           const imported: StoredWorkflow = {
             id: parsed.id || `wf-${Date.now()}`,
-            name: parsed.name || file.name.replace(/\.[^/.]+$/, ''),
-            description: parsed.description || 'Imported workflow',
+            name: (parsed.name || file.name.replace(/\.[^/.]+$/, '')).slice(0, 100),
+            description: (parsed.description || 'Imported workflow').slice(0, 500),
             category: parsed.category || 'General',
-            tags: parsed.tags || ['imported'],
+            tags: Array.isArray(parsed.tags) ? parsed.tags.slice(0, 10) : ['imported'],
             nodes: parsed.nodes,
             edges: parsed.edges || [],
-            sticky_notes: parsed.sticky_notes || [],
+            sticky_notes: Array.isArray(parsed.sticky_notes) ? parsed.sticky_notes.slice(0, 50) : [],
             created_at: parsed.created_at || new Date().toISOString(),
             updated_at: new Date().toISOString(),
           };
