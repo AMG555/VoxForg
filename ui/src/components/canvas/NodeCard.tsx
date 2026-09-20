@@ -25,6 +25,7 @@ import { PipelineNode, NodeExecutionState } from '../../types';
 interface NodeCardProps {
   node: PipelineNode;
   isSelected: boolean;
+  isConnectingTarget?: boolean;
   executionState?: NodeExecutionState;
   onSelect: (id: string, isMulti?: boolean) => void;
   onDelete: (id: string) => void;
@@ -72,6 +73,7 @@ const nodeCategoryLabels: Record<string, string> = {
 export const NodeCard: React.FC<NodeCardProps> = ({
   node,
   isSelected,
+  isConnectingTarget,
   executionState,
   onSelect,
   onDelete,
@@ -146,10 +148,18 @@ export const NodeCard: React.FC<NodeCardProps> = ({
           e.stopPropagation();
           onConnectEnd?.(node.id);
         }}
-        className="absolute -left-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-[#121820] border-2 border-[#38BDF8] hover:border-amber-400 hover:scale-125 flex items-center justify-center shadow-lg transition-transform cursor-pointer z-30 group/inport"
+        className={`absolute -left-3.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-[#121820] border-2 transition-all duration-150 cursor-pointer z-30 group/inport flex items-center justify-center ${
+          isConnectingTarget
+            ? 'border-amber-400 ring-4 ring-amber-400/40 scale-125 animate-pulse shadow-[0_0_16px_rgba(245,158,11,0.8)]'
+            : 'border-[#38BDF8] hover:border-amber-400 hover:scale-125 shadow-lg'
+        }`}
         title="Input port (drop wire here)"
       >
-        <div className="w-2 h-2 rounded-full bg-[#38BDF8] group-hover/inport:bg-amber-400 transition-colors" />
+        <div
+          className={`w-2 h-2 rounded-full transition-colors ${
+            isConnectingTarget ? 'bg-amber-400' : 'bg-[#38BDF8] group-hover/inport:bg-amber-400'
+          }`}
+        />
       </div>
 
       {/* Output port connector (right) */}
@@ -158,7 +168,7 @@ export const NodeCard: React.FC<NodeCardProps> = ({
           e.stopPropagation();
           onConnectStart?.(node.id, e);
         }}
-        className="absolute -right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-[#121820] border-2 border-emerald-400 hover:border-amber-400 hover:scale-125 flex items-center justify-center shadow-lg transition-transform cursor-crosshair z-30 group/outport"
+        className="absolute -right-3.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-[#121820] border-2 border-emerald-400 hover:border-amber-400 hover:scale-125 flex items-center justify-center shadow-lg transition-transform cursor-crosshair z-30 group/outport"
         title="Output port (drag to connect next node)"
       >
         <div className="w-2 h-2 rounded-full bg-emerald-400 group-hover/outport:bg-amber-400 transition-colors" />

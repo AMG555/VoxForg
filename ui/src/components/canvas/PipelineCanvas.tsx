@@ -238,7 +238,7 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
   }, []);
 
   // ── Selection State (Single & Multi-Node) ────────────────────────────────
-  const [selectedNodeIds, setSelectedNodeIds] = useState<Set<string>>(new Set(['node-1']));
+  const [selectedNodeIds, setSelectedNodeIds] = useState<Set<string>>(new Set());
   const initialSelectedIdsRef = useRef<Set<string>>(new Set());
 
   // ── Marquee Box Selection State (n8n Style) ──────────────────────────────
@@ -761,8 +761,21 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
       if (
         activeTag === 'INPUT' ||
         activeTag === 'TEXTAREA' ||
+        activeTag === 'SELECT' ||
         (document.activeElement as HTMLElement)?.isContentEditable
       ) {
+        return;
+      }
+
+      // Spacebar hold for Canvas Pan
+      if (e.code === 'Space' && !e.repeat) {
+        setIsSpacePressed(true);
+      }
+
+      // Save (Ctrl+S / Cmd+S)
+      if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
+        e.preventDefault();
+        handleSaveWorkflow();
         return;
       }
 
@@ -832,9 +845,20 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
       }
     };
 
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'Space') {
+        setIsSpacePressed(false);
+      }
+    };
+
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
   }, [
+    handleSaveWorkflow,
     handleSelectAll,
     handleDeleteSelected,
     handleDuplicateSelected,
@@ -1349,87 +1373,7 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
     showToast(`Tested step "${node.name}" (${elapsed}ms)`);
   };
 
-  // ── Global Keyboard Shortcuts ────────────────────────────────────────────
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
-      if (
-        target.tagName === 'INPUT' ||
-        target.tagName === 'TEXTAREA' ||
-        target.tagName === 'SELECT' ||
-        target.isContentEditable
-      ) {
-        return;
-      }
 
-      // Spacebar hold for Canvas Pan
-      if (e.code === 'Space' && !e.repeat) {
-        setIsSpacePressed(true);
-      }
-
-      // Save (Ctrl+S / Cmd+S)
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
-        e.preventDefault();
-        handleSaveWorkflow();
-        return;
-      }
-
-      // Undo (Ctrl+Z)
-      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
-        e.preventDefault();
-        handleUndo();
-        return;
-      }
-
-      // Redo (Ctrl+Y or Ctrl+Shift+Z)
-      if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))) {
-        e.preventDefault();
-        handleRedo();
-        return;
-      }
-
-      // Select All (Ctrl+A)
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
-        e.preventDefault();
-        handleSelectAll();
-        return;
-      }
-
-      // Delete (Delete / Backspace)
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedNodeIds.size > 0) {
-        e.preventDefault();
-        handleDeleteSelected();
-        return;
-      }
-
-      // Duplicate (Ctrl+D)
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd' && selectedNodeIds.size > 0) {
-        e.preventDefault();
-        handleDuplicateSelected();
-        return;
-      }
-
-      // Copy (Ctrl+C)
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c' && selectedNodeIds.size > 0) {
-        e.preventDefault();
-        handleCopySelected();
-        return;
-      }
-    };
-
-    const handleKeyUp = (e: KeyboardEvent) => {
-      if (e.code === 'Space') {
-        setIsSpacePressed(false);
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
-    };
-  }, [selectedNodeIds, handleSaveWorkflow, handleUndo, handleRedo, handleSelectAll, handleDeleteSelected, handleDuplicateSelected, handleCopySelected]);
 
   return (
     <div className="flex-1 flex overflow-hidden relative select-none">
@@ -1837,17 +1781,18 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
                         <animateMotion dur="1.4s" repeatCount="indefinite" path={pathData} />
                       </circle>
                     )}
-                    {/* Wire disconnect button at midpoint */}
+                    {/* Wire disconnect button at midpoint (reveals smoothly on wire hover) */}
                     <g
                       transform={`translate(${midX}, ${midY})`}
-                      className="cursor-pointer pointer-events-auto"
+                      className="cursor-pointer pointer-events-auto opacity-0 group-hover/wire:opacity-100 transition-opacity duration-150"
                       onClick={(e) => {
                         e.stopPropagation();
                         handleDeleteEdge(edge.id);
                       }}
                     >
                       <title>Click to disconnect wire</title>
-                      <circle r="8" fill="#1E293B" stroke="#EF4444" strokeWidth="1.5" />
+                      <circle r="14" fill="transparent" />
+                      <circle r="8" fill="#0F172A" stroke="#EF4444" strokeWidth="1.5" className="filter drop-shadow-md" />
                       <line x1="-2.5" y1="-2.5" x2="2.5" y2="2.5" stroke="#EF4444" strokeWidth="1.5" strokeLinecap="round" />
                       <line x1="2.5" y1="-2.5" x2="-2.5" y2="2.5" stroke="#EF4444" strokeWidth="1.5" strokeLinecap="round" />
                     </g>
@@ -1902,6 +1847,7 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
                   <NodeCard
                     node={node}
                     isSelected={selectedNodeIds.has(node.id)}
+                    isConnectingTarget={connectingFrom !== null && connectingFrom !== node.id}
                     executionState={executionStates[node.id]}
                     onSelect={handleSelectNode}
                     onDelete={handleDeleteNode}
@@ -2075,12 +2021,14 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
           </div>
 
           {/* Bottom Hint Banner */}
-          <div className="absolute bottom-5 left-5 z-10 hidden sm:flex items-center space-x-2 px-3 py-1.5 bg-[#121820]/80 backdrop-blur-sm border border-[#242E3D]/60 rounded-full text-[11px] font-mono text-[#64748B] pointer-events-none">
-            <Move className="w-3 h-3 text-amber-500" />
-            <span>
-              Drag cursor wide to marquee select • Swipe / scroll to pan 2D • Double-click to zoom in • Zoom-out on button
-            </span>
-          </div>
+          {selectedNodeIds.size <= 1 && (
+            <div className="absolute bottom-5 left-5 z-10 hidden sm:flex items-center space-x-2 px-3 py-1.5 bg-[#121820]/80 backdrop-blur-sm border border-[#242E3D]/60 rounded-full text-[11px] font-mono text-[#64748B] pointer-events-none transition-opacity duration-150">
+              <Move className="w-3 h-3 text-amber-500" />
+              <span>
+                Marquee select • 2D swipe • Double-click zoom • Zoom-out on button
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Execution Timeline & Master Audio Drawer (Sliding bottom dock) */}
