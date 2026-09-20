@@ -209,6 +209,7 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
 
   // ── Selection State (Single & Multi-Node) ────────────────────────────────
   const [selectedNodeIds, setSelectedNodeIds] = useState<Set<string>>(new Set(['node-1']));
+  const initialSelectedIdsRef = useRef<Set<string>>(new Set());
 
   // ── Marquee Box Selection State (n8n Style) ──────────────────────────────
   const [isMarqueeSelecting, setIsMarqueeSelecting] = useState<boolean>(false);
@@ -225,6 +226,7 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
   const [pan, setPan] = useState<{ x: number; y: number }>({ x: 60, y: 120 });
   const [zoom, setZoom] = useState<number>(1.0);
   const [isMiddlePanning, setIsMiddlePanning] = useState<boolean>(false);
+  const [isSpacePressed, setIsSpacePressed] = useState<boolean>(false);
   const [panStart, setPanStart] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
   // ── Multi-Node Dragging State (Synchronized + 16px Grid Snap) ────────────
@@ -871,22 +873,29 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
     setConnectingFrom(null);
   };
 
-  // ── Marquee Box Drag Selection (n8n Style) ───────────────────────────────
+  // ── Marquee Box Drag Selection & Pan Handlers ────────────────────────────
   const handleCanvasPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
     if (target.closest('.node-card-interactive') || target.tagName === 'BUTTON' || target.tagName === 'INPUT') {
       return;
     }
 
-    // Middle click or Space+Click: Canvas panning
-    if (e.button === 1 || (e.button === 0 && e.altKey)) {
+    // Middle click or Space+Click or Alt+Click: Canvas panning
+    if (e.button === 1 || (e.button === 0 && (e.altKey || isSpacePressed))) {
       setIsMiddlePanning(true);
       setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+      try {
+        (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+      } catch {}
       return;
     }
 
     // Left click on background: Start Marquee Selection
     if (e.button === 0) {
+      try {
+        (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+      } catch {}
+
       const rect = canvasContainerRef.current?.getBoundingClientRect();
       if (!rect) return;
       const canvasX = (e.clientX - rect.left - pan.x) / zoom;
@@ -901,6 +910,7 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
         curCanvasY: canvasY,
       });
 
+      initialSelectedIdsRef.current = new Set(selectedNodeIds);
       if (!e.shiftKey && !e.ctrlKey && !e.metaKey) {
         setSelectedNodeIds(new Set());
       }
@@ -1004,7 +1014,7 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
         });
 
         if (e.shiftKey || e.ctrlKey || e.metaKey) {
-          setSelectedNodeIds((prev) => new Set([...Array.from(prev), ...Array.from(intersectedIds)]));
+          setSelectedNodeIds(new Set([...Array.from(initialSelectedIdsRef.current), ...Array.from(intersectedIds)]));
         } else {
           setSelectedNodeIds(intersectedIds);
         }
@@ -1019,6 +1029,10 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
 
   // Pointer Up
   const handlePointerUp = (e: React.PointerEvent) => {
+    try {
+      (e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId);
+    } catch {}
+
     if (connectingFrom && canvasContainerRef.current) {
       const rect = canvasContainerRef.current.getBoundingClientRect();
       const dropCanvasX = Math.round((e.clientX - rect.left - pan.x) / zoom);
@@ -1060,10 +1074,28 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
       return;
     }
 
-    // Default: 2D Swipe Navigation (trackpad two-finger swipe or wheel pan)
+    // Default: 2D Swipe Navigation (trackpad two-finger swipe or mouse wheel pan)
+    let dx = e.deltaX;
+    let dy = e.deltaY;
+
+    // Normalize Windows wheel lines mode (DOM_DELTA_LINE === 1)
+    if (e.deltaMode === 1) {
+      dx *= 28;
+      dy *= 28;
+    } else if (e.deltaMode === 2) {
+      dx *= 400;
+      dy *= 400;
+    }
+
+    // Shift + vertical wheel translates to horizontal pan
+    if (e.shiftKey && Math.abs(dy) > 0 && Math.abs(dx) === 0) {
+      dx = dy;
+      dy = 0;
+    }
+
     setPan((prev) => ({
-      x: Math.round(prev.x - e.deltaX),
-      y: Math.round(prev.y - e.deltaY),
+      x: Math.round(prev.x - dx),
+      y: Math.round(prev.y - dy),
     }));
   };
 
@@ -1269,6 +1301,11 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
         return;
       }
 
+      // Spacebar hold for Canvas Pan
+      if (e.code === 'Space' && !e.repeat) {
+        setIsSpacePressed(true);
+      }
+
       // Save (Ctrl+S / Cmd+S)
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
         e.preventDefault();
@@ -1319,8 +1356,18 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
       }
     };
 
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'Space') {
+        setIsSpacePressed(false);
+      }
+    };
+
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
   }, [selectedNodeIds, handleSaveWorkflow, handleUndo, handleRedo, handleSelectAll, handleDeleteSelected, handleDuplicateSelected, handleCopySelected]);
 
   return (
@@ -1627,6 +1674,8 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
           className={`flex-1 w-full h-full relative overflow-hidden select-none canvas-grid ${
             isMiddlePanning
               ? 'cursor-grabbing'
+              : isSpacePressed
+              ? 'cursor-grab'
               : isMarqueeSelecting
               ? 'cursor-crosshair'
               : 'cursor-default'
@@ -1648,6 +1697,18 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
               className="absolute inset-0 overflow-visible pointer-events-none"
               style={{ width: '100%', height: '100%' }}
             >
+              <defs>
+                <linearGradient id="activeWireGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="#38BDF8" />
+                  <stop offset="50%" stopColor="#F59E0B" />
+                  <stop offset="100%" stopColor="#10B981" />
+                </linearGradient>
+                <linearGradient id="glowWireGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="#0284C7" stopOpacity="0.8" />
+                  <stop offset="50%" stopColor="#F59E0B" stopOpacity="0.9" />
+                  <stop offset="100%" stopColor="#059669" stopOpacity="0.8" />
+                </linearGradient>
+              </defs>
               {pipeline.edges.map((edge) => {
                 const fromNode = pipeline.nodes.find((n) => n.id === edge.from_node);
                 const toNode = pipeline.nodes.find((n) => n.id === edge.to_node);
@@ -1673,23 +1734,35 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
                     <path
                       d={pathData}
                       fill="none"
-                      stroke={isEdgeActive ? '#0284C7' : '#1E293B'}
-                      strokeWidth={isEdgeActive ? '8' : '4'}
-                      strokeOpacity={isEdgeActive ? '0.45' : '0.2'}
+                      stroke={isEdgeActive ? 'url(#glowWireGradient)' : '#1E293B'}
+                      strokeWidth={isEdgeActive ? '10' : '4'}
+                      strokeOpacity={isEdgeActive ? '0.6' : '0.2'}
                       strokeLinecap="round"
                     />
                     {/* Main smooth curve */}
                     <path
                       d={pathData}
                       fill="none"
-                      stroke={isEdgeActive ? '#38BDF8' : '#334155'}
+                      stroke={isEdgeActive ? 'url(#activeWireGradient)' : '#334155'}
                       strokeWidth={isEdgeActive ? '3.5' : '2.5'}
                       strokeLinecap="round"
                     />
+                    {/* Flowing animated dashed wire stream */}
+                    {isEdgeActive && (
+                      <path
+                        d={pathData}
+                        fill="none"
+                        stroke="#F59E0B"
+                        strokeWidth="3.5"
+                        strokeDasharray="8 6"
+                        strokeLinecap="round"
+                        className="animate-wire-flow opacity-95"
+                      />
+                    )}
                     {/* Flowing animated pulse energy packet */}
                     {isEdgeActive && (
-                      <circle r="4.5" fill="#F59E0B">
-                        <animateMotion dur="1.8s" repeatCount="indefinite" path={pathData} />
+                      <circle r="5" fill="#FBBF24" className="filter drop-shadow-[0_0_6px_#F59E0B]">
+                        <animateMotion dur="1.4s" repeatCount="indefinite" path={pathData} />
                       </circle>
                     )}
                     {/* Wire disconnect button at midpoint */}
@@ -1854,7 +1927,7 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
             />
 
             {/* Zoom Controls HUD */}
-            <div className="flex items-center bg-[#121820]/95 backdrop-blur-md border border-[#242E3D] rounded-xl shadow-2xl p-1 space-x-1">
+            <div className="flex items-center bg-[#121820]/95 backdrop-blur-md border border-[#242E3D] rounded-xl shadow-2xl p-1 space-x-1.5">
               <button
                 onClick={handleZoomIn}
                 className="p-1.5 rounded hover:bg-[#1A222D] text-[#94A3B8] hover:text-white transition-colors"
@@ -1862,6 +1935,25 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
               >
                 <ZoomIn className="w-4 h-4" />
               </button>
+              {/* Zoom Slider */}
+              <input
+                type="range"
+                min="25"
+                max="250"
+                value={Math.round(zoom * 100)}
+                onChange={(e) => {
+                  const newZoom = Number(e.target.value) / 100;
+                  const rect = canvasContainerRef.current?.getBoundingClientRect();
+                  const mouseX = rect ? rect.width / 2 : 300;
+                  const mouseY = rect ? rect.height / 2 : 250;
+                  const newPanX = mouseX - (mouseX - pan.x) * (newZoom / zoom);
+                  const newPanY = mouseY - (mouseY - pan.y) * (newZoom / zoom);
+                  setZoom(Number(newZoom.toFixed(2)));
+                  setPan({ x: Math.round(newPanX), y: Math.round(newPanY) });
+                }}
+                className="w-16 h-1 accent-amber-400 bg-[#242E3D] rounded cursor-pointer mx-1"
+                title={`Zoom Slider: ${Math.round(zoom * 100)}%`}
+              />
               {/* Prominent Zoom Out Button */}
               <button
                 onClick={handleZoomOut}

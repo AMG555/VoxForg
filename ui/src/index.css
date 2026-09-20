@@ -51,3 +51,13 @@ code, pre, .font-mono {
   background-size: 24px 24px;
   background-image: radial-gradient(circle, #242E3D 1px, transparent 1px);
 }
+
+@keyframes flowDash {
+  to {
+    stroke-dashoffset: -28;
+  }
+}
+
+.animate-wire-flow {
+  animation: flowDash 0.85s linear infinite;
+}

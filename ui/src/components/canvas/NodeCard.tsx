@@ -83,9 +83,11 @@ export const NodeCard: React.FC<NodeCardProps> = ({
   onToggleDisable,
   style,
 }) => {
+  const dragStartRef = React.useRef<{ x: number; y: number } | null>(null);
   const isRunning = executionState?.status === 'running';
   const isSuccess = executionState?.status === 'success';
   const isError = executionState?.status === 'error';
+  const isWaiting = executionState?.status === 'waiting';
   const isDisabled = !!node.disabled;
 
   let borderStyle = 'border-[#242E3D] hover:border-[#3B485C]';
@@ -100,6 +102,9 @@ export const NodeCard: React.FC<NodeCardProps> = ({
   } else if (isError) {
     borderStyle = 'border-rose-500 ring-2 ring-rose-500/40';
     shadowStyle = 'shadow-xl shadow-rose-500/20';
+  } else if (isWaiting) {
+    borderStyle = 'border-amber-400/80 border-dashed ring-1 ring-amber-400/30';
+    shadowStyle = 'shadow-lg shadow-amber-500/10';
   } else if (isSelected) {
     borderStyle = 'border-amber-500 ring-2 ring-amber-500/60';
     shadowStyle = 'shadow-2xl shadow-amber-500/20';
@@ -108,12 +113,22 @@ export const NodeCard: React.FC<NodeCardProps> = ({
   return (
     <div
       style={style}
-      onPointerDown={(e) => onPointerDown?.(e, node.id)}
+      onPointerDown={(e) => {
+        dragStartRef.current = { x: e.clientX, y: e.clientY };
+        onPointerDown?.(e, node.id);
+      }}
       onClick={(e) => {
         e.stopPropagation();
+        if (dragStartRef.current) {
+          const dist = Math.hypot(e.clientX - dragStartRef.current.x, e.clientY - dragStartRef.current.y);
+          dragStartRef.current = null;
+          if (dist > 4) {
+            return;
+          }
+        }
         onSelect(node.id, e.shiftKey || e.ctrlKey || e.metaKey);
       }}
-      className={`absolute w-64 rounded-xl bg-[#121820] border cursor-grab active:cursor-grabbing select-none transition-all duration-150 ${borderStyle} ${shadowStyle} ${
+      className={`node-card-interactive absolute w-64 rounded-xl bg-[#121820] border cursor-grab active:cursor-grabbing select-none transition-[border-color,box-shadow,opacity] duration-150 ${borderStyle} ${shadowStyle} ${
         isDisabled ? 'opacity-40 grayscale-[40%]' : ''
       } ${isSelected ? 'z-30' : isRunning ? 'z-40' : 'z-20'} group/card`}
     >
@@ -225,6 +240,16 @@ export const NodeCard: React.FC<NodeCardProps> = ({
       </div>
 
       {/* Execution status indicator badge */}
+      {isWaiting && (
+        <div className="bg-amber-500/10 border-b border-amber-500/20 px-3 py-1 flex items-center justify-between text-[10px] font-mono text-amber-300">
+          <div className="flex items-center space-x-1.5">
+            <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping inline-block" />
+            <span>Waiting in queue...</span>
+          </div>
+          <span className="text-[9px] uppercase tracking-wider font-semibold opacity-70">Queued</span>
+        </div>
+      )}
+
       {isRunning && (
         <div className="bg-amber-500/15 border-b border-amber-500/30 px-3 py-1 flex items-center justify-between text-[10px] font-mono text-amber-300">
           <div className="flex items-center space-x-1.5">
