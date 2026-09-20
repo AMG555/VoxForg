@@ -29,43 +29,68 @@ export const App: React.FC = () => {
       });
     });
 
-    // Fetch voice catalog
-    api.getVoices().then(setVoices).catch(() => {
-      // Offline default voices
-      setVoices([
-        {
-          id: 'en-US-AriaNeural',
-          name: 'Aria (Neural)',
-          engine_id: 'edge-tts',
-          language: 'en-US',
-          gender: 'female',
-          sample_rate_hz: 24000,
-          tags: ['conversational'],
-        },
-        {
-          id: 'en-US-GuyNeural',
-          name: 'Guy (Neural)',
-          engine_id: 'edge-tts',
-          language: 'en-US',
-          gender: 'male',
-          sample_rate_hz: 24000,
-          tags: ['friendly'],
-        },
-        {
-          id: 'mock-en-female',
-          name: 'Mock Female Voice',
-          engine_id: 'mock-tts',
-          language: 'en-US',
-          gender: 'female',
-          sample_rate_hz: 24000,
-          tags: ['offline'],
-        },
-      ]);
-    });
+    const getCustomVoices = (): Voice[] => {
+      try {
+        const stored = localStorage.getItem('voxforg_custom_voices');
+        return stored ? JSON.parse(stored) : [];
+      } catch {
+        return [];
+      }
+    };
+
+    // Fetch voice catalog and merge persistent local cloned voices
+    api
+      .getVoices()
+      .then((fetched) => {
+        const custom = getCustomVoices();
+        const customIds = new Set(custom.map((c) => c.id));
+        setVoices([...custom, ...fetched.filter((f) => !customIds.has(f.id))]);
+      })
+      .catch(() => {
+        const custom = getCustomVoices();
+        const fallback: Voice[] = [
+          {
+            id: 'en-US-AriaNeural',
+            name: 'Aria (Neural)',
+            engine_id: 'edge-tts',
+            language: 'en-US',
+            gender: 'female',
+            sample_rate_hz: 24000,
+            tags: ['conversational'],
+          },
+          {
+            id: 'en-US-GuyNeural',
+            name: 'Guy (Neural)',
+            engine_id: 'edge-tts',
+            language: 'en-US',
+            gender: 'male',
+            sample_rate_hz: 24000,
+            tags: ['friendly'],
+          },
+          {
+            id: 'mock-en-female',
+            name: 'Mock Female Voice',
+            engine_id: 'mock-tts',
+            language: 'en-US',
+            gender: 'female',
+            sample_rate_hz: 24000,
+            tags: ['offline'],
+          },
+        ];
+        const customIds = new Set(custom.map((c) => c.id));
+        setVoices([...custom, ...fallback.filter((f) => !customIds.has(f.id))]);
+      });
   }, []);
 
   const handleVoiceCreated = (newVoice: Voice) => {
-    setVoices((prev) => [newVoice, ...prev.filter((v) => v.id !== newVoice.id)]);
+    setVoices((prev) => {
+      const updated = [newVoice, ...prev.filter((v) => v.id !== newVoice.id)];
+      try {
+        const cloned = updated.filter((v) => v.tags?.includes('cloned'));
+        localStorage.setItem('voxforg_custom_voices', JSON.stringify(cloned));
+      } catch {}
+      return updated;
+    });
   };
 
   const handleOpenWorkflow = (id: string) => {
