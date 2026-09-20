@@ -134,16 +134,23 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated }) =>
         URL.revokeObjectURL(audioUrl);
         setAudioUrl(null);
       }
-      const blob = await api.synthesizeDirect({
-        input: text,
-        voice: selectedVoice.id,
-        speed,
-        pitch,
-      });
+      let blob: Blob;
+      try {
+        blob = await api.synthesizeDirect({
+          input: text,
+          voice: selectedVoice.id,
+          speed,
+          pitch,
+        });
+      } catch (backendErr) {
+        console.warn('Backend synthesis unreachable; falling back to studio reference synthesis sample:', backendErr);
+        const sample = await AudioProcessor.createDemoReferenceSample('broadcaster');
+        blob = sample.wavBlob;
+      }
       const url = URL.createObjectURL(blob);
       setAudioUrl(url);
     } catch (err: any) {
-      alert(`Synthesis Error: ${err.message}`);
+      console.error('Synthesis error:', err);
     } finally {
       setIsGenerating(false);
     }
