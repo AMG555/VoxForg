@@ -399,4 +399,171 @@ export class AudioProcessor {
           : 'Station Control, this is Orbital Transport seven-niner. Trajectory verified, vector aligned for entry.',
     };
   }
+
+  /**
+   * Apply Studio-Grade Audio Mastering DSP Chain to an audio Blob
+   */
+  static async applyStudioMastering(
+    inputBlob: Blob,
+    config: StudioMasteringConfig
+  ): Promise<{ blob: Blob; base64: string }> {
+    if (!config.enabled) {
+      const base64 = await this.blobToBase64(inputBlob);
+      return { blob: inputBlob, base64 };
+    }
+
+    const arrayBuffer = await inputBlob.arrayBuffer();
+    const tempCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    let audioBuffer: AudioBuffer;
+    try {
+      audioBuffer = await tempCtx.decodeAudioData(arrayBuffer.slice(0));
+    } finally {
+      if (tempCtx.state !== 'closed') tempCtx.close().catch(() => {});
+    }
+
+    const sampleRate = audioBuffer.sampleRate;
+    const duration = audioBuffer.duration;
+    const offlineCtx = new OfflineAudioContext(
+      1,
+      Math.ceil(sampleRate * (duration + 0.2)),
+      sampleRate
+    );
+
+    const source = offlineCtx.createBufferSource();
+    source.buffer = audioBuffer;
+
+    let lastNode: AudioNode = source;
+
+    // 1. High-Pass Rumble Cut (80Hz Butterworth)
+    if (config.highPassRumbleCut) {
+      const hp = offlineCtx.createBiquadFilter();
+      hp.type = 'highpass';
+      hp.frequency.value = 80;
+      hp.Q.value = 0.707;
+      lastNode.connect(hp);
+      lastNode = hp;
+    }
+
+    // 2. 4-Band Parametric Mastering EQ
+    // Band 1: Low Shelf Warmth (120Hz)
+    if (Math.abs(config.lowWarmthGainDb) > 0.1) {
+      const lowShelf = offlineCtx.createBiquadFilter();
+      lowShelf.type = 'lowshelf';
+      lowShelf.frequency.value = 120;
+      lowShelf.gain.value = config.lowWarmthGainDb;
+      lastNode.connect(lowShelf);
+      lastNode = lowShelf;
+    }
+
+    // Band 2: Mid Presence / Intelligibility (1.2kHz)
+    if (Math.abs(config.midPresenceGainDb) > 0.1) {
+      const midPeak = offlineCtx.createBiquadFilter();
+      midPeak.type = 'peaking';
+      midPeak.frequency.value = 1200;
+      midPeak.Q.value = 1.0;
+      midPeak.gain.value = config.midPresenceGainDb;
+      lastNode.connect(midPeak);
+      lastNode = midPeak;
+    }
+
+    // Band 3: High Air / Sheen (10kHz)
+    if (Math.abs(config.highAirGainDb) > 0.1) {
+      const highShelf = offlineCtx.createBiquadFilter();
+      highShelf.type = 'highshelf';
+      highShelf.frequency.value = 10000;
+      highShelf.gain.value = config.highAirGainDb;
+      lastNode.connect(highShelf);
+      lastNode = highShelf;
+    }
+
+    // 3. De-Esser Sibilance Attenuator (6.5kHz notch when enabled)
+    if (config.deEsserStrength > 5) {
+      const deEsser = offlineCtx.createBiquadFilter();
+      deEsser.type = 'peaking';
+      deEsser.frequency.value = 6500;
+      deEsser.Q.value = 2.0;
+      deEsser.gain.value = -(config.deEsserStrength / 100) * 8.0;
+      lastNode.connect(deEsser);
+      lastNode = deEsser;
+    }
+
+    // 4. Analog Tube Saturation (Warm 2nd and 3rd harmonics)
+    if (config.tubeDrive > 5) {
+      const shaper = offlineCtx.createWaveShaper();
+      const drive = config.tubeDrive / 100;
+      const n_samples = 4096;
+      const curve = new Float32Array(n_samples);
+      const k = drive * 15;
+      const deg = Math.PI / 180;
+      for (let i = 0; i < n_samples; ++i) {
+        const x = (i * 2) / n_samples - 1;
+        // Soft-saturation polynomial with even warmth harmonic
+        curve[i] = ((3 + k) * x * 20 * deg) / (Math.PI + k * Math.abs(x)) + 0.08 * drive * (x * x);
+      }
+      shaper.curve = curve;
+      shaper.oversample = '2x';
+      lastNode.connect(shaper);
+      lastNode = shaper;
+    }
+
+    // 5. Studio Compressor / Peak Limiter
+    const compressor = offlineCtx.createDynamicsCompressor();
+    compressor.threshold.value = -20;
+    compressor.knee.value = 6;
+    compressor.ratio.value = config.compressorRatio || 4;
+    compressor.attack.value = 0.003;
+    compressor.release.value = 0.15;
+    lastNode.connect(compressor);
+    lastNode = compressor;
+
+    // 6. Makeup Gain
+    if (config.makeupGainDb !== 0) {
+      const gainNode = offlineCtx.createGain();
+      gainNode.gain.value = Math.pow(10, config.makeupGainDb / 20);
+      lastNode.connect(gainNode);
+      lastNode = gainNode;
+    }
+
+    lastNode.connect(offlineCtx.destination);
+    source.start(0);
+
+    const renderedBuffer = await offlineCtx.startRendering();
+    const rawMono = renderedBuffer.getChannelData(0);
+    const normalized = this.normalizePeak(rawMono, -0.5);
+    const resampled = this.resampleTo24k(normalized, sampleRate, 24000);
+    const blob = this.encodePcm16Wav(resampled, 24000);
+    const base64 = await this.blobToBase64(blob);
+
+    return { blob, base64 };
+  }
 }
+
+export interface StudioMasteringConfig {
+  enabled: boolean;
+  highPassRumbleCut: boolean;
+  lowWarmthGainDb: number;
+  midPresenceGainDb: number;
+  highAirGainDb: number;
+  tubeDrive: number;
+  roomReverb: 'dry' | 'booth' | 'podcast' | 'broadcast' | 'hall';
+  reverbMix: number;
+  deEsserStrength: number;
+  compressorRatio: number;
+  makeupGainDb: number;
+  humanizeCadence: boolean;
+}
+
+export const DEFAULT_STUDIO_MASTERING: StudioMasteringConfig = {
+  enabled: false,
+  highPassRumbleCut: true,
+  lowWarmthGainDb: 3.0,
+  midPresenceGainDb: 1.5,
+  highAirGainDb: 2.5,
+  tubeDrive: 40,
+  roomReverb: 'booth',
+  reverbMix: 15,
+  deEsserStrength: 35,
+  compressorRatio: 4,
+  makeupGainDb: 2.0,
+  humanizeCadence: true,
+};

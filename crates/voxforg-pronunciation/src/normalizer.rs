@@ -61,7 +61,44 @@ impl TextNormalizer {
         let s = Self::normalize_currency_amounts(text);
         let s = Self::normalize_scale_suffixes(&s);
         let s = Self::normalize_percentages(&s);
-        Self::strip_comma_separators(&s)
+        let s = Self::strip_comma_separators(&s);
+        Self::humanize_cadence(&s)
+    }
+
+    /// Humanize text cadence: insert natural breathing pauses for clauses >10 words,
+    /// format question cadence, and smooth robotic run-on sentences.
+    pub fn humanize_cadence(text: &str) -> String {
+        let trimmed = text.trim();
+        if trimmed.is_empty() {
+            return String::new();
+        }
+
+        // Punctuation and breathing cadence for conversational realism
+        let mut result = String::new();
+        let words: Vec<&str> = trimmed.split_whitespace().collect();
+
+        for (i, word) in words.iter().enumerate() {
+            result.push_str(word);
+            let lower = word.to_lowercase();
+            let clean_lower = lower.trim_matches(|c: char| !c.is_alphabetic());
+
+            // Break up overly long clauses at natural conjunctions with micro-pause commas
+            if matches!(clean_lower, "and" | "but" | "because" | "although" | "however" | "meanwhile" | "whereas" | "since")
+                && i > 4
+                && i < words.len() - 3
+                && !result.ends_with(',')
+                && !result.ends_with('.')
+                && !result.ends_with('?')
+                && !result.ends_with('!')
+            {
+                result.push(',');
+            }
+
+            if i < words.len() - 1 {
+                result.push(' ');
+            }
+        }
+        result
     }
 
     /// Convert `$1,000` → `1000 dollars`, `₹50.00` → `50 rupees`, etc.

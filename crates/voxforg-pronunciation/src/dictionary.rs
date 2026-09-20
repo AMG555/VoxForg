@@ -28,8 +28,8 @@ pub struct PronunciationDictionary {
 impl Default for PronunciationDictionary {
     fn default() -> Self {
         let mut map = HashMap::new();
-        // Seed with common tech/domain terms that TTS engines pronounce poorly
-        let seeds = [
+        let seeds: &[(&str, &str, Option<&str>)] = &[
+            // Tech terms & acronyms
             ("SQL", "sequel", Some("database query language")),
             ("NoSQL", "No sequel", Some("database paradigm")),
             ("APIs", "A P I s", Some("plural of API")),
@@ -40,6 +40,100 @@ impl Default for PronunciationDictionary {
             ("nginx", "engine X", None),
             ("AWS", "A W S", None),
             ("GCP", "G C P", None),
+            ("LLM", "L L M", None),
+            ("TTS", "T T S", None),
+            ("ASR", "A S R", None),
+            ("DSP", "D S P", None),
+
+            // English Colloquial & Informal Pacing
+            ("gonna", "going to", Some("informal future")),
+            ("wanna", "want to", Some("informal volition")),
+            ("gotta", "got to", Some("informal obligation")),
+            ("lemme", "let me", Some("colloquial request")),
+            ("gimme", "give me", Some("colloquial imperative")),
+            ("kinda", "kind of", Some("hedging particle")),
+            ("sorta", "sort of", Some("hedging particle")),
+            ("dunno", "don't know", Some("casual negation")),
+            ("y'all", "you all", Some("Southern American plural")),
+            ("innit", "isn't it", Some("British tag question")),
+            ("blimey", "blimey", Some("British surprise exclamation")),
+            ("no worries", "no worries", Some("Australian / casual assurance")),
+            ("arvo", "afternoon", Some("Australian slang")),
+            ("brekkie", "breakfast", Some("Australian / British slang")),
+
+            // Hinglish / Indian English Colloquial
+            ("yaar", "yaar", Some("Hinglish friend / conversational address")),
+            ("jugaad", "jugaad", Some("Hinglish creative hack")),
+            ("bindaas", "bindaas", Some("Hinglish carefree / awesome")),
+            ("accha", "accha", Some("Hinglish okay / I see")),
+            ("chalo", "chalo", Some("Hinglish come on / let's go")),
+            ("theek hai", "theek hai", Some("Hinglish all right")),
+            ("fatafat", "fatafat", Some("Hinglish quickly")),
+
+            // Spanish (Spain & Latin America)
+            ("pa'", "para", Some("Spanish casual contraction")),
+            ("pa'l", "para el", Some("Spanish casual contraction")),
+            ("ta' bien", "está bien", Some("Spanish casual all right")),
+            ("chido", "chido", Some("Mexican slang cool")),
+            ("güey", "wey", Some("Mexican colloquial mate / dude")),
+            ("che", "che", Some("Argentine address")),
+            ("boludo", "boludo", Some("Argentine colloquial address")),
+            ("vale", "vale", Some("Castilian Spanish all right")),
+            ("guay", "guay", Some("Castilian Spanish cool")),
+            ("de una", "de una", Some("Latin American Spanish definitely")),
+
+            // French (France & Quebec)
+            ("t'sais", "tu sais", Some("French conversational filler")),
+            ("y'a", "il y a", Some("French contraction there is")),
+            ("ouais", "ouais", Some("French casual yes")),
+            ("boulot", "boulot", Some("French slang work")),
+            ("ouf", "ouf", Some("French verlan crazy / relief")),
+            ("nickel", "nickel", Some("French slang perfect")),
+            ("chum", "chum", Some("Quebec French boyfriend / friend")),
+            ("blonde", "blonde", Some("Quebec French girlfriend")),
+            ("pantoute", "pas du tout", Some("Quebec French not at all")),
+
+            // German (Casual & Colloquial)
+            ("mach's", "mach es", Some("German contraction do it")),
+            ("geht's", "geht es", Some("German contraction how is it going")),
+            ("krass", "krass", Some("German slang sick / awesome")),
+            ("alter", "alter", Some("German casual dude")),
+            ("alles klar", "alles klar", Some("German all right")),
+            ("kein ding", "kein ding", Some("German no problem")),
+
+            // Japanese (Casual & Colloquial)
+            ("ヤバい", "やばい", Some("Japanese colloquial wow / crazy")),
+            ("マジで", "まじで", Some("Japanese colloquial really")),
+            ("ウケる", "うける", Some("Japanese slang hilarious")),
+            ("お疲れ様", "おつかれさま", Some("Japanese greeting good work")),
+            ("よろしく", "よろしく", Some("Japanese casual plea")),
+            ("めっちゃ", "めっちゃ", Some("Kansai Japanese slang very")),
+
+            // Chinese / Mandarin (Colloquial & Net Slang)
+            ("给力", "给力", Some("Chinese slang awesome")),
+            ("牛逼", "牛逼", Some("Chinese slang badass / incredible")),
+            ("好家伙", "好家伙", Some("Chinese colloquial good heavens")),
+            ("杠杠的", "杠杠的", Some("Northeastern Chinese top notch")),
+
+            // Italian (Casual & Fillers)
+            ("dai", "dai", Some("Italian conversational come on")),
+            ("boh", "boh", Some("Italian filler who knows")),
+            ("figata", "figata", Some("Italian slang cool thing")),
+            ("magari", "magari", Some("Italian expression if only / I wish")),
+
+            // Portuguese (Brazil & Portugal)
+            ("pra", "para", Some("Portuguese contraction for / to")),
+            ("pro", "para o", Some("Portuguese contraction for the")),
+            ("tá", "está", Some("Portuguese contraction is")),
+            ("beleza", "beleza", Some("Brazilian slang cool / all good")),
+            ("valeu", "valeu", Some("Brazilian casual thanks")),
+            ("tranquilo", "tranquilo", Some("Portuguese no worries")),
+
+            // Arabic (Dialectal Fillers & Conversational)
+            ("يلا", "يلا", Some("Arabic colloquial let's go")),
+            ("حبيبي", "حبيبي", Some("Arabic term of endearment my dear")),
+            ("ماشي", "ماشي", Some("Arabic colloquial all right")),
+            ("تمام", "تمام", Some("Arabic colloquial great / fine")),
         ];
         for (term, replacement, note) in seeds {
             map.insert(
