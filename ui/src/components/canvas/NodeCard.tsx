@@ -184,13 +184,20 @@ export const NodeCard: React.FC<NodeCardProps> = ({
             <span className="text-[10px] uppercase font-mono tracking-wider text-[#94A3B8] block truncate">
               {nodeCategoryLabels[node.node_type] || 'Node'}
             </span>
-            <h4
-              className={`text-xs font-semibold text-white truncate max-w-[125px] ${
-                isDisabled ? 'line-through text-[#64748B]' : ''
-              }`}
-            >
-              {node.name}
-            </h4>
+            <div className="flex items-center space-x-1.5">
+              <h4
+                className={`text-xs font-semibold text-white truncate max-w-[110px] ${
+                  isDisabled ? 'line-through text-[#64748B]' : ''
+                }`}
+              >
+                {node.name}
+              </h4>
+              {isDisabled && (
+                <span className="text-[9px] font-mono px-1 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 uppercase font-semibold shrink-0">
+                  Bypass
+                </span>
+              )}
+            </div>
           </div>
         </div>
 

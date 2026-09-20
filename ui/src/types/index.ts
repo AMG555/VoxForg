@@ -13,7 +13,7 @@ export type NodeType =
   | 'audio_time_stretch'
   | 'audio_mux';
 
-export type NodeExecutionStatus = 'idle' | 'waiting' | 'running' | 'success' | 'error';
+export type NodeExecutionStatus = 'idle' | 'waiting' | 'running' | 'success' | 'error' | 'bypassed';
 
 export interface NodeExecutionState {
   status: NodeExecutionStatus;

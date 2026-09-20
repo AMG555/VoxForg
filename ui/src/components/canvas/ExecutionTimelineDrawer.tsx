@@ -152,9 +152,11 @@ export const ExecutionTimelineDrawer: React.FC<ExecutionTimelineDrawerProps> = (
                           ? 'bg-emerald-500'
                           : status === 'error'
                           ? 'bg-rose-500'
+                          : status === 'bypassed'
+                          ? 'bg-[#334155]/40 border-dashed border border-[#475569]'
                           : 'bg-[#242E3D]'
                       }`}
-                      style={{ width: status === 'running' ? '100%' : `${barWidth}%` }}
+                      style={{ width: status === 'running' ? '100%' : status === 'bypassed' ? '100%' : `${barWidth}%` }}
                     />
                   </div>
 
@@ -168,6 +170,9 @@ export const ExecutionTimelineDrawer: React.FC<ExecutionTimelineDrawerProps> = (
                     )}
                     {status === 'error' && (
                       <span className="text-rose-400 font-bold">Failed</span>
+                    )}
+                    {status === 'bypassed' && (
+                      <span className="text-[#94A3B8] text-[10px] uppercase font-semibold">Bypassed</span>
                     )}
                     {status === 'idle' && (
                       <span className="text-[#64748B] text-[10px]">Waiting</span>
