@@ -70,6 +70,43 @@ impl Default for PronunciationDictionary {
             ("theek hai", "theek hai", Some("Hinglish all right")),
             ("fatafat", "fatafat", Some("Hinglish quickly")),
 
+            // Malayalam (മലയാളം - Kerala Colloquial & Youth Slang)
+            ("adipoli", "adipoli", Some("Malayalam slang superb / awesome")),
+            ("kidilam", "kidilam", Some("Malayalam slang epic / killer")),
+            ("ente ponno", "ente ponno", Some("Malayalam exclamation of awe / my goodness")),
+            ("machane", "machane", Some("Malayalam casual dude / bro")),
+            ("chunke", "chunke", Some("Malayalam slang best friend / dear")),
+            ("pwoli", "pwoli", Some("Malayalam slang lit / rocking")),
+            ("sheriyaa", "sheriyaa", Some("Malayalam colloquial that's right / okay")),
+            ("scene aanu", "scene aanu", Some("Malayalam slang intense vibe")),
+            ("set aayi", "set aayi", Some("Malayalam slang sorted / fixed")),
+            ("oru rakshayum illa", "oru rakshayum illa", Some("Malayalam expression breathtaking / unmatched")),
+            ("enthokke undu", "enthokke undu", Some("Malayalam greeting what's up")),
+            ("nannayi", "nannayi", Some("Malayalam well done")),
+            ("kollam", "kollam", Some("Malayalam colloquial nice")),
+            ("അടിപൊളി", "അടിപൊളി", Some("Malayalam script adipoli")),
+            ("കിടിലം", "കിടിലം", Some("Malayalam script kidilam")),
+            ("പൊളി", "പൊളി", Some("Malayalam script pwoli")),
+            ("മച്ചാനേ", "മച്ചാനേ", Some("Malayalam script machane")),
+            ("എന്റെ പൊന്നോ", "എന്റെ പൊന്നോ", Some("Malayalam script ente ponno")),
+
+            // Tamil (தமிழ் - Chennai / Colloquial)
+            ("machan", "machan", Some("Tamil casual dude / brother")),
+            ("thalaiva", "thalaiva", Some("Tamil leader / boss")),
+            ("semma", "semma", Some("Tamil slang super / awesome")),
+            ("veralevel", "vera level", Some("Tamil next level")),
+            ("vera level", "vera level", Some("Tamil slang top tier")),
+            ("kandippa", "kandippa", Some("Tamil definitely")),
+            ("apdiya", "apdiya", Some("Tamil is that so")),
+
+            // Telugu & Kannada (తెలుగు & ಕನ್ನಡ)
+            ("mowa", "mowa", Some("Telugu casual bro / dude")),
+            ("keka", "keka", Some("Telugu slang awesome / rocking")),
+            ("bava", "bava", Some("Telugu colloquial bro")),
+            ("maga", "maga", Some("Kannada casual bro / dude")),
+            ("channagide", "channagide", Some("Kannada it is good / nice")),
+            ("sakkath", "sakkath", Some("Kannada slang superb / amazing")),
+
             // Spanish (Spain & Latin America)
             ("pa'", "para", Some("Spanish casual contraction")),
             ("pa'l", "para el", Some("Spanish casual contraction")),

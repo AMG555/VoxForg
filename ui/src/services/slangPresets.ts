@@ -218,6 +218,70 @@ export const MULTILINGUAL_SLANG_PRESETS: SlangPreset[] = [
     cadenceHints: 'Expressive emotional inflections, warm retroflex consonants',
   },
 
+  // ─── Malayalam Dialects ──────────────────────────────────────────────────────
+  {
+    id: 'ml-in-kerala',
+    language: 'Malayalam',
+    langCode: 'ml-IN',
+    dialect: 'Kerala (Kochi / Trivandrum Colloquial)',
+    flag: '🇮🇳',
+    title: 'Kerala Youth Slang & Conversational Flow (മലയാളം)',
+    description: 'Authentic Malayalam colloquial speech with natural particles, lively rhythm, and warm native tone.',
+    sampleText: "എന്റെ പൊന്നോ, ഈ വോക്സ്ഫോർഗ് സൗണ്ട് ഔട്ട്പുട്ട് അടിപൊളിയാണ് മച്ചാനേ! വർക്ക്ഫ്ലോ കംപ്ലീറ്റ് സെറ്റ് ആയി, ഇനി ഒട്ടും വൈകിക്കാതെ ലൈവ് സ്ട്രീം സ്റ്റാർട്ട് ചെയ്യാം.",
+    recommendedVoice: 'ml-IN-SobhanaNeural',
+    speed: 1.0,
+    pitch: 0.0,
+    cadenceHints: 'Natural rhythmic pauses at clause boundaries, warm native Malayalam inflection',
+  },
+
+  // ─── Tamil Dialects ──────────────────────────────────────────────────────────
+  {
+    id: 'ta-in-chennai',
+    language: 'Tamil',
+    langCode: 'ta-IN',
+    dialect: 'Chennai (Madras Bashai / Colloquial)',
+    flag: '🇮🇳',
+    title: 'Chennai Colloquial & Conversational Tamil (தமிழ்)',
+    description: 'Vibrant Tamil conversational speech with authentic particles and energetic rhythm.',
+    sampleText: "மச்சி, இந்த வாய்ஸ் அவுட்புட் சும்மா வேற லெவல்ல இருக்குடா! செம்ம கிளீனா கேக்குது, உடனே நம்ம பாட்காஸ்ட் ஸ்டார்ட் பண்ணிடலாம்.",
+    recommendedVoice: 'ta-IN-PallaviNeural',
+    speed: 1.02,
+    pitch: 0.0,
+    cadenceHints: 'Crisp consonants, energetic pace, and authentic Tamil phrase-final cadence',
+  },
+
+  // ─── Telugu Dialects ─────────────────────────────────────────────────────────
+  {
+    id: 'te-in-hyderabad',
+    language: 'Telugu',
+    langCode: 'te-IN',
+    dialect: 'Hyderabad / Andhra Colloquial (తెలుగు)',
+    flag: '🇮🇳',
+    title: 'Conversational Telugu & Street Expressions',
+    description: 'Smooth and musical Telugu speech with popular everyday conversational phrases.',
+    sampleText: "మోవా, ఈ న్యూరల్ వాయిస్ అవుట్‌పుట్ కేక పుట్టిస్తుంది రా! అంతా పక్కాగా సెట్ అయిపోయింది, వెంటనే రికార్డింగ్ మొదలుపెట్టేద్దాం.",
+    recommendedVoice: 'te-IN-ShrutiNeural',
+    speed: 1.0,
+    pitch: 0.0,
+    cadenceHints: 'Melodic sentence arcs, smooth vowel harmony, and conversational warmth',
+  },
+
+  // ─── Kannada Dialects ────────────────────────────────────────────────────────
+  {
+    id: 'kn-in-bengaluru',
+    language: 'Kannada',
+    langCode: 'kn-IN',
+    dialect: 'Bengaluru Casual & Colloquial (ಕನ್ನಡ)',
+    flag: '🇮🇳',
+    title: 'Bengaluru Youth & Conversational Kannada',
+    description: 'Friendly, fluid Kannada speech with authentic colloquial particles.',
+    sampleText: "ಮಗಾ, ಈ ವಾಯ್ಸ್ ಔಟ್‌ಪುಟ್ ಸಕ್ಕತ್ತಾಗಿ ಕೇಳಿಸ್ತಾ ಇದೆ ಕಣೋ! ವರ್ಕ್‌ಫ್ಲೋ ಎಲ್ಲಾ ಕಂಪ್ಲೀಟ್ ಸೆಟ್ ಆಗಿದೆ, ಇವಾಗಲೇ ಲೈವ್ ಹೋಗೋಣ.",
+    recommendedVoice: 'kn-IN-SapnaNeural',
+    speed: 1.0,
+    pitch: 0.0,
+    cadenceHints: 'Relaxed tempo, natural pause timing, and friendly native inflection',
+  },
+
   // ─── Italian Dialects ────────────────────────────────────────────────────────
   {
     id: 'it-it-casual',

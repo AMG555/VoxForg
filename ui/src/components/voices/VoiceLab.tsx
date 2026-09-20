@@ -22,6 +22,13 @@ import {
   Wand2,
   SlidersHorizontal,
   Volume2,
+  Download,
+  FolderDown,
+  Save,
+  FileText,
+  Trash2,
+  Plus,
+  FileUp,
 } from 'lucide-react';
 import { Voice } from '../../types';
 import { api } from '../../services/api';
@@ -36,6 +43,10 @@ import {
   MULTILINGUAL_SLANG_PRESETS,
   SlangPreset,
 } from '../../services/slangPresets';
+import {
+  CustomVoicePreset,
+  PresetService,
+} from '../../services/presetService';
 
 interface VoiceLabProps {
   voices: Voice[];
@@ -66,9 +77,19 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated }) =>
   const [studioConfig, setStudioConfig] = useState<StudioMasteringConfig>(() => {
     return { ...DEFAULT_STUDIO_MASTERING, enabled: true };
   });
-  const [activeStudioTab, setActiveStudioTab] = useState<'mastering' | 'slang'>('mastering');
+  const [activeStudioTab, setActiveStudioTab] = useState<'mastering' | 'slang' | 'presets'>('mastering');
   const [selectedSlangId, setSelectedSlangId] = useState<string>('en-us-casual');
   const [humanizeCadence, setHumanizeCadence] = useState<boolean>(true);
+
+  // Custom Voice Preset Management State
+  const [customPresets, setCustomPresets] = useState<CustomVoicePreset[]>(() => {
+    return PresetService.loadCustomPresets();
+  });
+  const [activePresetId, setActivePresetId] = useState<string | null>(null);
+  const [newPresetName, setNewPresetName] = useState<string>('');
+  const [presetUploadStatus, setPresetUploadStatus] = useState<string | null>(null);
+  const [isDraggingPreset, setIsDraggingPreset] = useState<boolean>(false);
+  const presetFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const toggleStudioMode = () => {
     const next = !studioMode;
@@ -145,6 +166,107 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated }) =>
     );
     if (matchedVoice) {
       setSelectedVoiceId(matchedVoice.id);
+    }
+  };
+
+  const handleApplyCustomPreset = (preset: CustomVoicePreset) => {
+    setActivePresetId(preset.id);
+    if (preset.voiceId) {
+      const match = localVoices.find((v) => v.id === preset.voiceId);
+      if (match) {
+        setSelectedVoiceId(match.id);
+      }
+    }
+    if (typeof preset.speed === 'number') setSpeed(preset.speed);
+    if (typeof preset.pitch === 'number') setPitch(preset.pitch);
+    if (preset.sampleText) setText(preset.sampleText);
+    if (typeof preset.humanizeCadence === 'boolean') setHumanizeCadence(preset.humanizeCadence);
+    if (preset.studioConfig) {
+      setStudioConfig({
+        ...DEFAULT_STUDIO_MASTERING,
+        ...preset.studioConfig,
+        enabled: true,
+      });
+      if (!studioMode) {
+        setStudioMode(true);
+        if (typeof window !== 'undefined') localStorage.setItem('voxforg_studio_pro_mode', 'true');
+      }
+    }
+    setPresetUploadStatus(`Preset "${preset.name}" loaded and active!`);
+    setTimeout(() => setPresetUploadStatus(null), 4000);
+  };
+
+  const handleSaveCurrentPreset = () => {
+    const name = newPresetName.trim() || `Custom Voice ${new Date().toLocaleDateString()}`;
+    const selectedVoiceObj = filteredVoices.find((v) => v.id === selectedVoiceId) || localVoices[0];
+    const newPreset: CustomVoicePreset = {
+      id: `preset-${Date.now()}`,
+      name,
+      description: `Custom preset created with ${selectedVoiceObj?.name || selectedVoiceId}`,
+      author: 'User',
+      version: '1.0',
+      createdAt: new Date().toISOString(),
+      voiceId: selectedVoiceId,
+      voiceName: selectedVoiceObj?.name,
+      language: selectedVoiceObj?.language,
+      engineId: selectedVoiceObj?.engine_id,
+      speed,
+      pitch,
+      sampleText: text,
+      humanizeCadence,
+      studioConfig: { ...studioConfig, enabled: true },
+      tags: ['user-created', 'custom'],
+    };
+
+    const updated = PresetService.saveCustomPreset(newPreset);
+    setCustomPresets(updated);
+    setActivePresetId(newPreset.id);
+    setNewPresetName('');
+    setPresetUploadStatus(`Preset "${name}" saved to library!`);
+    setTimeout(() => setPresetUploadStatus(null), 4000);
+  };
+
+  const handleDeletePreset = (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const updated = PresetService.deleteCustomPreset(id);
+    setCustomPresets(updated);
+    if (activePresetId === id) setActivePresetId(null);
+  };
+
+  const handleExportPreset = (preset: CustomVoicePreset, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    PresetService.exportPresetFile(preset);
+  };
+
+  const handleFileUpload = async (file: File) => {
+    try {
+      setPresetUploadStatus('Parsing preset file...');
+      const parsedPreset = await PresetService.parsePresetFile(file);
+      const updated = PresetService.saveCustomPreset(parsedPreset);
+      setCustomPresets(updated);
+      handleApplyCustomPreset(parsedPreset);
+      setPresetUploadStatus(`Preset "${parsedPreset.name}" successfully uploaded and activated!`);
+    } catch (err: any) {
+      console.error('Preset upload error:', err);
+      setPresetUploadStatus(`Upload failed: ${err.message || 'Invalid format'}`);
+    }
+    setTimeout(() => setPresetUploadStatus(null), 5000);
+  };
+
+  const handlePresetFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handleFileUpload(file);
+      e.target.value = '';
+    }
+  };
+
+  const handlePresetDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingPreset(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      handleFileUpload(file);
     }
   };
 
@@ -658,7 +780,24 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated }) =>
                 Engine: {selectedVoice?.engine_id} | Sample Rate: {selectedVoice?.sample_rate_hz}Hz
               </p>
             </div>
-            <div className="flex items-center space-x-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => presetFileInputRef.current?.click()}
+                className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg border border-[#242E3D] bg-[#121820] text-[#94A3B8] hover:text-white hover:border-sky-500/50 hover:bg-sky-500/10 text-xs font-mono transition-colors shadow"
+                title="Upload custom voice preset file (.json, .voxpreset)"
+              >
+                <Upload className="w-3.5 h-3.5 text-sky-400" />
+                <span>Upload Preset</span>
+              </button>
+              <input
+                ref={presetFileInputRef}
+                type="file"
+                accept=".json,.voxpreset"
+                onChange={handlePresetFileInputChange}
+                className="hidden"
+              />
+
               <button
                 type="button"
                 onClick={toggleStudioMode}
@@ -674,9 +813,35 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated }) =>
                   Studio Mode: <strong className={studioMode ? 'text-amber-400' : 'text-[#94A3B8]'}>{studioMode ? 'PRO STUDIO' : 'DEFAULT'}</strong>
                 </span>
               </button>
+
+              {activePresetId && (
+                <span className="hidden sm:inline-flex items-center space-x-1 px-2 py-1 rounded text-[10px] font-mono bg-sky-500/10 text-sky-300 border border-sky-500/30">
+                  <span className="text-[#64748B]">Preset:</span>
+                  <strong className="text-white truncate max-w-[120px]">
+                    {customPresets.find((p) => p.id === activePresetId)?.name || 'Custom'}
+                  </strong>
+                </span>
+              )}
+
               {selectedVoice && getEngineBadge(selectedVoice.engine_id)}
             </div>
           </div>
+
+          {presetUploadStatus && (
+            <div className="p-3 rounded-lg bg-sky-500/15 border border-sky-500/30 text-sky-300 text-xs font-mono flex items-center justify-between animate-in fade-in duration-150">
+              <div className="flex items-center space-x-2">
+                <CheckCircle2 className="w-4 h-4 text-sky-400 shrink-0" />
+                <span>{presetUploadStatus}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPresetUploadStatus(null)}
+                className="text-sky-400/60 hover:text-sky-300"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
 
           {/* Contextual Engine Diagnostics & Actions */}
           {selectedVoice?.engine_id === 'piper-tts' && (
@@ -896,6 +1061,18 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated }) =>
                     >
                       <Globe className="w-3.5 h-3.5" />
                       <span>Multilingual Slang ({MULTILINGUAL_SLANG_PRESETS.length})</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveStudioTab('presets')}
+                      className={`flex items-center space-x-1.5 px-3 py-1 rounded text-xs font-mono transition-colors ${
+                        activeStudioTab === 'presets'
+                          ? 'bg-sky-500 text-black font-semibold shadow'
+                          : 'text-[#94A3B8] hover:text-white'
+                      }`}
+                    >
+                      <FolderDown className="w-3.5 h-3.5" />
+                      <span>Custom Presets ({customPresets.length})</span>
                     </button>
                   </div>
 
@@ -1233,6 +1410,174 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated }) =>
                               <span className="text-purple-400 font-semibold">
                                 {preset.speed}x / {preset.pitch > 0 ? `+${preset.pitch}` : preset.pitch}st
                               </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Tab 3: Custom Presets & Upload */}
+              {activeStudioTab === 'presets' && (
+                <div className="p-4 space-y-4">
+                  {/* Upload Dropzone */}
+                  <div
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setIsDraggingPreset(true);
+                    }}
+                    onDragLeave={() => setIsDraggingPreset(false)}
+                    onDrop={handlePresetDrop}
+                    onClick={() => presetFileInputRef.current?.click()}
+                    className={`p-6 rounded-xl border-2 border-dashed text-center cursor-pointer transition-all ${
+                      isDraggingPreset
+                        ? 'border-sky-400 bg-sky-500/20 scale-[1.01]'
+                        : 'border-[#2A3644] bg-[#121820]/80 hover:border-sky-500/50 hover:bg-sky-500/5'
+                    }`}
+                  >
+                    <div className="flex flex-col items-center justify-center space-y-2">
+                      <div className="p-2.5 rounded-full bg-sky-500/10 border border-sky-500/30 text-sky-400">
+                        <FileUp className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-white flex items-center justify-center space-x-1.5">
+                          <span>Drop custom voice preset file here or click to browse</span>
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-mono bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                            .json / .voxpreset
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-[#94A3B8] mt-1 max-w-md mx-auto">
+                          Upload complete studio presets containing voice ID, speed, pitch, analog warmth, 4-band mastering EQ, and acoustic reverb settings.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Save Current Configuration Row */}
+                  <div className="bg-[#121820] p-3 rounded-lg border border-[#242E3D] flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center space-x-2">
+                      <Save className="w-4 h-4 text-amber-400 shrink-0" />
+                      <span className="text-xs font-semibold text-white">Save Current Setup:</span>
+                    </div>
+                    <div className="flex-1 flex items-center space-x-2 min-w-[240px]">
+                      <input
+                        type="text"
+                        value={newPresetName}
+                        onChange={(e) => setNewPresetName(e.target.value)}
+                        placeholder="Preset Name (e.g. My Warm Podcast Studio)"
+                        className="flex-1 bg-[#0B0E14] border border-[#242E3D] rounded px-3 py-1.5 text-xs text-white font-mono focus:border-amber-500 focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleSaveCurrentPreset}
+                        className="px-3 py-1.5 rounded bg-amber-500 hover:bg-amber-400 text-black font-semibold text-xs font-mono transition-colors flex items-center space-x-1.5 shrink-0"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Save Preset</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Presets List */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-mono uppercase text-[#94A3B8] font-semibold flex items-center space-x-1.5">
+                        <FolderDown className="w-3.5 h-3.5 text-sky-400" />
+                        <span>Saved & Uploaded Presets ({customPresets.length})</span>
+                      </span>
+                      <span className="text-[10px] text-[#64748B] font-mono">
+                        Stored in browser & ready for export
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-72 overflow-y-auto pr-1">
+                      {customPresets.map((preset) => {
+                        const isActive = activePresetId === preset.id;
+                        return (
+                          <div
+                            key={preset.id}
+                            className={`p-3.5 rounded-lg border text-left transition-all ${
+                              isActive
+                                ? 'bg-sky-500/15 border-sky-500/60 shadow-lg shadow-sky-500/10'
+                                : 'bg-[#121820] border-[#242E3D] hover:border-[#3B485A] hover:bg-[#161E28]'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-2 mb-1.5">
+                              <div>
+                                <h4 className="text-xs font-bold text-white flex items-center space-x-1.5">
+                                  <span>{preset.name}</span>
+                                  {isActive && (
+                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-mono bg-sky-500 text-black font-bold">
+                                      ACTIVE
+                                    </span>
+                                  )}
+                                </h4>
+                                <p className="text-[10px] text-[#94A3B8] font-mono mt-0.5">
+                                  Voice: {preset.voiceName || preset.voiceId} ({preset.language || 'en-US'})
+                                </p>
+                              </div>
+                              <span className="text-[10px] font-mono text-[#64748B] shrink-0">
+                                {preset.author || 'User'}
+                              </span>
+                            </div>
+
+                            {preset.description && (
+                              <p className="text-[11px] text-[#CBD5E1] line-clamp-1 mb-2">
+                                {preset.description}
+                              </p>
+                            )}
+
+                            {/* Preset parameter badges */}
+                            <div className="flex flex-wrap gap-1 mb-3">
+                              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#0B0E14] text-amber-300 border border-amber-500/20">
+                                Warmth: {preset.studioConfig?.tubeDrive ?? 35}%
+                              </span>
+                              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#0B0E14] text-purple-300 border border-purple-500/20">
+                                Room: {preset.studioConfig?.roomReverb || 'booth'}
+                              </span>
+                              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#0B0E14] text-emerald-300 border border-emerald-500/20">
+                                Speed: {preset.speed}x
+                              </span>
+                              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#0B0E14] text-sky-300 border border-sky-500/20">
+                                Pitch: {preset.pitch > 0 ? `+${preset.pitch}` : preset.pitch}st
+                              </span>
+                            </div>
+
+                            {/* Action Buttons */}
+                            <div className="flex items-center justify-between border-t border-[#242E3D]/80 pt-2 text-xs font-mono">
+                              <button
+                                type="button"
+                                onClick={() => handleApplyCustomPreset(preset)}
+                                className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-colors flex items-center space-x-1 ${
+                                  isActive
+                                    ? 'bg-sky-500 text-black'
+                                    : 'bg-sky-500/20 text-sky-300 hover:bg-sky-500 hover:text-black'
+                                }`}
+                              >
+                                <Play className="w-3 h-3 fill-current" />
+                                <span>{isActive ? 'Loaded' : 'Load Preset'}</span>
+                              </button>
+
+                              <div className="flex items-center space-x-1.5">
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleExportPreset(preset, e)}
+                                  className="p-1.5 rounded hover:bg-[#242E3D] text-[#94A3B8] hover:text-white transition-colors"
+                                  title="Export & download preset as .json"
+                                >
+                                  <Download className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleDeletePreset(preset.id, e)}
+                                  className="p-1.5 rounded hover:bg-rose-500/20 text-[#64748B] hover:text-rose-400 transition-colors"
+                                  title="Delete preset"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
                             </div>
                           </div>
                         );
