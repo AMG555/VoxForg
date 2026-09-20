@@ -36,6 +36,7 @@ import {
   Film,
   HelpCircle,
   LayoutGrid,
+  ArrowLeft,
 } from 'lucide-react';
 import {
   PipelineNode,
@@ -60,6 +61,8 @@ import { api } from '../../services/api';
 
 interface PipelineCanvasProps {
   voices: Voice[];
+  initialWorkflowId?: string;
+  onBackToWorkflows?: () => void;
 }
 
 const NODE_TEMPLATES = [
@@ -166,12 +169,39 @@ const getNodePos = (node: PipelineNode): { x: number; y: number } => {
   return node.position || { x: 100, y: 100 };
 };
 
-export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
+export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
+  voices,
+  initialWorkflowId,
+  onBackToWorkflows,
+}) => {
   // ── Multi-Workflow Storage & Active Project State ────────────────────────
-  const [pipeline, setPipeline] = useState<StoredWorkflow>(() => WorkflowStorage.getActiveWorkflow());
-  const [openTabs, setOpenTabs] = useState<string[]>(() => WorkflowStorage.getOpenTabs());
+  const [pipeline, setPipeline] = useState<StoredWorkflow>(() => {
+    if (initialWorkflowId) {
+      const target = WorkflowStorage.getWorkflows().find((w) => w.id === initialWorkflowId);
+      if (target) return target;
+    }
+    return WorkflowStorage.getActiveWorkflow();
+  });
+  const [openTabs, setOpenTabs] = useState<string[]>(() => {
+    const tabs = WorkflowStorage.getOpenTabs();
+    if (initialWorkflowId && !tabs.includes(initialWorkflowId)) {
+      return [...tabs, initialWorkflowId];
+    }
+    return tabs;
+  });
   const [isDirty, setIsDirty] = useState<boolean>(false);
   const [showManagerModal, setShowManagerModal] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (initialWorkflowId && initialWorkflowId !== pipeline.id) {
+      const target = WorkflowStorage.getWorkflows().find((w) => w.id === initialWorkflowId);
+      if (target) {
+        setPipeline(JSON.parse(JSON.stringify(target)));
+        setIsDirty(false);
+        setOpenTabs((tabs) => (tabs.includes(initialWorkflowId) ? tabs : [...tabs, initialWorkflowId]));
+      }
+    }
+  }, [initialWorkflowId]);
 
   // Undo / Redo History Stack
   const historyRef = useRef<StoredWorkflow[]>([]);
@@ -532,8 +562,36 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
     showToast(`Duplicated ${duplicatedNodes.length} nodes & connections`);
   }, [selectedNodeIds, pipeline.nodes, pipeline.edges, handleDuplicateNode, pushHistory, showToast]);
 
+  const copyToClipboard = (text: string) => {
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).catch(() => {
+        const el = document.createElement('textarea');
+        el.value = text;
+        el.style.position = 'fixed';
+        el.style.left = '-9999px';
+        document.body.appendChild(el);
+        el.select();
+        try {
+          document.execCommand('copy');
+        } catch {}
+        document.body.removeChild(el);
+      });
+    } else {
+      const el = document.createElement('textarea');
+      el.value = text;
+      el.style.position = 'fixed';
+      el.style.left = '-9999px';
+      document.body.appendChild(el);
+      el.select();
+      try {
+        document.execCommand('copy');
+      } catch {}
+      document.body.removeChild(el);
+    }
+  };
+
   const handleCopyNodeJson = useCallback((node: PipelineNode) => {
-    navigator.clipboard.writeText(JSON.stringify(node, null, 2));
+    copyToClipboard(JSON.stringify(node, null, 2));
     showToast(`Node "${node.name}" JSON copied to clipboard!`);
   }, [showToast]);
 
@@ -545,11 +603,14 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
     );
     const payload = {
       name: `${pipeline.name} (Selection)`,
+      description: `Workflow selection with ${subNodes.length} nodes from ${pipeline.name}`,
       nodes: subNodes,
       edges: subEdges,
+      created_at: new Date().toISOString(),
     };
-    navigator.clipboard?.writeText(JSON.stringify(payload, null, 2));
-    showToast(`Copied ${subNodes.length} selected nodes to clipboard`);
+    const jsonStr = JSON.stringify(payload, null, 2);
+    copyToClipboard(jsonStr);
+    showToast(`Copied ${subNodes.length} selected nodes as workflow JSON! (Ctrl+C)`, 'info');
   }, [selectedNodeIds, pipeline, showToast]);
 
   const handlePaste = useCallback(async () => {
@@ -1454,6 +1515,17 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
         {/* Studio Primary Toolbar */}
         <div className="h-11 border-b border-[#242E3D] bg-[#121820]/95 backdrop-blur px-4 flex items-center justify-between z-20">
           <div className="flex items-center space-x-3">
+            {onBackToWorkflows && (
+              <button
+                onClick={onBackToWorkflows}
+                className="flex items-center space-x-1.5 px-2.5 py-1 rounded bg-[#1A222D] hover:bg-amber-500 hover:text-black text-[#94A3B8] text-xs font-mono border border-[#242E3D] transition-colors group"
+                title="Back to Workflows Dashboard"
+              >
+                <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
+                <span>Workflows</span>
+              </button>
+            )}
+
             {/* Inline Rename */}
             {isEditingName ? (
               <div className="flex items-center space-x-1">
@@ -2231,22 +2303,62 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({ voices }) => {
         />
       </div>
 
-      {/* Node Inspector Drawer */}
-      <NodeInspector
-        node={selectedNode}
-        selectedNodes={selectedNodes}
-        allNodes={pipeline.nodes}
-        voices={voices}
-        onClose={() => setSelectedNodeIds(new Set())}
-        onUpdateParams={handleUpdateParams}
-        onUpdateName={handleUpdateNodeName}
-        onDeleteNode={handleDeleteNode}
-        onDuplicateNode={handleDuplicateNode}
-        onCopyNodeJson={handleCopyNodeJson}
-        onDeleteSelected={handleDeleteSelected}
-        onDuplicateSelected={handleDuplicateSelected}
-        onCopySelectedJson={handleCopySelected}
-      />
+      {/* Node Inspector Drawer - ONLY show details when a single specific node is selected */}
+      {selectedNodeIds.size === 1 && (
+        <NodeInspector
+          node={selectedNode}
+          allNodes={pipeline.nodes}
+          voices={voices}
+          onClose={() => setSelectedNodeIds(new Set())}
+          onUpdateParams={handleUpdateParams}
+          onUpdateName={handleUpdateNodeName}
+          onDeleteNode={handleDeleteNode}
+          onDuplicateNode={handleDuplicateNode}
+          onCopyNodeJson={handleCopyNodeJson}
+        />
+      )}
+
+      {/* Floating Multi-Node Selection Pill (n8n Style) */}
+      {selectedNodeIds.size > 1 && (
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center space-x-3 px-4 py-2 rounded-xl bg-[#121820]/95 border border-amber-500/50 shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-bottom-3 duration-150 text-xs font-mono text-white">
+          <div className="flex items-center space-x-2">
+            <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+            <span className="font-bold text-amber-400">{selectedNodeIds.size} nodes selected</span>
+          </div>
+          <div className="h-4 w-px bg-[#242E3D]" />
+          <button
+            onClick={handleCopySelected}
+            className="flex items-center space-x-1.5 px-2.5 py-1 rounded bg-[#1A222D] hover:bg-[#242E3D] text-amber-300 hover:text-white border border-amber-500/30 transition-colors"
+            title="Copy selected nodes as workflow JSON (Ctrl+C)"
+          >
+            <Copy className="w-3.5 h-3.5" />
+            <span>Copy Workflow JSON (Ctrl+C)</span>
+          </button>
+          <button
+            onClick={handleDuplicateSelected}
+            className="flex items-center space-x-1.5 px-2.5 py-1 rounded bg-[#1A222D] hover:bg-[#242E3D] text-[#94A3B8] hover:text-white border border-[#242E3D] transition-colors"
+            title="Duplicate selected nodes (Ctrl+D)"
+          >
+            <Layers className="w-3.5 h-3.5" />
+            <span>Duplicate (Ctrl+D)</span>
+          </button>
+          <button
+            onClick={handleDeleteSelected}
+            className="flex items-center space-x-1.5 px-2.5 py-1 rounded bg-rose-500/15 hover:bg-rose-500/30 text-rose-300 hover:text-rose-100 border border-rose-500/30 transition-colors"
+            title="Delete selected nodes (Del)"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>Delete (Del)</span>
+          </button>
+          <button
+            onClick={() => setSelectedNodeIds(new Set())}
+            className="p-1 rounded text-[#64748B] hover:text-white hover:bg-white/10 ml-1"
+            title="Clear selection (Esc)"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
     </div>
   );
 };

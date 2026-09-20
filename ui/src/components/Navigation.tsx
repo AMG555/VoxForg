@@ -1,11 +1,11 @@
 import React from 'react';
-import { Activity, Cpu, GitFork, Layers, Mic, Scale } from 'lucide-react';
+import { Activity, Cpu, GitFork, Layers, Mic, Scale, LayoutGrid } from 'lucide-react';
 import { HardwareInfo } from '../types';
 import { Logo } from './common/Logo';
 
 interface NavigationProps {
-  activeTab: 'canvas' | 'voices' | 'catalog' | 'hardware' | 'qa';
-  setActiveTab: (tab: 'canvas' | 'voices' | 'catalog' | 'hardware' | 'qa') => void;
+  activeTab: 'workflows' | 'canvas' | 'voices' | 'catalog' | 'hardware' | 'qa';
+  setActiveTab: (tab: 'workflows' | 'canvas' | 'voices' | 'catalog' | 'hardware' | 'qa') => void;
   hardware: HardwareInfo | null;
 }
 
@@ -16,6 +16,19 @@ export const Navigation: React.FC<NavigationProps> = ({ activeTab, setActiveTab,
         <Logo size={32} />
 
         <nav className="flex space-x-1">
+          <button
+            onClick={() => setActiveTab('workflows')}
+            className={`flex items-center space-x-2 px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+              activeTab === 'workflows'
+                ? 'bg-amber-500 text-black font-semibold shadow-sm'
+                : 'text-[#94A3B8] hover:text-white hover:bg-[#1A222D]/50'
+            }`}
+            title="Workflows & Projects Dashboard"
+          >
+            <LayoutGrid className="w-3.5 h-3.5" />
+            <span>Workflows</span>
+          </button>
+
           <button
             onClick={() => setActiveTab('canvas')}
             className={`flex items-center space-x-2 px-3 py-1.5 rounded text-xs font-medium transition-colors ${

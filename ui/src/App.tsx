@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Navigation } from './components/Navigation';
+import { WorkflowsDashboard } from './components/workflows/WorkflowsDashboard';
 import { PipelineCanvas } from './components/canvas/PipelineCanvas';
 import { VoiceLab } from './components/voices/VoiceLab';
 import { HardwareInspector } from './components/telemetry/HardwareInspector';
@@ -7,9 +8,11 @@ import { AbTestLab } from './components/qa/AbTestLab';
 import { ModelCatalog } from './components/catalog/ModelCatalog';
 import { HardwareInfo, Voice } from './types';
 import { api } from './services/api';
+import { WorkflowStorage } from './services/workflowStorage';
 
 export const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'canvas' | 'voices' | 'catalog' | 'hardware' | 'qa'>('canvas');
+  const [activeTab, setActiveTab] = useState<'workflows' | 'canvas' | 'voices' | 'catalog' | 'hardware' | 'qa'>('workflows');
+  const [activeWorkflowId, setActiveWorkflowId] = useState<string>(() => WorkflowStorage.getActiveWorkflowId());
   const [hardware, setHardware] = useState<HardwareInfo | null>(null);
   const [voices, setVoices] = useState<Voice[]>([]);
 
@@ -65,6 +68,18 @@ export const App: React.FC = () => {
     setVoices((prev) => [newVoice, ...prev.filter((v) => v.id !== newVoice.id)]);
   };
 
+  const handleOpenWorkflow = (id: string) => {
+    setActiveWorkflowId(id);
+    WorkflowStorage.setActiveWorkflowId(id);
+    setActiveTab('canvas');
+  };
+
+  const handleCreateWorkflow = () => {
+    const newWorkflow = WorkflowStorage.createWorkflow('Untitled Studio Workflow');
+    setActiveWorkflowId(newWorkflow.id);
+    setActiveTab('canvas');
+  };
+
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#0B0E14]">
       <Navigation
@@ -74,7 +89,19 @@ export const App: React.FC = () => {
       />
 
       <main className="flex-1 flex overflow-hidden">
-        {activeTab === 'canvas' && <PipelineCanvas voices={voices} />}
+        {activeTab === 'workflows' && (
+          <WorkflowsDashboard
+            onOpenWorkflow={handleOpenWorkflow}
+            onCreateWorkflow={handleCreateWorkflow}
+          />
+        )}
+        {activeTab === 'canvas' && (
+          <PipelineCanvas
+            voices={voices}
+            initialWorkflowId={activeWorkflowId}
+            onBackToWorkflows={() => setActiveTab('workflows')}
+          />
+        )}
         {activeTab === 'voices' && <VoiceLab voices={voices} onVoiceCreated={handleVoiceCreated} />}
         {activeTab === 'catalog' && <ModelCatalog />}
         {activeTab === 'hardware' && <HardwareInspector hardware={hardware} onNavigateTab={setActiveTab} />}

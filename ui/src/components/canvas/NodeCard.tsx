@@ -93,7 +93,10 @@ export const NodeCard: React.FC<NodeCardProps> = ({
   let borderStyle = 'border-[#242E3D] hover:border-[#3B485C]';
   let shadowStyle = 'shadow-xl';
 
-  if (isRunning) {
+  if (isSelected) {
+    borderStyle = 'border-amber-400 ring-2 ring-amber-400/80';
+    shadowStyle = 'shadow-2xl shadow-amber-500/30';
+  } else if (isRunning) {
     borderStyle = 'border-amber-400 ring-2 ring-amber-400/60 animate-pulse';
     shadowStyle = 'shadow-2xl shadow-amber-500/30';
   } else if (isSuccess) {
@@ -105,9 +108,6 @@ export const NodeCard: React.FC<NodeCardProps> = ({
   } else if (isWaiting) {
     borderStyle = 'border-amber-400/80 border-dashed ring-1 ring-amber-400/30';
     shadowStyle = 'shadow-lg shadow-amber-500/10';
-  } else if (isSelected) {
-    borderStyle = 'border-amber-500 ring-2 ring-amber-500/60';
-    shadowStyle = 'shadow-2xl shadow-amber-500/20';
   }
 
   return (
@@ -132,6 +132,14 @@ export const NodeCard: React.FC<NodeCardProps> = ({
         isDisabled ? 'opacity-40 grayscale-[40%]' : ''
       } ${isSelected ? 'z-30' : isRunning ? 'z-40' : 'z-20'} group/card`}
     >
+      {/* Explicit Selection Indicator Ring & Corner Badge (n8n Style) */}
+      {isSelected && (
+        <div className="absolute -inset-1.5 rounded-2xl border-2 border-amber-400 ring-4 ring-amber-400/25 pointer-events-none z-50 shadow-[0_0_25px_rgba(245,158,11,0.45)]">
+          <div className="absolute -top-3 -right-2 bg-amber-500 text-black text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-full shadow-md flex items-center space-x-1">
+            <span>SELECTED</span>
+          </div>
+        </div>
+      )}
       {/* Input port connector (left) */}
       <div
         onPointerUp={(e) => {
