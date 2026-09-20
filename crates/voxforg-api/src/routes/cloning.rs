@@ -92,7 +92,8 @@ pub async fn clone_voice(
                     problem_type: "https://voxforg.org/errors/payload-too-large".to_string(),
                     title: "Audio Payload Too Large".to_string(),
                     status: 400,
-                    detail: "Reference audio payload exceeds maximum permitted size (35MB)".to_string(),
+                    detail: "Reference audio payload exceeds maximum permitted size (35MB)"
+                        .to_string(),
                     instance: "/v1/voices/clone".to_string(),
                 }),
             ));
@@ -101,13 +102,20 @@ pub async fn clone_voice(
 
     if let Some(ref path) = body.reference_audio_path {
         let p = std::path::Path::new(path);
-        let has_traversal = p.components().any(|c| matches!(c, std::path::Component::ParentDir))
+        let has_traversal = p
+            .components()
+            .any(|c| matches!(c, std::path::Component::ParentDir))
             || path.contains('\0')
             || path.trim().is_empty();
         let is_audio = p
             .extension()
             .and_then(|e| e.to_str())
-            .map(|ext| matches!(ext.to_lowercase().as_str(), "wav" | "mp3" | "ogg" | "flac" | "m4a"))
+            .map(|ext| {
+                matches!(
+                    ext.to_lowercase().as_str(),
+                    "wav" | "mp3" | "ogg" | "flac" | "m4a"
+                )
+            })
             .unwrap_or(false);
 
         if has_traversal || !is_audio {

@@ -198,8 +198,15 @@ impl TtsEngine for EdgeTtsEngine {
                 language: "ml-IN".to_string(),
                 gender: Gender::Female,
                 sample_rate_hz: 24000,
-                tags: vec!["malayalam".to_string(), "kerala".to_string(), "expressive".to_string()],
-                description: Some("Warm, expressive Malayalam female voice with natural native cadence".to_string()),
+                tags: vec![
+                    "malayalam".to_string(),
+                    "kerala".to_string(),
+                    "expressive".to_string(),
+                ],
+                description: Some(
+                    "Warm, expressive Malayalam female voice with natural native cadence"
+                        .to_string(),
+                ),
             },
             Voice {
                 id: "ml-IN-MidhunNeural".to_string(),
@@ -208,8 +215,14 @@ impl TtsEngine for EdgeTtsEngine {
                 language: "ml-IN".to_string(),
                 gender: Gender::Male,
                 sample_rate_hz: 24000,
-                tags: vec!["malayalam".to_string(), "kerala".to_string(), "broadcast".to_string()],
-                description: Some("Crisp, authoritative Malayalam male voice for news and narration".to_string()),
+                tags: vec![
+                    "malayalam".to_string(),
+                    "kerala".to_string(),
+                    "broadcast".to_string(),
+                ],
+                description: Some(
+                    "Crisp, authoritative Malayalam male voice for news and narration".to_string(),
+                ),
             },
             Voice {
                 id: "hi-IN-SwaraNeural".to_string(),
@@ -219,7 +232,9 @@ impl TtsEngine for EdgeTtsEngine {
                 gender: Gender::Female,
                 sample_rate_hz: 24000,
                 tags: vec!["hindi".to_string(), "conversational".to_string()],
-                description: Some("Natural Hindi female voice with authentic conversational rhythm".to_string()),
+                description: Some(
+                    "Natural Hindi female voice with authentic conversational rhythm".to_string(),
+                ),
             },
             Voice {
                 id: "hi-IN-MadhurNeural".to_string(),
@@ -249,7 +264,9 @@ impl TtsEngine for EdgeTtsEngine {
                 gender: Gender::Male,
                 sample_rate_hz: 24000,
                 tags: vec!["tamil".to_string(), "narration".to_string()],
-                description: Some("Resonant Tamil male voice for stories and broadcast".to_string()),
+                description: Some(
+                    "Resonant Tamil male voice for stories and broadcast".to_string(),
+                ),
             },
             Voice {
                 id: "te-IN-ShrutiNeural".to_string(),

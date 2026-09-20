@@ -44,7 +44,6 @@ impl Default for PronunciationDictionary {
             ("TTS", "T T S", None),
             ("ASR", "A S R", None),
             ("DSP", "D S P", None),
-
             // English Colloquial & Informal Pacing
             ("gonna", "going to", Some("informal future")),
             ("wanna", "want to", Some("informal volition")),
@@ -57,39 +56,80 @@ impl Default for PronunciationDictionary {
             ("y'all", "you all", Some("Southern American plural")),
             ("innit", "isn't it", Some("British tag question")),
             ("blimey", "blimey", Some("British surprise exclamation")),
-            ("no worries", "no worries", Some("Australian / casual assurance")),
+            (
+                "no worries",
+                "no worries",
+                Some("Australian / casual assurance"),
+            ),
             ("arvo", "afternoon", Some("Australian slang")),
             ("brekkie", "breakfast", Some("Australian / British slang")),
-
             // Hinglish / Indian English Colloquial
-            ("yaar", "yaar", Some("Hinglish friend / conversational address")),
+            (
+                "yaar",
+                "yaar",
+                Some("Hinglish friend / conversational address"),
+            ),
             ("jugaad", "jugaad", Some("Hinglish creative hack")),
             ("bindaas", "bindaas", Some("Hinglish carefree / awesome")),
             ("accha", "accha", Some("Hinglish okay / I see")),
             ("chalo", "chalo", Some("Hinglish come on / let's go")),
             ("theek hai", "theek hai", Some("Hinglish all right")),
             ("fatafat", "fatafat", Some("Hinglish quickly")),
-
             // Malayalam (മലയാളം - Kerala Colloquial & Youth Slang)
-            ("adipoli", "adipoli", Some("Malayalam slang superb / awesome")),
+            (
+                "adipoli",
+                "adipoli",
+                Some("Malayalam slang superb / awesome"),
+            ),
             ("kidilam", "kidilam", Some("Malayalam slang epic / killer")),
-            ("ente ponno", "ente ponno", Some("Malayalam exclamation of awe / my goodness")),
+            (
+                "ente ponno",
+                "ente ponno",
+                Some("Malayalam exclamation of awe / my goodness"),
+            ),
             ("machane", "machane", Some("Malayalam casual dude / bro")),
-            ("chunke", "chunke", Some("Malayalam slang best friend / dear")),
+            (
+                "chunke",
+                "chunke",
+                Some("Malayalam slang best friend / dear"),
+            ),
             ("pwoli", "pwoli", Some("Malayalam slang lit / rocking")),
-            ("sheriyaa", "sheriyaa", Some("Malayalam colloquial that's right / okay")),
-            ("scene aanu", "scene aanu", Some("Malayalam slang intense vibe")),
-            ("set aayi", "set aayi", Some("Malayalam slang sorted / fixed")),
-            ("oru rakshayum illa", "oru rakshayum illa", Some("Malayalam expression breathtaking / unmatched")),
-            ("enthokke undu", "enthokke undu", Some("Malayalam greeting what's up")),
+            (
+                "sheriyaa",
+                "sheriyaa",
+                Some("Malayalam colloquial that's right / okay"),
+            ),
+            (
+                "scene aanu",
+                "scene aanu",
+                Some("Malayalam slang intense vibe"),
+            ),
+            (
+                "set aayi",
+                "set aayi",
+                Some("Malayalam slang sorted / fixed"),
+            ),
+            (
+                "oru rakshayum illa",
+                "oru rakshayum illa",
+                Some("Malayalam expression breathtaking / unmatched"),
+            ),
+            (
+                "enthokke undu",
+                "enthokke undu",
+                Some("Malayalam greeting what's up"),
+            ),
             ("nannayi", "nannayi", Some("Malayalam well done")),
             ("kollam", "kollam", Some("Malayalam colloquial nice")),
             ("അടിപൊളി", "അടിപൊളി", Some("Malayalam script adipoli")),
             ("കിടിലം", "കിടിലം", Some("Malayalam script kidilam")),
             ("പൊളി", "പൊളി", Some("Malayalam script pwoli")),
             ("മച്ചാനേ", "മച്ചാനേ", Some("Malayalam script machane")),
-            ("എന്റെ പൊന്നോ", "എന്റെ പൊന്നോ", Some("Malayalam script ente ponno")),
-
+            (
+                "എന്റെ പൊന്നോ",
+                "എന്റെ പൊന്നോ",
+                Some("Malayalam script ente ponno"),
+            ),
             // Tamil (தமிழ் - Chennai / Colloquial)
             ("machan", "machan", Some("Tamil casual dude / brother")),
             ("thalaiva", "thalaiva", Some("Tamil leader / boss")),
@@ -98,15 +138,17 @@ impl Default for PronunciationDictionary {
             ("vera level", "vera level", Some("Tamil slang top tier")),
             ("kandippa", "kandippa", Some("Tamil definitely")),
             ("apdiya", "apdiya", Some("Tamil is that so")),
-
             // Telugu & Kannada (తెలుగు & ಕನ್ನಡ)
             ("mowa", "mowa", Some("Telugu casual bro / dude")),
             ("keka", "keka", Some("Telugu slang awesome / rocking")),
             ("bava", "bava", Some("Telugu colloquial bro")),
             ("maga", "maga", Some("Kannada casual bro / dude")),
-            ("channagide", "channagide", Some("Kannada it is good / nice")),
+            (
+                "channagide",
+                "channagide",
+                Some("Kannada it is good / nice"),
+            ),
             ("sakkath", "sakkath", Some("Kannada slang superb / amazing")),
-
             // Spanish (Spain & Latin America)
             ("pa'", "para", Some("Spanish casual contraction")),
             ("pa'l", "para el", Some("Spanish casual contraction")),
@@ -117,8 +159,11 @@ impl Default for PronunciationDictionary {
             ("boludo", "boludo", Some("Argentine colloquial address")),
             ("vale", "vale", Some("Castilian Spanish all right")),
             ("guay", "guay", Some("Castilian Spanish cool")),
-            ("de una", "de una", Some("Latin American Spanish definitely")),
-
+            (
+                "de una",
+                "de una",
+                Some("Latin American Spanish definitely"),
+            ),
             // French (France & Quebec)
             ("t'sais", "tu sais", Some("French conversational filler")),
             ("y'a", "il y a", Some("French contraction there is")),
@@ -129,35 +174,42 @@ impl Default for PronunciationDictionary {
             ("chum", "chum", Some("Quebec French boyfriend / friend")),
             ("blonde", "blonde", Some("Quebec French girlfriend")),
             ("pantoute", "pas du tout", Some("Quebec French not at all")),
-
             // German (Casual & Colloquial)
             ("mach's", "mach es", Some("German contraction do it")),
-            ("geht's", "geht es", Some("German contraction how is it going")),
+            (
+                "geht's",
+                "geht es",
+                Some("German contraction how is it going"),
+            ),
             ("krass", "krass", Some("German slang sick / awesome")),
             ("alter", "alter", Some("German casual dude")),
             ("alles klar", "alles klar", Some("German all right")),
             ("kein ding", "kein ding", Some("German no problem")),
-
             // Japanese (Casual & Colloquial)
             ("ヤバい", "やばい", Some("Japanese colloquial wow / crazy")),
             ("マジで", "まじで", Some("Japanese colloquial really")),
             ("ウケる", "うける", Some("Japanese slang hilarious")),
-            ("お疲れ様", "おつかれさま", Some("Japanese greeting good work")),
+            (
+                "お疲れ様",
+                "おつかれさま",
+                Some("Japanese greeting good work"),
+            ),
             ("よろしく", "よろしく", Some("Japanese casual plea")),
             ("めっちゃ", "めっちゃ", Some("Kansai Japanese slang very")),
-
             // Chinese / Mandarin (Colloquial & Net Slang)
             ("给力", "给力", Some("Chinese slang awesome")),
             ("牛逼", "牛逼", Some("Chinese slang badass / incredible")),
             ("好家伙", "好家伙", Some("Chinese colloquial good heavens")),
             ("杠杠的", "杠杠的", Some("Northeastern Chinese top notch")),
-
             // Italian (Casual & Fillers)
             ("dai", "dai", Some("Italian conversational come on")),
             ("boh", "boh", Some("Italian filler who knows")),
             ("figata", "figata", Some("Italian slang cool thing")),
-            ("magari", "magari", Some("Italian expression if only / I wish")),
-
+            (
+                "magari",
+                "magari",
+                Some("Italian expression if only / I wish"),
+            ),
             // Portuguese (Brazil & Portugal)
             ("pra", "para", Some("Portuguese contraction for / to")),
             ("pro", "para o", Some("Portuguese contraction for the")),
@@ -165,7 +217,6 @@ impl Default for PronunciationDictionary {
             ("beleza", "beleza", Some("Brazilian slang cool / all good")),
             ("valeu", "valeu", Some("Brazilian casual thanks")),
             ("tranquilo", "tranquilo", Some("Portuguese no worries")),
-
             // Arabic (Dialectal Fillers & Conversational)
             ("يلا", "يلا", Some("Arabic colloquial let's go")),
             ("حبيبي", "حبيبي", Some("Arabic term of endearment my dear")),
