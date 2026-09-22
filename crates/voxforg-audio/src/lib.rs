@@ -5,7 +5,10 @@ pub mod metrics;
 pub mod normalizer;
 pub mod wav;
 
-pub use dsp::{BrickwallLimiter, DynamicCompressor, ParametricEq, SilenceTrimmer};
+pub use dsp::{
+    BrickwallLimiter, DeEsser, DynamicCompressor, HarmonicWarmth, MasteringProfile, ParametricEq,
+    SilenceTrimmer,
+};
 pub use media::MediaProcessor;
 pub use merge::AudioMerger;
 pub use metrics::{AudioAnalyzer, AudioQualityMetrics};
@@ -171,5 +174,34 @@ mod tests {
         let max_amp = samples.iter().map(|&s| (s as i32).abs()).max().unwrap();
         assert!(max_amp <= 16500);
         assert!(max_amp > 16000);
+    }
+
+    #[test]
+    fn test_parametric_eq_high_pass() {
+        // Generate a low-frequency 20Hz sine wave at 24kHz sample rate (sub-bass rumble)
+        let sample_rate = 24000u32;
+        let mut samples: Vec<i16> = (0..2400)
+            .map(|i| {
+                let t = i as f32 / sample_rate as f32;
+                (10000.0 * (2.0 * std::f32::consts::PI * 20.0 * t).sin()).round() as i16
+            })
+            .collect();
+
+        let initial_energy: f64 = samples.iter().map(|&s| (s as f64).powi(2)).sum();
+        ParametricEq::high_pass(&mut samples, sample_rate, 80.0);
+        let post_energy: f64 = samples.iter().map(|&s| (s as f64).powi(2)).sum();
+
+        // 80Hz high-pass filter should attenuate 20Hz sub-bass substantially (> 10dB attenuation)
+        assert!(post_energy < initial_energy * 0.25);
+    }
+
+    #[test]
+    fn test_audio_normalizer_rms() {
+        let mut samples = vec![1000i16; 1000];
+        AudioNormalizer::rms_normalize(&mut samples, 0.20);
+        let sum_sq: f64 = samples.iter().map(|&s| (s as f64).powi(2)).sum();
+        let rms = (sum_sq / samples.len() as f64).sqrt();
+        let target = 32767.0 * 0.20;
+        assert!((rms - target).abs() < 100.0);
     }
 }

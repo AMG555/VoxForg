@@ -49,16 +49,114 @@ fn re_percent() -> &'static Regex {
     RE.get_or_init(|| Regex::new(r"(\d+(?:\.\d+)?)%").unwrap())
 }
 
+fn re_url() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| Regex::new(r"https?://(?:www\.)?([^\s]+)").unwrap())
+}
+
+fn re_email() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r"\b([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\b").unwrap()
+    })
+}
+
+fn re_clock_time() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| Regex::new(r"\b(\d{1,2}):(\d{2})(?:\s*(AM|PM|am|pm))?\b").unwrap())
+}
+
+fn re_temporal_year() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r"(?i)\b(in|since|from|until|by|before|after|around|year)\s+(19\d{2}|20\d{2})\b")
+            .unwrap()
+    })
+}
+
+fn num_to_words(n: u32) -> String {
+    match n {
+        0 => "zero".to_string(),
+        1 => "one".to_string(),
+        2 => "two".to_string(),
+        3 => "three".to_string(),
+        4 => "four".to_string(),
+        5 => "five".to_string(),
+        6 => "six".to_string(),
+        7 => "seven".to_string(),
+        8 => "eight".to_string(),
+        9 => "nine".to_string(),
+        10 => "ten".to_string(),
+        11 => "eleven".to_string(),
+        12 => "twelve".to_string(),
+        13 => "thirteen".to_string(),
+        14 => "fourteen".to_string(),
+        15 => "fifteen".to_string(),
+        16 => "sixteen".to_string(),
+        17 => "seventeen".to_string(),
+        18 => "eighteen".to_string(),
+        19 => "nineteen".to_string(),
+        20..=99 => {
+            let tens = match n / 10 {
+                2 => "twenty",
+                3 => "thirty",
+                4 => "forty",
+                5 => "fifty",
+                6 => "sixty",
+                7 => "seventy",
+                8 => "eighty",
+                9 => "ninety",
+                _ => "",
+            };
+            let rem = n % 10;
+            if rem == 0 {
+                tens.to_string()
+            } else {
+                format!("{tens}-{}", num_to_words(rem))
+            }
+        }
+        _ => n.to_string(),
+    }
+}
+
+fn year_to_words(year: u32) -> String {
+    if (1900..=1999).contains(&year) {
+        let first = "nineteen";
+        let last = year % 100;
+        if last == 0 {
+            format!("{first} hundred")
+        } else if last < 10 {
+            format!("{first} oh {}", num_to_words(last))
+        } else {
+            format!("{first} {}", num_to_words(last))
+        }
+    } else if (2000..=2009).contains(&year) {
+        if year == 2000 {
+            "two thousand".to_string()
+        } else {
+            format!("twenty oh {}", num_to_words(year % 100))
+        }
+    } else if (2010..=2099).contains(&year) {
+        format!("twenty {}", num_to_words(year % 100))
+    } else {
+        year.to_string()
+    }
+}
+
 /// Stateless text normalizer.
 pub struct TextNormalizer;
 
 impl TextNormalizer {
     /// Normalize `text` through all normalization passes.
     ///
-    /// Pass order matters: currency-with-symbol must run before bare symbol
-    /// replacement to avoid "dollars1,000 dollars" artifacts.
+    /// Pass order matters: URLs and emails first to avoid punctuation/cadence mangling,
+    /// followed by clock times, temporal years, currencies, scale suffixes, and cadence smoothing.
     pub fn normalize(text: &str) -> String {
-        let s = Self::normalize_currency_amounts(text);
+        let s = Self::normalize_urls(text);
+        let s = Self::normalize_emails(&s);
+        let s = Self::normalize_clock_times(&s);
+        let s = Self::normalize_temporal_years(&s);
+        let s = Self::normalize_currency_amounts(&s);
         let s = Self::normalize_scale_suffixes(&s);
         let s = Self::normalize_percentages(&s);
         let s = Self::strip_comma_separators(&s);
@@ -174,6 +272,90 @@ impl TextNormalizer {
         }
         prev
     }
+
+    /// Convert URLs `https://voxforg.org/api` → `voxforg dot org slash api`.
+    pub fn normalize_urls(text: &str) -> String {
+        re_url()
+            .replace_all(text, |caps: &regex::Captures<'_>| {
+                let raw = &caps[1];
+                let trimmed = raw.trim_end_matches(['.', ',', ';', '!', '?', ')']);
+                let trailing = &raw[trimmed.len()..];
+                let clean = trimmed.strip_prefix("www.").unwrap_or(trimmed);
+                let spoken = clean
+                    .replace('.', " dot ")
+                    .replace('/', " slash ")
+                    .replace('-', " dash ")
+                    .replace('_', " underscore ");
+                format!("{spoken}{trailing}")
+            })
+            .to_string()
+    }
+
+    /// Convert `user@domain.com` → `user at domain dot com`.
+    pub fn normalize_emails(text: &str) -> String {
+        re_email()
+            .replace_all(text, |caps: &regex::Captures<'_>| {
+                let user = &caps[1];
+                let domain = &caps[2];
+                let spoken_domain = domain.replace('.', " dot ");
+                format!("{user} at {spoken_domain}")
+            })
+            .to_string()
+    }
+
+    /// Convert `3:30 PM` → `three thirty PM`, `10:05 AM` → `ten oh five AM`.
+    pub fn normalize_clock_times(text: &str) -> String {
+        re_clock_time()
+            .replace_all(text, |caps: &regex::Captures<'_>| {
+                let h: u32 = caps[1].parse().unwrap_or(0);
+                let m: u32 = caps[2].parse().unwrap_or(0);
+                let period = caps.get(3).map(|m| m.as_str().to_uppercase());
+
+                if h > 23 || m > 59 {
+                    return caps[0].to_string();
+                }
+
+                let h_val = if h == 0 {
+                    12
+                } else if h > 12 && period.is_some() {
+                    h - 12
+                } else {
+                    h
+                };
+                let h_word = num_to_words(h_val);
+
+                if m == 0 {
+                    match period {
+                        Some(p) => format!("{h_word} {p}"),
+                        None => format!("{h_word} o'clock"),
+                    }
+                } else if m < 10 {
+                    let m_str = num_to_words(m);
+                    match period {
+                        Some(p) => format!("{h_word} oh {m_str} {p}"),
+                        None => format!("{h_word} oh {m_str}"),
+                    }
+                } else {
+                    let m_str = num_to_words(m).replace('-', " ");
+                    match period {
+                        Some(p) => format!("{h_word} {m_str} {p}"),
+                        None => format!("{h_word} {m_str}"),
+                    }
+                }
+            })
+            .to_string()
+    }
+
+    /// Convert `in 2026` → `in twenty twenty-six`, `since 1999` → `since nineteen ninety-nine`.
+    pub fn normalize_temporal_years(text: &str) -> String {
+        re_temporal_year()
+            .replace_all(text, |caps: &regex::Captures<'_>| {
+                let prep = &caps[1];
+                let year_num: u32 = caps[2].parse().unwrap_or(0);
+                format!("{prep} {}", year_to_words(year_num))
+            })
+            .to_string()
+    }
 }
 
 #[cfg(test)]
@@ -214,6 +396,31 @@ mod tests {
     fn strips_comma_thousands() {
         let r = TextNormalizer::normalize("value is 1,000,000");
         assert!(r.contains("1000000"), "got: {r}");
+    }
+
+    #[test]
+    fn normalizes_urls() {
+        let r = TextNormalizer::normalize("Visit https://voxforg.org/api today");
+        assert!(r.contains("voxforg dot org slash api"), "got: {r}");
+    }
+
+    #[test]
+    fn normalizes_emails() {
+        let r = TextNormalizer::normalize("Email user@domain.com for support");
+        assert!(r.contains("user at domain dot com"), "got: {r}");
+    }
+
+    #[test]
+    fn normalizes_clock_times() {
+        let r = TextNormalizer::normalize("Meeting set for 3:30 PM sharp");
+        assert!(r.contains("three thirty PM"), "got: {r}");
+    }
+
+    #[test]
+    fn normalizes_temporal_years() {
+        let r = TextNormalizer::normalize("Built in 2026 and trusted since 1999");
+        assert!(r.contains("in twenty twenty-six"), "got: {r}");
+        assert!(r.contains("since nineteen ninety-nine"), "got: {r}");
     }
 
     #[test]

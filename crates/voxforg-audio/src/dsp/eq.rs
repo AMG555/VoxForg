@@ -91,6 +91,30 @@ impl Biquad {
         b
     }
 
+    fn high_pass(sample_rate: f32, cutoff_hz: f32) -> Self {
+        let mut b = Self::new();
+        if !cutoff_hz.is_finite() || cutoff_hz <= 0.0 || cutoff_hz >= sample_rate * 0.49 {
+            return b;
+        }
+
+        let w0 = 2.0 * PI * (cutoff_hz / sample_rate);
+        let cos_w0 = w0.cos();
+        let sin_w0 = w0.sin();
+        let alpha = sin_w0 / (2.0 * std::f32::consts::FRAC_1_SQRT_2);
+
+        let a0 = 1.0 + alpha;
+        if a0.abs() < 1e-6 {
+            return b;
+        }
+
+        b.b0 = ((1.0 + cos_w0) / 2.0) / a0;
+        b.b1 = (-(1.0 + cos_w0)) / a0;
+        b.b2 = ((1.0 + cos_w0) / 2.0) / a0;
+        b.a1 = (-2.0 * cos_w0) / a0;
+        b.a2 = (1.0 - alpha) / a0;
+        b
+    }
+
     fn process(&mut self, input: f32) -> f32 {
         let output = self.b0 * input + self.b1 * self.x1 + self.b2 * self.x2
             - self.a1 * self.y1
@@ -153,6 +177,24 @@ impl ParametricEq {
 
             if out_high.is_finite() {
                 *sample = out_high.round().clamp(-32768.0, 32767.0) as i16;
+            }
+        }
+    }
+
+    /// Attenuate sub-bass frequencies below `cutoff_hz` (e.g. 70Hz or 80Hz rumble/mic thumps)
+    pub fn high_pass(samples: &mut [i16], sample_rate: u32, cutoff_hz: f32) {
+        if samples.is_empty() || !cutoff_hz.is_finite() || cutoff_hz <= 0.0 {
+            return;
+        }
+
+        let sr = (sample_rate.max(8000)) as f32;
+        let mut filter = Biquad::high_pass(sr, cutoff_hz);
+
+        for sample in samples.iter_mut() {
+            let in_val = *sample as f32;
+            let out = filter.process(in_val);
+            if out.is_finite() {
+                *sample = out.round().clamp(-32768.0, 32767.0) as i16;
             }
         }
     }
