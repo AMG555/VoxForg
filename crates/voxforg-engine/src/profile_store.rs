@@ -137,11 +137,11 @@ impl VoiceProfileStore {
                 let file_path = dir.join(format!("{}.json", safe_id));
                 let tmp_path = dir.join(format!("{}.json.tmp", safe_id));
                 if let Ok(json_str) = serde_json::to_string_pretty(&profile) {
-                    if std::fs::write(&tmp_path, json_str).is_ok() {
-                        if std::fs::rename(&tmp_path, &file_path).is_err() {
-                            let _ = std::fs::copy(&tmp_path, &file_path);
-                            let _ = std::fs::remove_file(&tmp_path);
-                        }
+                    if std::fs::write(&tmp_path, json_str).is_ok()
+                        && std::fs::rename(&tmp_path, &file_path).is_err()
+                    {
+                        let _ = std::fs::copy(&tmp_path, &file_path);
+                        let _ = std::fs::remove_file(&tmp_path);
                     }
                 }
             }
