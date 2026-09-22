@@ -335,7 +335,7 @@ async fn initialize_registry(
 }
 
 async fn run_serve(args: ServeArgs) -> Result<()> {
-    info!("Starting VoxForg Workstation Server v0.1.0");
+    info!("Starting VoxForg Workstation Server v{}", env!("CARGO_PKG_VERSION"));
 
     if !args.data_dir.exists() {
         let _ = std::fs::create_dir_all(&args.data_dir);

@@ -1,6 +1,6 @@
 {
   "name": "voxforg",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Unified hardware-adaptive speech synthesis workstation & pipeline engine",
   "bin": {
     "voxforg": "./bin/voxforg.js"
