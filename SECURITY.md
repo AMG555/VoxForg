@@ -70,3 +70,13 @@ VoxForg adheres to an enterprise security baseline:
   - `Strict-Transport-Security: max-age=31536000; includeSubDomains`
   - `Content-Security-Policy: default-src 'self'` (with tightly scoped CDNs for Scalar API documentation)
   - `Referrer-Policy: strict-origin-when-cross-origin`
+
+### 6. Path Traversal & Windows UNC Injection Prevention (CWE-22, CWE-59)
+- Audio path ingestion routes (`routes/asr.rs`, `routes/cloning.rs`) reject path traversal (`..`), null bytes (`\0`), and Windows UNC network paths (`\\`, `//`).
+- Windows device namespaces (`\??\`, `\\.\`, `Prefix::UNC`, `Prefix::DeviceNS`) are strictly blocked, preventing remote NetNTLMv2 hash theft and device locks.
+- Stored voice profile IDs are validated with an alphanumeric/hyphen/underscore whitelist (`[a-zA-Z0-9-_]`) before filesystem writes.
+
+### 7. Resource & Memory Leak Protections (CWE-404, CWE-775)
+- **RAII Intermediate Audio Cleanup:** Intermediate video demux and mux WAV files are wrapped in `TempFileGuard`, guaranteeing automatic deletion upon scope exit, error, or panic.
+- **WebSocket Input Bounds:** Incoming WebSocket streaming messages are strictly validated against character length limits (10,000 chars) and finite parameter bounds, preventing unbounded memory allocations.
+- **Backpressure Channels:** All asynchronous audio streaming channels use bounded buffers (capacity 4 to 16) with zero `Box::leak` calls across the workspace.
