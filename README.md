@@ -61,6 +61,47 @@ For creators, studio producers, and desktop users: download the pre-compiled sta
 > irm https://raw.githubusercontent.com/AMG555/VoxForg/main/scripts/install.ps1 | iex
 > ```
 
+### How to Run & Install on macOS (Apple Silicon & Intel):
+
+1. **One-Line Installer (Recommended)**:
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/AMG555/VoxForg/main/scripts/install.sh | sh
+   ```
+   Automatically downloads the Universal binary, configures your PATH, and clears Gatekeeper quarantine.
+
+2. **Direct Download**:
+   Download [**`voxforg-macos-universal`**](https://github.com/AMG555/VoxForg/releases/latest/download/voxforg-macos-universal), open your Terminal, and run:
+   ```bash
+   chmod +x voxforg-macos-universal
+   # If macOS Gatekeeper displays "developer cannot be verified":
+   xattr -d com.apple.quarantine voxforg-macos-universal
+   ./voxforg-macos-universal
+   ```
+
+3. **NPX Instant Runner**:
+   ```bash
+   npx voxforg
+   ```
+
+### How to Run & Install on Linux (Ubuntu, Debian, Fedora, Arch):
+
+1. **One-Line Installer (Recommended)**:
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/AMG555/VoxForg/main/scripts/install.sh | sh
+   ```
+   Installs `voxforg` to `~/.local/bin/` and creates a desktop application entry (`voxforg.desktop`).
+
+2. **Tarball Bundle**:
+   Download [**`voxforg-linux-x86_64.tar.gz`**](https://github.com/AMG555/VoxForg/releases/latest/download/voxforg-linux-x86_64.tar.gz), extract, and execute:
+   ```bash
+   tar -xzf voxforg-linux-x86_64.tar.gz
+   ./voxforg-linux-x86_64
+   ```
+
+3. **NPX Instant Runner**:
+   ```bash
+   npx voxforg
+   ```
 
 ---
 

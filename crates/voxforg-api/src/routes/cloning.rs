@@ -101,12 +101,23 @@ pub async fn clone_voice(
     }
 
     if let Some(ref path) = body.reference_audio_path {
-        let p = std::path::Path::new(path);
-        let has_traversal = p
-            .components()
-            .any(|c| matches!(c, std::path::Component::ParentDir))
-            || path.contains('\0')
-            || path.trim().is_empty();
+        let trimmed = path.trim();
+        let is_unc_or_device = trimmed.starts_with(r"\\")
+            || trimmed.starts_with("//")
+            || trimmed.starts_with(r"\??\")
+            || trimmed.starts_with(r"\\.\");
+        let p = std::path::Path::new(trimmed);
+        let has_traversal = is_unc_or_device
+            || trimmed.is_empty()
+            || trimmed.contains('\0')
+            || p.components().any(|c| match c {
+                std::path::Component::ParentDir => true,
+                std::path::Component::Prefix(prefix) => {
+                    use std::path::Prefix;
+                    matches!(prefix.kind(), Prefix::UNC(..) | Prefix::DeviceNS(..))
+                }
+                _ => false,
+            });
         let is_audio = p
             .extension()
             .and_then(|e| e.to_str())
@@ -125,7 +136,7 @@ pub async fn clone_voice(
                     problem_type: "https://voxforg.org/errors/invalid-path".to_string(),
                     title: "Invalid Reference Audio Path".to_string(),
                     status: 400,
-                    detail: "Path traversal is strictly prohibited and file must have a recognized audio extension".to_string(),
+                    detail: "Path traversal, UNC network paths, and non-audio extensions are strictly prohibited".to_string(),
                     instance: "/v1/voices/clone".to_string(),
                 }),
             ));

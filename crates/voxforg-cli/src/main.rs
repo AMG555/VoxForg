@@ -1,6 +1,5 @@
 // VoxForg Speech Workstation CLI & HTTP Server
 
-use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
@@ -270,6 +269,20 @@ async fn main() -> Result<()> {
     // of where the exe lives (e.g. Downloads folder).
     let default_data_dir = dirs_data_dir();
 
+    // Ensure downloaded neural weights always persist in stable app data folder
+    if std::env::var("VOXFORG_MODELS_DIR").is_err() {
+        let models_dir = default_data_dir.join("models");
+        let _ = std::fs::create_dir_all(&models_dir);
+        std::env::set_var("VOXFORG_MODELS_DIR", models_dir);
+    }
+
+    // Ensure cloned voice profiles always persist in stable app data folder
+    if std::env::var("VOXFORG_PROFILES_DIR").is_err() {
+        let profiles_dir = default_data_dir.join("profiles");
+        let _ = std::fs::create_dir_all(&profiles_dir);
+        std::env::set_var("VOXFORG_PROFILES_DIR", profiles_dir);
+    }
+
     let command = cli.command.unwrap_or_else(|| {
         Commands::Serve(ServeArgs {
             port: 8080,
@@ -328,6 +341,22 @@ async fn run_serve(args: ServeArgs) -> Result<()> {
         let _ = std::fs::create_dir_all(&args.data_dir);
     }
 
+    let profiles_dir = std::env::var("VOXFORG_PROFILES_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| args.data_dir.join("profiles"));
+    let models_dir = std::env::var("VOXFORG_MODELS_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| args.data_dir.join("models"));
+
+    let _ = std::fs::create_dir_all(&profiles_dir);
+    let _ = std::fs::create_dir_all(&models_dir);
+
+    std::env::set_var("VOXFORG_PROFILES_DIR", &profiles_dir);
+    std::env::set_var("VOXFORG_MODELS_DIR", &models_dir);
+
+    info!("Profiles directory: {}", profiles_dir.display());
+    info!("Models directory:   {}", models_dir.display());
+
     let hardware = HardwareProbe::probe();
     info!("Host Architecture: {} / {}", hardware.os, hardware.arch);
     info!("Assigned Hardware Tier: {}", hardware.assigned_tier);
@@ -342,21 +371,39 @@ async fn run_serve(args: ServeArgs) -> Result<()> {
     let state = AppState::new(registry, store, hardware, args.api_key.clone());
 
     let app = create_app(state);
-    let addr: SocketAddr = format!("{}:{}", args.host, args.port).parse()?;
+    let mut selected_port = args.port;
+    let listener = match tokio::net::TcpListener::bind(format!("{}:{}", args.host, selected_port)).await {
+        Ok(l) => l,
+        Err(e) if args.port == 8080 => {
+            tracing::warn!("Port 8080 busy ({e}). Trying alternative port...");
+            let mut found = None;
+            for p in 8081..=8090 {
+                if let Ok(l) = tokio::net::TcpListener::bind(format!("{}:{}", args.host, p)).await {
+                    selected_port = p;
+                    found = Some(l);
+                    break;
+                }
+            }
+            match found {
+                Some(l) => l,
+                None => anyhow::bail!("Failed to bind to port 8080 or fallback ports 8081-8090: {e}"),
+            }
+        }
+        Err(e) => anyhow::bail!("Failed to bind to {}:{}: {e}", args.host, args.port),
+    };
 
-    info!("Listening for API requests on http://{}", addr);
+    let actual_addr = listener.local_addr()?;
+    info!("Listening for API requests on http://{}", actual_addr);
     if args.api_key.is_some() {
         info!("Authentication enabled (Bearer token enforced)");
     } else {
         info!("Open mode (No API key enforced)");
     }
 
-    let listener = tokio::net::TcpListener::bind(addr).await?;
-
     let browser_url = if args.host == "0.0.0.0" {
-        format!("http://localhost:{}", args.port)
+        format!("http://localhost:{}", selected_port)
     } else {
-        format!("http://{}", addr)
+        format!("http://{}", actual_addr)
     };
 
     if args.open {

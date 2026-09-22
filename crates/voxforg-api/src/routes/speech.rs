@@ -485,6 +485,15 @@ async fn handle_speech_socket(mut socket: WebSocket, state: AppState) {
                     }
                 };
 
+                if let Err((_status, err_json)) = validate_speech_request(&req) {
+                    let _ = socket
+                        .send(Message::Text(
+                            json!({ "error": err_json.detail }).to_string(),
+                        ))
+                        .await;
+                    continue;
+                }
+
                 let (engine, voice) = match state.engine_registry.resolve_voice(&req.voice).await {
                     Ok(res) => res,
                     Err(_) => {

@@ -123,15 +123,41 @@ async function main() {
 
   if (!fs.existsSync(binaryPath)) {
     fs.mkdirSync(cacheDir, { recursive: true });
-    const downloadUrl = `https://github.com/${REPO}/releases/download/${DEFAULT_VERSION}/${binaryName}`;
 
-    try {
-      await downloadBinary(downloadUrl, binaryPath);
-      if (process.platform !== 'win32') {
-        fs.chmodSync(binaryPath, 0o755);
+    const candidateNames = [];
+    if (process.platform === 'darwin') {
+      candidateNames.push('voxforg-macos-universal', binaryName, 'voxforg-macos-arm64', 'voxforg-macos-x86_64');
+    } else if (process.platform === 'linux') {
+      candidateNames.push(binaryName, 'voxforg-linux-x86_64');
+    } else {
+      candidateNames.push(binaryName);
+    }
+
+    let downloaded = false;
+    for (const name of candidateNames) {
+      const downloadUrl = `https://github.com/${REPO}/releases/download/${DEFAULT_VERSION}/${name}`;
+      try {
+        await downloadBinary(downloadUrl, binaryPath);
+        if (process.platform !== 'win32') {
+          fs.chmodSync(binaryPath, 0o755);
+        }
+        if (process.platform === 'darwin') {
+          try {
+            const { execSync } = require('child_process');
+            execSync(`xattr -d com.apple.quarantine "${binaryPath}"`, { stdio: 'ignore' });
+          } catch {
+            // Non-fatal if attribute not present
+          }
+        }
+        downloaded = true;
+        break;
+      } catch (err) {
+        // Continue to next candidate
       }
-    } catch (err) {
-      console.warn(`[voxforg] Pre-built binary download not available (${err.message}).`);
+    }
+
+    if (!downloaded) {
+      console.warn('[voxforg] Pre-built binary download not available from GitHub releases.');
       console.log('[voxforg] Checking for local cargo installation...');
 
       // Fallback: Check if user has voxforg in PATH or cargo

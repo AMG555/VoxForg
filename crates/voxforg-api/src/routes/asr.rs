@@ -200,13 +200,30 @@ pub async fn transcribe_audio(
 }
 
 fn is_safe_audio_path(path: &str) -> bool {
-    let p = std::path::Path::new(path);
-    if path.trim().is_empty() || path.contains('\0') {
+    let trimmed = path.trim();
+    if trimmed.is_empty() || trimmed.contains('\0') {
         return false;
     }
+    // Block Windows UNC paths, device paths, and network paths
+    if trimmed.starts_with(r"\\")
+        || trimmed.starts_with("//")
+        || trimmed.starts_with(r"\??\")
+        || trimmed.starts_with(r"\\.\")
+    {
+        return false;
+    }
+    let p = std::path::Path::new(trimmed);
     for component in p.components() {
-        if matches!(component, std::path::Component::ParentDir) {
-            return false;
+        match component {
+            std::path::Component::ParentDir => return false,
+            std::path::Component::Prefix(prefix) => {
+                use std::path::Prefix;
+                match prefix.kind() {
+                    Prefix::UNC(..) | Prefix::DeviceNS(..) => return false,
+                    _ => {}
+                }
+            }
+            _ => {}
         }
     }
     if let Some(ext) = p.extension().and_then(|e| e.to_str()) {
@@ -328,3 +345,34 @@ fn decode_audio_input(payload: &TranscriptionRequestPayload) -> Result<(Vec<i16>
 
     Err("Either 'audio_base64' or 'audio_path' must be provided".to_string())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_safe_audio_path() {
+        // Valid paths
+        assert!(is_safe_audio_path("samples/speech.wav"));
+        assert!(is_safe_audio_path("audio.WAVE"));
+
+        // Path traversal attempts
+        assert!(!is_safe_audio_path("../secret.wav"));
+        assert!(!is_safe_audio_path("samples/../../etc/passwd.wav"));
+
+        // UNC injection and Windows device paths
+        assert!(!is_safe_audio_path(r"\\192.168.1.100\share\audio.wav"));
+        assert!(!is_safe_audio_path("//malicious.com/share/audio.wav"));
+        assert!(!is_safe_audio_path(r"\??\C:\boot.ini.wav"));
+        assert!(!is_safe_audio_path(r"\\.\COM1.wav"));
+
+        // Null bytes & empty
+        assert!(!is_safe_audio_path(""));
+        assert!(!is_safe_audio_path("audio\0.wav"));
+
+        // Non-audio extensions
+        assert!(!is_safe_audio_path("payload.exe"));
+        assert!(!is_safe_audio_path("config.json"));
+    }
+}
+

@@ -176,13 +176,12 @@ impl MediaProcessor {
             .unwrap_or(0);
         let temp_wav =
             std::env::temp_dir().join(format!("voxforg_demux_{}_{nanos}.wav", std::process::id()));
+        let _guard = TempFileGuard(&temp_wav);
 
         Self::extract_audio(video_path, &temp_wav, sample_rate)?;
         let wav_bytes = std::fs::read(&temp_wav).map_err(|e| {
-            let _ = std::fs::remove_file(&temp_wav);
             VoxForgError::AudioProcessing(format!("Failed reading extracted audio temp file: {e}"))
         })?;
-        let _ = std::fs::remove_file(&temp_wav);
 
         crate::wav::WavEncoder::decode_wav_to_pcm16(&wav_bytes)
     }
@@ -199,14 +198,24 @@ impl MediaProcessor {
             .unwrap_or(0);
         let temp_wav =
             std::env::temp_dir().join(format!("voxforg_mux_{}_{nanos}.wav", std::process::id()));
+        let _guard = TempFileGuard(&temp_wav);
 
         std::fs::write(&temp_wav, wav_bytes).map_err(|e| {
             VoxForgError::AudioProcessing(format!("Failed writing temp audio for video mux: {e}"))
         })?;
 
-        let res = Self::mux_video(video_path, &temp_wav, out_video_path);
-        let _ = std::fs::remove_file(&temp_wav);
-        res
+        Self::mux_video(video_path, &temp_wav, out_video_path)
+    }
+}
+
+/// RAII guard ensuring temporary filesystem artifacts are always cleaned up on exit or panic.
+struct TempFileGuard<'a>(&'a Path);
+
+impl<'a> Drop for TempFileGuard<'a> {
+    fn drop(&mut self) {
+        if self.0.exists() {
+            let _ = std::fs::remove_file(self.0);
+        }
     }
 }
 
@@ -227,5 +236,21 @@ mod tests {
     #[test]
     fn test_media_processor_availability_probe() {
         let _avail = MediaProcessor::is_available();
+    }
+
+    #[test]
+    fn test_temp_file_guard_cleanup() {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let temp_path = std::env::temp_dir().join(format!("voxforg_guard_test_{}_{nanos}.tmp", std::process::id()));
+        std::fs::write(&temp_path, b"test payload").unwrap();
+        assert!(temp_path.exists());
+        {
+            let _guard = TempFileGuard(&temp_path);
+            assert!(temp_path.exists());
+        }
+        assert!(!temp_path.exists());
     }
 }

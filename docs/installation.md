@@ -8,7 +8,21 @@ Comprehensive setup and deployment guide for the VoxForg Speech Synthesis Workst
 
 For the vast majority of users, developers, and creators, VoxForg can be launched or installed immediately with a single command without configuring compilers, Node.js, or external database services.
 
-### 1.1 Instant Run via NPX (No Installation Required)
+### 1.1 Pre-Compiled Standalone Releases (Direct Download)
+
+Download zero-install executables directly from GitHub Releases:
+
+| Platform | Asset Name | Format | Instructions |
+| :--- | :--- | :--- | :--- |
+| **Windows 10/11** | [`VoxForg-Setup-v0.1.0-windows-x64.exe`](https://github.com/AMG555/VoxForg/releases/latest/download/VoxForg-Setup-v0.1.0-windows-x64.exe) | Setup Wizard | Double click setup wizard to install with desktop icons |
+| **Windows 10/11** | [`VoxForg-Windows-x64.zip`](https://github.com/AMG555/VoxForg/releases/latest/download/VoxForg-Windows-x64.zip) | Portable Bundle | Extract zip, double-click `VoxForg-Start.bat` |
+| **Windows 10/11** | [`voxforg-windows-x86_64.exe`](https://github.com/AMG555/VoxForg/releases/latest/download/voxforg-windows-x86_64.exe) | Standalone .exe | Zero-install standalone binary |
+| **macOS** (Universal) | [`voxforg-macos-universal`](https://github.com/AMG555/VoxForg/releases/latest/download/voxforg-macos-universal) | Mach-O FAT Binary | `chmod +x voxforg-macos-universal && ./voxforg-macos-universal` |
+| **Linux** (x86_64) | [`voxforg-linux-x86_64.tar.gz`](https://github.com/AMG555/VoxForg/releases/latest/download/voxforg-linux-x86_64.tar.gz) | Tarball | `tar -xzf voxforg-linux-x86_64.tar.gz && ./voxforg-linux-x86_64` |
+
+---
+
+### 1.2 Instant Run via NPX (No Installation Required)
 
 Launch the unified workstation and local engine server immediately:
 
@@ -19,8 +33,9 @@ npx voxforg
 What this does:
 1. Automatically queries system OS (`linux`, `darwin`, `win32`) and CPU architecture (`x64`, `arm64`).
 2. Downloads the native pre-compiled binary with embedded UI assets into `~/.voxforg/bin/`.
-3. Starts the local daemon on `http://localhost:8080`.
-4. Automatically opens your default web browser to the visual workstation.
+3. Clears macOS Gatekeeper quarantine flags automatically.
+4. Starts the local daemon on `http://localhost:8080`.
+5. Automatically opens your default web browser to the visual workstation.
 
 ---
 

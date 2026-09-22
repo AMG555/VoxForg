@@ -49,11 +49,22 @@ jobs:
       - name: Install Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Add macOS Universal Targets
+        if: runner.os == 'macOS'
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
 
-      - name: Build Standalone Rust Binary
+      - name: Build Standalone Rust Binary (Windows & Linux)
+        if: runner.os != 'macOS'
         run: cargo build --release --bin voxforg
+
+      - name: Build Standalone Rust Binary (macOS Universal via lipo)
+        if: runner.os == 'macOS'
+        run: |
+          cargo build --release --bin voxforg --target aarch64-apple-darwin
+          cargo build --release --bin voxforg --target x86_64-apple-darwin
 
       - name: Package Windows Release (.exe and .zip)
         if: runner.os == 'Windows'
@@ -67,8 +78,8 @@ jobs:
           # Create batch launcher
           Set-Content -Path dist/VoxForg-Start.bat -Value "@echo off`r`nstart `"`" `"%~dp0voxforg.exe`" serve --open" -Force
 
-          # Create installer script
-          Set-Content -Path dist/install-desktop.bat -Value "@echo off`r`npowershell -NoProfile -ExecutionPolicy Bypass -Command `"& { irm https://raw.githubusercontent.com/${{ github.repository }}/main/scripts/install.ps1 | iex }`"`r`npause" -Force
+          # Create installer script with offline check and online fallback
+          Set-Content -Path dist/install-desktop.bat -Value "@echo off`r`nif exist `"%~dp0..\scripts\install.ps1`" (`r`n    powershell -NoProfile -ExecutionPolicy Bypass -File `"%~dp0..\scripts\install.ps1`"`r`n) else (`r`n    powershell -NoProfile -ExecutionPolicy Bypass -Command `"& { irm https://raw.githubusercontent.com/${{ github.repository }}/main/scripts/install.ps1 | iex }`"`r`n)`r`npause" -Force
 
           Compress-Archive -Path dist/voxforg.exe, dist/voxforg.ico, dist/VoxForg-Start.bat, dist/install-desktop.bat -DestinationPath dist/VoxForg-Windows-x64.zip -Force
 
@@ -107,14 +118,29 @@ jobs:
             Write-Host "No WINDOWS_CERT_BASE64 secret found; skipping Authenticode signing."
           }
 
-      - name: Package Unix Release (.tar.gz)
-        if: runner.os != 'Windows'
+      - name: Package macOS Universal Release (.tar.gz and Standalone)
+        if: runner.os == 'macOS'
         shell: bash
         run: |
           mkdir -p dist
-          cp target/release/voxforg dist/${{ matrix.artifact_name }}
-          chmod +x dist/${{ matrix.artifact_name }}
-          tar -czvf dist/${{ matrix.zip_name }} -C dist ${{ matrix.artifact_name }}
+          lipo -create -output dist/voxforg-macos-universal \
+            target/aarch64-apple-darwin/release/voxforg \
+            target/x86_64-apple-darwin/release/voxforg
+          # Provide arch-specific copies so install.sh and npm runner succeed on any architecture
+          cp dist/voxforg-macos-universal dist/voxforg-macos-aarch64
+          cp dist/voxforg-macos-universal dist/voxforg-macos-x86_64
+          cp dist/voxforg-macos-universal dist/voxforg-macos-arm64
+          chmod +x dist/voxforg-macos*
+          tar -czvf dist/voxforg-macos-universal.tar.gz -C dist voxforg-macos-universal
+
+      - name: Package Linux Release (.tar.gz and Standalone)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp target/release/voxforg dist/voxforg-linux-x86_64
+          chmod +x dist/voxforg-linux-x86_64
+          tar -czvf dist/voxforg-linux-x86_64.tar.gz -C dist voxforg-linux-x86_64
 
       - name: Upload Release Assets
         uses: softprops/action-gh-release@v2

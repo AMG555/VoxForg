@@ -94,6 +94,23 @@ impl Qwen3TtsEngine {
             }
         });
 
+        let mut profiles_map = HashMap::new();
+        if let Ok(dir_str) = std::env::var("VOXFORG_PROFILES_DIR") {
+            let dir = std::path::PathBuf::from(dir_str.trim());
+            if let Ok(entries) = std::fs::read_dir(&dir) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("json") {
+                        if let Ok(content) = std::fs::read_to_string(&path) {
+                            if let Ok(profile) = serde_json::from_str::<VoiceProfile>(&content) {
+                                profiles_map.insert(profile.id.clone(), profile);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         Self {
             sample_rate,
             clone_count: AtomicUsize::new(0),
@@ -102,7 +119,7 @@ impl Qwen3TtsEngine {
                 .timeout(std::time::Duration::from_secs(60))
                 .build()
                 .unwrap_or_default(),
-            cloned_profiles: Arc::new(RwLock::new(HashMap::new())),
+            cloned_profiles: Arc::new(RwLock::new(profiles_map)),
         }
     }
 
