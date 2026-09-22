@@ -335,7 +335,10 @@ async fn initialize_registry(
 }
 
 async fn run_serve(args: ServeArgs) -> Result<()> {
-    info!("Starting VoxForg Workstation Server v{}", env!("CARGO_PKG_VERSION"));
+    info!(
+        "Starting VoxForg Workstation Server v{}",
+        env!("CARGO_PKG_VERSION")
+    );
 
     if !args.data_dir.exists() {
         let _ = std::fs::create_dir_all(&args.data_dir);
@@ -372,7 +375,9 @@ async fn run_serve(args: ServeArgs) -> Result<()> {
 
     let app = create_app(state);
     let mut selected_port = args.port;
-    let listener = match tokio::net::TcpListener::bind(format!("{}:{}", args.host, selected_port)).await {
+    let listener = match tokio::net::TcpListener::bind(format!("{}:{}", args.host, selected_port))
+        .await
+    {
         Ok(l) => l,
         Err(e) if args.port == 8080 => {
             tracing::warn!("Port 8080 busy ({e}). Trying alternative port...");
@@ -386,7 +391,9 @@ async fn run_serve(args: ServeArgs) -> Result<()> {
             }
             match found {
                 Some(l) => l,
-                None => anyhow::bail!("Failed to bind to port 8080 or fallback ports 8081-8090: {e}"),
+                None => {
+                    anyhow::bail!("Failed to bind to port 8080 or fallback ports 8081-8090: {e}")
+                }
             }
         }
         Err(e) => anyhow::bail!("Failed to bind to {}:{}: {e}", args.host, args.port),

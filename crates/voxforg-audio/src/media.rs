@@ -244,7 +244,10 @@ mod tests {
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_nanos())
             .unwrap_or(0);
-        let temp_path = std::env::temp_dir().join(format!("voxforg_guard_test_{}_{nanos}.tmp", std::process::id()));
+        let temp_path = std::env::temp_dir().join(format!(
+            "voxforg_guard_test_{}_{nanos}.tmp",
+            std::process::id()
+        ));
         std::fs::write(&temp_path, b"test payload").unwrap();
         assert!(temp_path.exists());
         {

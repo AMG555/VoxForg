@@ -375,4 +375,3 @@ mod tests {
         assert!(!is_safe_audio_path("config.json"));
     }
 }
-

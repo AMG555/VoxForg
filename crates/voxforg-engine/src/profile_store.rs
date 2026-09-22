@@ -219,7 +219,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_voice_profile_disk_persistence() {
-        let temp_dir = std::env::temp_dir().join(format!("voxforg_test_profiles_{}", uuid::Uuid::new_v4()));
+        let temp_dir =
+            std::env::temp_dir().join(format!("voxforg_test_profiles_{}", uuid::Uuid::new_v4()));
         let store = VoiceProfileStore::with_storage_dir(temp_dir.clone());
 
         let custom = VoiceProfile {
@@ -256,9 +257,18 @@ mod tests {
 
     #[test]
     fn test_sanitize_id_path_traversal() {
-        assert_eq!(VoiceProfileStore::sanitize_id("../../evil_path"), Some("______evil_path".to_string()));
-        assert_eq!(VoiceProfileStore::sanitize_id("voice 1/2"), Some("voice_1_2".to_string()));
-        assert_eq!(VoiceProfileStore::sanitize_id("valid-voice_name-123"), Some("valid-voice_name-123".to_string()));
+        assert_eq!(
+            VoiceProfileStore::sanitize_id("../../evil_path"),
+            Some("______evil_path".to_string())
+        );
+        assert_eq!(
+            VoiceProfileStore::sanitize_id("voice 1/2"),
+            Some("voice_1_2".to_string())
+        );
+        assert_eq!(
+            VoiceProfileStore::sanitize_id("valid-voice_name-123"),
+            Some("valid-voice_name-123".to_string())
+        );
         assert!(VoiceProfileStore::sanitize_id("").is_none());
     }
 }
