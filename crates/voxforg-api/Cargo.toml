@@ -37,4 +37,3 @@ mime_guess = "2.0"
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 reqwest = { workspace = true, features = ["json"] }
 http-body-util = { workspace = true }
-hex.workspace = true
