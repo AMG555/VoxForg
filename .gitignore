@@ -48,6 +48,7 @@ voxforg.db
 *.pcm
 build.bat
 run_tests.bat
+run_clippy.bat
 build_release.bat
 clean.bat
 \$null

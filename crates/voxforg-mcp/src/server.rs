@@ -89,7 +89,7 @@ impl McpServer {
                     },
                     "serverInfo": {
                         "name": "voxforg-mcp",
-                        "version": "0.1.0"
+                        "version": env!("CARGO_PKG_VERSION")
                     }
                 });
                 let resp = JsonRpcResponse::success(req.id, res_data);

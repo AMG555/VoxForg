@@ -204,6 +204,17 @@ impl PiperTtsEngine {
 }
 
 fn which_piper() -> bool {
+    if Command::new("piper")
+        .arg("--version")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+    {
+        return true;
+    }
+
     let cmd = if cfg!(windows) { "where" } else { "which" };
     Command::new(cmd)
         .arg("piper")

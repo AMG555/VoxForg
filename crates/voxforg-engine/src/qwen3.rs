@@ -13,15 +13,22 @@ use voxforg_core::models::{
 use crate::traits::{EngineCapabilities, SynthesisRequest, TtsEngine};
 
 fn decode_audio_payload(payload: &str) -> Vec<u8> {
-    let trimmed = payload.trim();
+    let clean = if let Some(idx) = payload.find(',') {
+        payload[idx + 1..].trim()
+    } else {
+        payload.trim()
+    };
     // 1. Try hex decode if all characters are valid hex
-    if trimmed.chars().all(|c| c.is_ascii_hexdigit()) && trimmed.len().is_multiple_of(2) {
-        if let Ok(bytes) = hex::decode(trimmed) {
+    if !clean.is_empty()
+        && clean.chars().all(|c| c.is_ascii_hexdigit())
+        && clean.len().is_multiple_of(2)
+    {
+        if let Ok(bytes) = hex::decode(clean) {
             return bytes;
         }
     }
     // 2. Base64 decode
-    decode_base64(trimmed).unwrap_or_else(|| trimmed.as_bytes().to_vec())
+    decode_base64(clean).unwrap_or_else(|| clean.as_bytes().to_vec())
 }
 
 fn decode_base64(input: &str) -> Option<Vec<u8>> {
@@ -766,5 +773,37 @@ mod tests {
         // Embedding should have non-trivial variation
         let non_zero_count = emb.iter().filter(|&&v| v.abs() > 0.0001).count();
         assert!(non_zero_count > 400);
+    }
+
+    #[test]
+    fn test_decode_audio_payload_handles_data_url() {
+        let raw_bytes = b"RIFFfakeaudioWAVEfmt ";
+        let b64 = format!(
+            "data:audio/wav;base64,{}",
+            std::str::from_utf8(&filtered_base64(raw_bytes)).unwrap()
+        );
+        let decoded = decode_audio_payload(&b64);
+        assert_eq!(decoded, raw_bytes);
+    }
+    fn filtered_base64(input: &[u8]) -> Vec<u8> {
+        const CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        let mut out = Vec::new();
+        let mut buf = 0u32;
+        let mut bits = 0;
+        for &b in input {
+            buf = (buf << 8) | (b as u32);
+            bits += 8;
+            while bits >= 6 {
+                bits -= 6;
+                out.push(CHARS[((buf >> bits) & 0x3F) as usize]);
+            }
+        }
+        if bits > 0 {
+            out.push(CHARS[((buf << (6 - bits)) & 0x3F) as usize]);
+            while out.len() % 4 != 0 {
+                out.push(b'=');
+            }
+        }
+        out
     }
 }

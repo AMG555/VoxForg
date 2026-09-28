@@ -176,7 +176,6 @@ impl TextNormalizer {
         let words: Vec<&str> = trimmed.split_whitespace().collect();
 
         for (i, word) in words.iter().enumerate() {
-            result.push_str(word);
             let lower = word.to_lowercase();
             let clean_lower = lower.trim_matches(|c: char| !c.is_alphabetic());
 
@@ -200,16 +199,22 @@ impl TextNormalizer {
                 "और" | "लेकिन" | "क्योंकि" | "मगर" | "पर" | "इसलिए"
             );
 
-            if is_conjunction
-                && i > 4
-                && i < words.len() - 3
-                && !result.ends_with(',')
-                && !result.ends_with('.')
-                && !result.ends_with('?')
-                && !result.ends_with('!')
-            {
-                result.push(',');
+            if is_conjunction && i > 4 && i < words.len() - 3 {
+                let trimmed_res = result.trim_end();
+                if !trimmed_res.ends_with(',')
+                    && !trimmed_res.ends_with('.')
+                    && !trimmed_res.ends_with('?')
+                    && !trimmed_res.ends_with('!')
+                    && !trimmed_res.ends_with(';')
+                    && !trimmed_res.ends_with(':')
+                {
+                    result = trimmed_res.to_string();
+                    result.push(',');
+                    result.push(' ');
+                }
             }
+
+            result.push_str(word);
 
             if i < words.len() - 1 {
                 result.push(' ');
@@ -427,5 +432,20 @@ mod tests {
     fn leaves_regular_text_unchanged() {
         let input = "Hello world";
         assert_eq!(TextNormalizer::normalize(input), input);
+    }
+
+    #[test]
+    fn test_humanize_cadence_no_double_commas() {
+        let input = "we worked very hard on the engine, because we wanted to finish on time";
+        let res = TextNormalizer::humanize_cadence(input);
+        assert!(!res.contains(",,"), "Must not create double commas: {res}");
+        assert!(
+            !res.contains("because,"),
+            "Comma should not be placed after conjunction: {res}"
+        );
+        assert!(
+            res.contains("engine, because"),
+            "Comma should remain before conjunction: {res}"
+        );
     }
 }

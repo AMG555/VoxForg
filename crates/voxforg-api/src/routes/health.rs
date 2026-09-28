@@ -14,7 +14,7 @@ pub async fn health_check() -> Json<Value> {
     Json(json!({
         "status": "healthy",
         "service": "voxforg",
-        "version": "0.1.0"
+        "version": env!("CARGO_PKG_VERSION")
     }))
 }
 

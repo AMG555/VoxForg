@@ -22,7 +22,7 @@ use voxforg_hardware::HardwareProbe;
 #[derive(Parser)]
 #[command(name = "voxforg")]
 #[command(author = "VoxForg Core Contributors")]
-#[command(version = "0.1.0")]
+#[command(version)]
 #[command(about = "Unified Hardware-Adaptive Speech Synthesis Platform & Pipeline Engine", long_about = None)]
 struct Cli {
     #[command(subcommand)]

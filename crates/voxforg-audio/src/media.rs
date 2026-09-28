@@ -30,6 +30,11 @@ impl MediaProcessor {
             }
         }
 
+        // Direct execution probe fallback
+        if Command::new("ffmpeg").arg("-version").output().is_ok() {
+            return Some(PathBuf::from("ffmpeg"));
+        }
+
         None
     }
 

@@ -65,7 +65,7 @@ pub async fn openapi_spec() -> Json<serde_json::Value> {
         "openapi": "3.1.0",
         "info": {
             "title": "VoxForg Neural Audio Engine API",
-            "version": "0.1.0",
+            "version": env!("CARGO_PKG_VERSION"),
             "description": "Studio-grade neural speech synthesis, modular DSP audio graph pipelines, and automated A/B voice quality testing."
         },
         "servers": [
