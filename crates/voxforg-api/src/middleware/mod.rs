@@ -125,3 +125,41 @@ pub async fn auth_middleware(
         Err((StatusCode::UNAUTHORIZED, Json(err)))
     }
 }
+
+/// Protect local endpoints against DNS rebinding and malicious browser origins.
+pub async fn host_validation(
+    req: Request,
+    next: Next,
+) -> Result<Response, (StatusCode, Json<ProblemDetails>)> {
+    if let Some(host) = req.headers().get(header::HOST).and_then(|h| h.to_str().ok()) {
+        let hostname = host.split(':').next().unwrap_or("").trim();
+
+        let is_local = hostname == "localhost"
+            || hostname == "127.0.0.1"
+            || hostname == "[::1]"
+            || hostname.ends_with(".localhost")
+            || hostname.is_empty();
+
+        let allowed_env = std::env::var("VOXFORG_ALLOWED_HOSTS").unwrap_or_default();
+        let is_allowed_by_env = !allowed_env.is_empty()
+            && allowed_env
+                .split(',')
+                .any(|allowed| allowed.trim().eq_ignore_ascii_case(hostname));
+
+        if !is_local && !is_allowed_by_env {
+            let err = ProblemDetails {
+                problem_type: "https://voxforg.org/errors/forbidden-host".to_string(),
+                title: "Invalid Host Header".to_string(),
+                status: StatusCode::FORBIDDEN.as_u16(),
+                detail: format!(
+                    "Host '{}' is not permitted. Blocked to prevent DNS rebinding attacks.",
+                    hostname
+                ),
+                instance: req.uri().path().to_string(),
+            };
+            return Err((StatusCode::FORBIDDEN, Json(err)));
+        }
+    }
+
+    Ok(next.run(req).await)
+}

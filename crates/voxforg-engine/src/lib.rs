@@ -2,6 +2,7 @@ pub mod ab_test;
 pub mod cache;
 pub mod edge_tts;
 pub mod identity;
+pub mod kokoro;
 pub mod mock;
 pub mod piper;
 pub mod profile_store;
@@ -14,6 +15,7 @@ pub use ab_test::{AbTestComparison, AbTestRunner, AbTestScenario, VariantResult}
 pub use cache::AudioCache;
 pub use edge_tts::EdgeTtsEngine;
 pub use identity::VoiceIdentityResolver;
+pub use kokoro::{KokoroTtsEngine, KokoroVoiceDef, KOKORO_VOICES};
 pub use mock::MockTtsEngine;
 pub use piper::PiperTtsEngine;
 pub use profile_store::VoiceProfileStore;
@@ -463,5 +465,31 @@ mod tests {
         // Allowed when allow_private is true
         assert!(validate_router_url("http://127.0.0.1:8000/v1", true).is_ok());
         assert!(validate_router_url("https://api.openai.com/v1", false).is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_kokoro_engine_voices_and_synthesis() {
+        let engine = KokoroTtsEngine::new();
+        assert_eq!(engine.id(), "kokoro");
+        assert!(engine.is_local());
+
+        let voices = engine.voices().await.expect("Voices must load");
+        assert!(voices.iter().any(|v| v.id == "af_heart"));
+        assert!(voices.iter().any(|v| v.id == "am_adam"));
+        assert!(voices.iter().any(|v| v.id == "bf_emma"));
+
+        let req = SynthesisRequest {
+            text: "Voicebox parity test with Kokoro neural engine.".to_string(),
+            voice_id: "af_heart".to_string(),
+            speed: 1.0,
+            pitch: 0.0,
+            format: AudioContainerFormat::Wav,
+        };
+
+        let chunk = engine.synthesize(&req).await.expect("Synthesis must succeed");
+        assert_eq!(chunk.sample_rate, 24000);
+        assert_eq!(chunk.channels, 1);
+        assert!(!chunk.pcm_data.is_empty());
+        assert!(chunk.is_final);
     }
 }

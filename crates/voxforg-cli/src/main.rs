@@ -14,8 +14,8 @@ use voxforg_audio::WavEncoder;
 use voxforg_core::models::AudioContainerFormat;
 use voxforg_core::store::memory::MemoryStore;
 use voxforg_engine::{
-    AbTestRunner, AbTestScenario, EdgeTtsEngine, EngineRegistry, OpenAiRouterEngine,
-    PiperTtsEngine, Qwen3TtsEngine, SynthesisRequest, TtsEngine,
+    AbTestRunner, AbTestScenario, EdgeTtsEngine, EngineRegistry, KokoroTtsEngine,
+    OpenAiRouterEngine, PiperTtsEngine, Qwen3TtsEngine, SynthesisRequest, TtsEngine,
 };
 use voxforg_hardware::HardwareProbe;
 
@@ -319,6 +319,7 @@ async fn initialize_registry(
     registry.register(Arc::new(EdgeTtsEngine::new())).await;
     registry.register(Arc::new(Qwen3TtsEngine::default())).await;
     registry.register(Arc::new(PiperTtsEngine::new())).await;
+    registry.register(Arc::new(KokoroTtsEngine::new())).await;
 
     let r_url = router_url.or_else(|| std::env::var("VOXFORG_ROUTER_URL").ok());
     let r_key = router_api_key.or_else(|| std::env::var("VOXFORG_ROUTER_API_KEY").ok());

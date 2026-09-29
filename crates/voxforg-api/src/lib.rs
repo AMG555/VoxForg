@@ -18,6 +18,7 @@ pub fn create_app(state: AppState) -> Router {
         .allow_headers(Any);
 
     routes::build_api_router()
+        .layer(from_fn(middleware::host_validation))
         .layer(from_fn_with_state(
             state.clone(),
             middleware::auth_middleware,
@@ -74,6 +75,32 @@ mod tests {
             "nosniff"
         );
         assert_eq!(res.headers().get("x-frame-options").unwrap(), "DENY");
+    }
+
+    #[tokio::test]
+    async fn test_host_header_validation_blocks_rebinding() {
+        let state = setup_test_state(None).await;
+        let app = create_app(state);
+
+        let evil_req = Request::builder()
+            .uri("/health")
+            .header("host", "evil-attacker-site.com")
+            .body(Body::empty())
+            .unwrap();
+
+        let evil_res = app.oneshot(evil_req).await.unwrap();
+        assert_eq!(evil_res.status(), StatusCode::FORBIDDEN);
+
+        let state2 = setup_test_state(None).await;
+        let app2 = create_app(state2);
+        let valid_req = Request::builder()
+            .uri("/health")
+            .header("host", "localhost:8080")
+            .body(Body::empty())
+            .unwrap();
+
+        let valid_res = app2.oneshot(valid_req).await.unwrap();
+        assert_eq!(valid_res.status(), StatusCode::OK);
     }
 
     #[tokio::test]
