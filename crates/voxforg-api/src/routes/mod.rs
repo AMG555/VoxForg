@@ -2,6 +2,7 @@ pub mod asr;
 pub mod benchmark;
 pub mod catalog;
 pub mod cloning;
+pub mod conversion;
 pub mod docs;
 pub mod embedded_ui;
 pub mod health;
@@ -67,6 +68,7 @@ pub fn build_api_router() -> Router<AppState> {
         // Voice cloning and persistent profiles
         .route("/v1/voices/profiles", get(cloning::list_profiles))
         .route("/v1/voices/clone", post(cloning::clone_voice))
+        .route("/v1/voices/assess", post(cloning::assess_reference_audio))
         .route(
             "/v1/voices/profiles/:id",
             get(cloning::get_profile).delete(cloning::delete_profile),
@@ -105,4 +107,13 @@ pub fn build_api_router() -> Router<AppState> {
         )
         // Verbal Filler & Hallucination Refinement Engine
         .route("/v1/audio/refine", post(refine::refine_text))
+        // Speech-to-Speech (Neural Voice Conversion)
+        .route(
+            "/v1/audio/speech-to-speech",
+            post(conversion::speech_to_speech),
+        )
+        .route(
+            "/v1/audio/voice-conversion",
+            post(conversion::speech_to_speech),
+        )
 }

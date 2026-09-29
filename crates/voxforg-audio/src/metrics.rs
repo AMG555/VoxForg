@@ -12,6 +12,7 @@ pub struct AudioQualityMetrics {
     pub rms_dbfs: f32,
     pub clipping_samples_count: usize,
     pub is_silent: bool,
+    pub snr_estimate_db: f32,
 }
 
 pub struct AudioAnalyzer;
@@ -30,6 +31,7 @@ impl AudioAnalyzer {
                 rms_dbfs: -96.0,
                 clipping_samples_count: 0,
                 is_silent: true,
+                snr_estimate_db: 0.0,
             };
         }
 
@@ -70,6 +72,41 @@ impl AudioAnalyzer {
             -96.0
         };
 
+        // Estimate SNR across 20ms frames
+        let frame_size = (safe_sample_rate / 50).max(1) as usize;
+        let mut speech_energy = 0.0f64;
+        let mut speech_count = 0usize;
+        let mut noise_energy = 0.0f64;
+        let mut noise_count = 0usize;
+
+        for chunk in samples.chunks(frame_size) {
+            let chunk_sum_sq: f64 = chunk
+                .iter()
+                .map(|&s| {
+                    let n = s as f64 / 32768.0;
+                    n * n
+                })
+                .sum();
+            let chunk_rms = (chunk_sum_sq / chunk.len() as f64).sqrt();
+            if chunk_rms > 0.02 {
+                speech_energy += chunk_rms;
+                speech_count += 1;
+            } else if chunk_rms > 1e-5 {
+                noise_energy += chunk_rms;
+                noise_count += 1;
+            }
+        }
+
+        let snr_estimate_db = if speech_count > 0 && noise_count > 0 {
+            let avg_speech = speech_energy / speech_count as f64;
+            let avg_noise = noise_energy / noise_count as f64;
+            (20.0 * (avg_speech / avg_noise).log10()).clamp(0.0, 60.0) as f32
+        } else if speech_count > 0 {
+            35.0
+        } else {
+            0.0
+        };
+
         AudioQualityMetrics {
             duration_seconds,
             sample_rate,
@@ -81,6 +118,7 @@ impl AudioAnalyzer {
             rms_dbfs,
             clipping_samples_count: clipping_count,
             is_silent: max_abs < 10,
+            snr_estimate_db,
         }
     }
 }
