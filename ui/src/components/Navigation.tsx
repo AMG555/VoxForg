@@ -2,6 +2,7 @@ import React from 'react';
 import { Activity, Cpu, GitFork, Layers, Mic, Scale, LayoutGrid, Music2 } from 'lucide-react';
 import { HardwareInfo } from '../types';
 import { Logo } from './common/Logo';
+import { AgentBeacon } from './common/AgentBeacon';
 
 interface NavigationProps {
   activeTab: 'workflows' | 'canvas' | 'timeline' | 'voices' | 'catalog' | 'hardware' | 'qa';
@@ -104,7 +105,9 @@ export const Navigation: React.FC<NavigationProps> = ({ activeTab, setActiveTab,
         </nav>
       </div>
 
-      <div className="flex items-center space-x-4">
+      <div className="flex items-center space-x-3">
+        <AgentBeacon />
+
         <a
           href="/docs"
           target="_blank"

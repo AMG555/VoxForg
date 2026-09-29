@@ -604,3 +604,42 @@ export const DEFAULT_STUDIO_MASTERING: StudioMasteringConfig = {
   makeupGainDb: 2.0,
   humanizeCadence: true,
 };
+
+/**
+ * Global AudioContext watchdog to prevent browser suspension when window is backgrounded.
+ * Fixes Voicebox issue #41 where WebAudio context permanently pauses.
+ */
+let sharedAudioContext: AudioContext | null = null;
+let watchdogInitialized = false;
+
+export function getSafeAudioContext(sampleRate = 24000): AudioContext {
+  if (!sharedAudioContext || sharedAudioContext.state === 'closed') {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    sharedAudioContext = new AudioCtx({ sampleRate });
+  }
+
+  if (!watchdogInitialized && typeof window !== 'undefined') {
+    watchdogInitialized = true;
+
+    const resumeContext = () => {
+      if (sharedAudioContext && sharedAudioContext.state === 'suspended') {
+        sharedAudioContext.resume().catch(() => {});
+      }
+    };
+
+    window.addEventListener('click', resumeContext, { passive: true });
+    window.addEventListener('keydown', resumeContext, { passive: true });
+    window.addEventListener('focus', resumeContext, { passive: true });
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) {
+        resumeContext();
+      }
+    });
+  }
+
+  if (sharedAudioContext.state === 'suspended') {
+    sharedAudioContext.resume().catch(() => {});
+  }
+
+  return sharedAudioContext;
+}
