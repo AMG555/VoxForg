@@ -27,7 +27,8 @@ impl VocalChorus {
 
         let base_delay_ms = 10.0f32;
         let max_delay_ms = base_delay_ms + depth_ms.clamp(0.5, 15.0);
-        let max_delay_samples = ((sample_rate as f32) * (max_delay_ms / 1000.0)).ceil() as usize + 2;
+        let max_delay_samples =
+            ((sample_rate as f32) * (max_delay_ms / 1000.0)).ceil() as usize + 2;
 
         let base_delay_samples = (sample_rate as f32) * (base_delay_ms / 1000.0);
         let mod_depth_samples = (sample_rate as f32) * (depth_ms.clamp(0.5, 15.0) / 1000.0);
@@ -49,7 +50,9 @@ impl VocalChorus {
             let mod_delay = base_delay_samples + (lfo_phase.sin() * mod_depth_samples);
             let read_pos = (write_idx as f32) - mod_delay;
             let read_pos_wrapped = if read_pos < 0.0 {
-                read_pos + (max_delay_samples as f32) * ((-read_pos / max_delay_samples as f32).ceil() + 1.0)
+                read_pos
+                    + (max_delay_samples as f32)
+                        * ((-read_pos / max_delay_samples as f32).ceil() + 1.0)
             } else {
                 read_pos
             } % (max_delay_samples as f32);

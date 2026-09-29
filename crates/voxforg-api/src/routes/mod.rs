@@ -99,7 +99,10 @@ pub fn build_api_router() -> Router<AppState> {
             post(catalog::install_catalog_model),
         )
         // Model Context Protocol (MCP) Streamable HTTP + SSE Server
-        .route("/mcp", post(mcp_http::handle_mcp_post).get(mcp_http::handle_mcp_sse))
+        .route(
+            "/mcp",
+            post(mcp_http::handle_mcp_post).get(mcp_http::handle_mcp_sse),
+        )
         // Verbal Filler & Hallucination Refinement Engine
         .route("/v1/audio/refine", post(refine::refine_text))
 }

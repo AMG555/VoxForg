@@ -376,7 +376,11 @@ pub async fn synthesize_speech(
                     pcm_chunks.remove(0)
                 } else {
                     let slices: Vec<&[i16]> = pcm_chunks.iter().map(|v| v.as_slice()).collect();
-                    AudioMerger::concatenate_with_equal_power_crossfade(&slices, sample_rate, crossfade_ms)
+                    AudioMerger::concatenate_with_equal_power_crossfade(
+                        &slices,
+                        sample_rate,
+                        crossfade_ms,
+                    )
                 };
 
                 let audio_chunk = AudioChunk {
@@ -418,7 +422,8 @@ pub async fn synthesize_speech(
                             .await
                             .map_err(|e| {
                                 let err = ProblemDetails {
-                                    problem_type: "https://voxforg.org/errors/synthesis-failure".to_string(),
+                                    problem_type: "https://voxforg.org/errors/synthesis-failure"
+                                        .to_string(),
                                     title: "Synthesis Error".to_string(),
                                     status: StatusCode::INTERNAL_SERVER_ERROR.as_u16(),
                                     detail: e.to_string(),
@@ -580,7 +585,6 @@ fn split_sentences(text: &str) -> Vec<String> {
         sentences
     }
 }
-
 
 pub async fn synthesize_speech_stream(
     State(state): State<AppState>,

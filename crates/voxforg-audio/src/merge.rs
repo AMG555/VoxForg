@@ -124,7 +124,8 @@ impl AudioMerger {
 
         let mut accumulated = chunks[0].to_vec();
         for &next_chunk in &chunks[1..] {
-            accumulated = Self::equal_power_crossfade(&accumulated, next_chunk, sample_rate, crossfade_ms);
+            accumulated =
+                Self::equal_power_crossfade(&accumulated, next_chunk, sample_rate, crossfade_ms);
         }
         accumulated
     }

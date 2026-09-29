@@ -131,7 +131,11 @@ pub async fn host_validation(
     req: Request,
     next: Next,
 ) -> Result<Response, (StatusCode, Json<ProblemDetails>)> {
-    if let Some(host) = req.headers().get(header::HOST).and_then(|h| h.to_str().ok()) {
+    if let Some(host) = req
+        .headers()
+        .get(header::HOST)
+        .and_then(|h| h.to_str().ok())
+    {
         let hostname = host.split(':').next().unwrap_or("").trim();
 
         let is_local = hostname == "localhost"

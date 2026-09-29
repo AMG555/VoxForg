@@ -56,7 +56,9 @@ pub fn parse_paralinguistic_text(input: &str) -> Vec<ParalinguisticSegment> {
                     segments.push(ParalinguisticSegment::Emotion(tag));
                 } else {
                     // Unrecognized tag: preserve as literal text
-                    segments.push(ParalinguisticSegment::Text(input[tag_start..=tag_end].to_string()));
+                    segments.push(ParalinguisticSegment::Text(
+                        input[tag_start..=tag_end].to_string(),
+                    ));
                 }
                 cursor = tag_end + 1;
             } else {
@@ -96,7 +98,10 @@ fn parse_tag(tag_str: &str) -> Option<ParalinguisticTag> {
             if let Some(ms_str) = param.strip_suffix("ms") {
                 ms_str.parse::<u32>().ok().map(ParalinguisticTag::PauseMs)
             } else if let Some(s_str) = param.strip_suffix('s') {
-                s_str.parse::<f32>().ok().map(|sec| ParalinguisticTag::PauseMs((sec * 1000.0) as u32))
+                s_str
+                    .parse::<f32>()
+                    .ok()
+                    .map(|sec| ParalinguisticTag::PauseMs((sec * 1000.0) as u32))
             } else {
                 param.parse::<u32>().ok().map(ParalinguisticTag::PauseMs)
             }
@@ -126,7 +131,7 @@ impl ParalinguisticSynthesizer {
 
                 for i in 0..sample_count {
                     let t = i as f32 / sample_count as f32; // 0.0 to 1.0
-                    // Inhalation envelope: exponential rise, quick release
+                                                            // Inhalation envelope: exponential rise, quick release
                     let env = (t * PI * 0.5).sin().powf(2.0) * (1.0 - t).clamp(0.0, 1.0).powf(0.5);
                     // Filtered noise
                     rng = rng.wrapping_mul(1664525).wrapping_add(1013904223);
@@ -154,7 +159,8 @@ impl ParalinguisticSynthesizer {
                     };
                     rng = rng.wrapping_mul(1664525).wrapping_add(1013904223);
                     let breath = ((rng as f32 / 4294967296.0) * 2.0 - 1.0) * 0.5;
-                    let low_body = ((i as f32 / sample_rate as f32) * 220.0 * 2.0 * PI).sin() * 0.25;
+                    let low_body =
+                        ((i as f32 / sample_rate as f32) * 220.0 * 2.0 * PI).sin() * 0.25;
                     let sample = ((breath + low_body) * env * 9500.0) as i16;
                     pcm.push(sample);
                 }
@@ -172,8 +178,8 @@ impl ParalinguisticSynthesizer {
                     let pulse_env = (t * 8.0 * PI).sin().abs().powf(3.0);
                     let decay = (1.0 - (i as f32 / sample_count as f32)).powf(0.8);
                     let f0 = 180.0 + (t * 40.0).sin() * 20.0;
-                    let tone = (t * f0 * 2.0 * PI).sin() * 0.6
-                        + (t * f0 * 2.0 * 2.0 * PI).sin() * 0.3;
+                    let tone =
+                        (t * f0 * 2.0 * PI).sin() * 0.6 + (t * f0 * 2.0 * 2.0 * PI).sin() * 0.3;
                     let sample = (tone * pulse_env * decay * 11000.0) as i16;
                     pcm.push(sample);
                 }
@@ -285,11 +291,26 @@ mod tests {
         let input = "Hello world! [laugh] That was funny. [sigh] Moving on.";
         let segments = parse_paralinguistic_text(input);
         assert_eq!(segments.len(), 5);
-        assert_eq!(segments[0], ParalinguisticSegment::Text("Hello world!".into()));
-        assert_eq!(segments[1], ParalinguisticSegment::Emotion(ParalinguisticTag::Laugh));
-        assert_eq!(segments[2], ParalinguisticSegment::Text("That was funny.".into()));
-        assert_eq!(segments[3], ParalinguisticSegment::Emotion(ParalinguisticTag::Sigh));
-        assert_eq!(segments[4], ParalinguisticSegment::Text("Moving on.".into()));
+        assert_eq!(
+            segments[0],
+            ParalinguisticSegment::Text("Hello world!".into())
+        );
+        assert_eq!(
+            segments[1],
+            ParalinguisticSegment::Emotion(ParalinguisticTag::Laugh)
+        );
+        assert_eq!(
+            segments[2],
+            ParalinguisticSegment::Text("That was funny.".into())
+        );
+        assert_eq!(
+            segments[3],
+            ParalinguisticSegment::Emotion(ParalinguisticTag::Sigh)
+        );
+        assert_eq!(
+            segments[4],
+            ParalinguisticSegment::Text("Moving on.".into())
+        );
     }
 
     #[test]
@@ -301,7 +322,8 @@ mod tests {
         let sigh = ParalinguisticSynthesizer::synthesize_event(ParalinguisticTag::Sigh, 24000);
         assert!(!sigh.is_empty());
 
-        let pause = ParalinguisticSynthesizer::synthesize_event(ParalinguisticTag::PauseMs(250), 24000);
+        let pause =
+            ParalinguisticSynthesizer::synthesize_event(ParalinguisticTag::PauseMs(250), 24000);
         assert_eq!(pause.len(), 6000);
         assert!(pause.iter().all(|&s| s == 0));
     }

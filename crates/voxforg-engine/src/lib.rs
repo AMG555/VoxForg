@@ -486,7 +486,10 @@ mod tests {
             format: AudioContainerFormat::Wav,
         };
 
-        let chunk = engine.synthesize(&req).await.expect("Synthesis must succeed");
+        let chunk = engine
+            .synthesize(&req)
+            .await
+            .expect("Synthesis must succeed");
         assert_eq!(chunk.sample_rate, 24000);
         assert_eq!(chunk.channels, 1);
         assert!(!chunk.pcm_data.is_empty());

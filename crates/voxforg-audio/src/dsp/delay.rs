@@ -73,6 +73,9 @@ mod tests {
         let delay_ms = 50.0; // 50ms at 24kHz = 1200 samples
         EchoDelay::process(&mut samples, delay_ms, 0.5, 0.8, 1.0, 24000);
         // Delay hit should appear around index 1200
-        assert!(samples[1200].abs() > 5000, "Echo must create delayed replica");
+        assert!(
+            samples[1200].abs() > 5000,
+            "Echo must create delayed replica"
+        );
     }
 }

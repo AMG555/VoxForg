@@ -59,11 +59,7 @@ pub async fn handle_mcp_post(
 pub async fn handle_mcp_sse(
     State(_state): State<AppState>,
 ) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
-    let stream = stream::once(async {
-        Ok(Event::default()
-            .event("endpoint")
-            .data("/mcp"))
-    });
+    let stream = stream::once(async { Ok(Event::default().event("endpoint").data("/mcp")) });
 
     Sse::new(stream).keep_alive(KeepAlive::default())
 }

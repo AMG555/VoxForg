@@ -138,6 +138,9 @@ mod tests {
         samples[0] = 30000;
         AlgorithmicReverb::process(&mut samples, 0.8, 0.2, 0.5, 1.0, 24000);
         let tail_energy: i64 = samples[500..1500].iter().map(|&s| s.abs() as i64).sum();
-        assert!(tail_energy > 0, "Reverb must produce audible reflection decay tail");
+        assert!(
+            tail_energy > 0,
+            "Reverb must produce audible reflection decay tail"
+        );
     }
 }
