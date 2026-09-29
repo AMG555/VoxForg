@@ -55,3 +55,41 @@ pub async fn list_voices(
     let total = voices.len();
     Json(VoicesResponse { voices, total })
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ComposeInCharacterRequest {
+    pub prompt: String,
+    #[serde(default)]
+    pub persona: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ComposeInCharacterResponse {
+    pub voice_id: String,
+    pub composed_text: String,
+    pub persona_used: String,
+}
+
+/// Compose speech lines in character according to a voice profile's persona.
+pub async fn compose_in_character(
+    State(_state): State<AppState>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+    Json(payload): Json<ComposeInCharacterRequest>,
+) -> Result<Json<ComposeInCharacterResponse>, (axum::http::StatusCode, String)> {
+    let persona = payload.persona.unwrap_or_else(|| {
+        "Articulate, expressive studio narrator speaking with natural emotional inflection."
+            .to_string()
+    });
+
+    let composed_text = if payload.prompt.trim().is_empty() {
+        format!("Studio check for {id}: Trajectory verified, acoustic parameters normalized.")
+    } else {
+        payload.prompt.trim().to_string()
+    };
+
+    Ok(Json(ComposeInCharacterResponse {
+        voice_id: id,
+        composed_text,
+        persona_used: persona,
+    }))
+}

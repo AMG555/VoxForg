@@ -1,11 +1,11 @@
 import React from 'react';
-import { Activity, Cpu, GitFork, Layers, Mic, Scale, LayoutGrid } from 'lucide-react';
+import { Activity, Cpu, GitFork, Layers, Mic, Scale, LayoutGrid, Music2 } from 'lucide-react';
 import { HardwareInfo } from '../types';
 import { Logo } from './common/Logo';
 
 interface NavigationProps {
-  activeTab: 'workflows' | 'canvas' | 'voices' | 'catalog' | 'hardware' | 'qa';
-  setActiveTab: (tab: 'workflows' | 'canvas' | 'voices' | 'catalog' | 'hardware' | 'qa') => void;
+  activeTab: 'workflows' | 'canvas' | 'timeline' | 'voices' | 'catalog' | 'hardware' | 'qa';
+  setActiveTab: (tab: 'workflows' | 'canvas' | 'timeline' | 'voices' | 'catalog' | 'hardware' | 'qa') => void;
   hardware: HardwareInfo | null;
 }
 
@@ -39,6 +39,19 @@ export const Navigation: React.FC<NavigationProps> = ({ activeTab, setActiveTab,
           >
             <GitFork className="w-3.5 h-3.5" />
             <span>Pipeline Canvas</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('timeline')}
+            className={`flex items-center space-x-2 px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+              activeTab === 'timeline'
+                ? 'bg-[#1A222D] text-white border border-[#3B485C]'
+                : 'text-[#94A3B8] hover:text-white hover:bg-[#1A222D]/50'
+            }`}
+            title="Stories Multi-Track Timeline (DAW)"
+          >
+            <Music2 className="w-3.5 h-3.5 text-amber-400" />
+            <span>Stories Timeline</span>
           </button>
 
           <button

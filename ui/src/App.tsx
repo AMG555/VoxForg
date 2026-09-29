@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Navigation } from './components/Navigation';
 import { WorkflowsDashboard } from './components/workflows/WorkflowsDashboard';
 import { PipelineCanvas } from './components/canvas/PipelineCanvas';
+import { MultiTrackTimeline } from './components/timeline/MultiTrackTimeline';
 import { VoiceLab } from './components/voices/VoiceLab';
 import { HardwareInspector } from './components/telemetry/HardwareInspector';
 import { AbTestLab } from './components/qa/AbTestLab';
@@ -11,7 +12,7 @@ import { api } from './services/api';
 import { WorkflowStorage } from './services/workflowStorage';
 
 export const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'workflows' | 'canvas' | 'voices' | 'catalog' | 'hardware' | 'qa'>('workflows');
+  const [activeTab, setActiveTab] = useState<'workflows' | 'canvas' | 'timeline' | 'voices' | 'catalog' | 'hardware' | 'qa'>('workflows');
   const [activeWorkflowId, setActiveWorkflowId] = useState<string>(() => WorkflowStorage.getActiveWorkflowId());
   const [hardware, setHardware] = useState<HardwareInfo | null>(null);
   const [voices, setVoices] = useState<Voice[]>([]);
@@ -226,6 +227,7 @@ export const App: React.FC = () => {
             onBackToWorkflows={() => setActiveTab('workflows')}
           />
         )}
+        {activeTab === 'timeline' && <MultiTrackTimeline voices={voices} />}
         {activeTab === 'voices' && <VoiceLab voices={voices} onVoiceCreated={handleVoiceCreated} />}
         {activeTab === 'catalog' && <ModelCatalog />}
         {activeTab === 'hardware' && <HardwareInspector hardware={hardware} onNavigateTab={setActiveTab} />}
