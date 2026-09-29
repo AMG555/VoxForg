@@ -579,8 +579,8 @@ mod tests {
         let state = setup_test_state(None).await;
         let app = create_app(state);
 
-        // Input exceeding 10,000 chars should return 422
-        let huge_text = "a".repeat(10_001);
+        // Input exceeding 50,000 chars should return 422
+        let huge_text = "a".repeat(50_001);
         let payload = serde_json::json!({
             "model": "mock-tts",
             "voice": "mock-en-female",
