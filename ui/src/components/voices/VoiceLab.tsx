@@ -55,6 +55,21 @@ import {
   transliterateToNativeScript,
 } from '../../services/transliterateService';
 
+export interface VoiceTake {
+  id: string;
+  takeNumber: number;
+  timestamp: string;
+  voiceName: string;
+  voiceId: string;
+  text: string;
+  audioUrl: string;
+  blob: Blob;
+  effectsApplied: boolean;
+  speed: number;
+  pitch: number;
+  instruct?: string;
+}
+
 interface VoiceLabProps {
   voices: Voice[];
   onVoiceCreated?: (voice: Voice) => void;
@@ -71,11 +86,23 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated }) =>
   );
   const [speed, setSpeed] = useState<number>(1.0);
   const [pitch, setPitch] = useState<number>(0.0);
+  const [instruct, setInstruct] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Takes & Provenance Reel state
+  const [takes, setTakes] = useState<VoiceTake[]>([]);
+  const [activeTakeId, setActiveTakeId] = useState<string | null>(null);
+
+  const handleInsertTag = (tag: string) => {
+    setText((prev) => {
+      const trimmed = prev.trimEnd();
+      return trimmed ? `${trimmed} ${tag} ` : `${tag} `;
+    });
+  };
 
   // Pro Studio Audio Mastering and Cadence Humanizer state
   const [studioMode, setStudioMode] = useState<boolean>(() => {
@@ -490,6 +517,7 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated }) =>
           voice: voiceToSynthesize,
           speed,
           pitch,
+          instruct: instruct.trim() || undefined,
         });
       } catch (backendErr) {
         console.warn('Backend synthesis unreachable; falling back to studio reference synthesis sample:', backendErr);
@@ -509,6 +537,23 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated }) =>
 
       const url = URL.createObjectURL(blob);
       setAudioUrl(url);
+
+      const newTake: VoiceTake = {
+        id: `take_${Date.now()}`,
+        takeNumber: takes.length + 1,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+        voiceName: selectedVoice?.name || voiceToSynthesize,
+        voiceId: voiceToSynthesize,
+        text: promptText,
+        audioUrl: url,
+        blob,
+        effectsApplied: studioMode && studioConfig.enabled,
+        speed,
+        pitch,
+        instruct: instruct.trim() || undefined,
+      };
+      setTakes((prev) => [newTake, ...prev]);
+      setActiveTakeId(newTake.id);
     } catch (err: any) {
       console.error('Synthesis error:', err);
     } finally {
@@ -1214,6 +1259,83 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated }) =>
               </div>
             )}
 
+            {/* Paralinguistic Emotion & Vocal Expression Tags */}
+            <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-lg bg-[#0E131A] border border-[#242E3D]">
+              <div className="flex items-center space-x-1.5 text-[11px] font-mono text-[#94A3B8]">
+                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                <span>Paralinguistic Emotion Tags:</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {[
+                  { tag: '[laugh]', label: '😄 laugh' },
+                  { tag: '[chuckle]', label: '🤭 chuckle' },
+                  { tag: '[gasp]', label: '😮 gasp' },
+                  { tag: '[sigh]', label: '😮‍💨 sigh' },
+                  { tag: '[cough]', label: '😷 cough' },
+                  { tag: '[groan]', label: '😫 groan' },
+                  { tag: '[sniff]', label: '👃 sniff' },
+                  { tag: '[clear throat]', label: '🗣️ clear throat' },
+                ].map((item) => (
+                  <button
+                    key={item.tag}
+                    type="button"
+                    onClick={() => handleInsertTag(item.tag)}
+                    className="px-2 py-1 rounded bg-[#161D26] hover:bg-amber-500/20 text-[#CBD5E1] hover:text-amber-300 border border-[#242E3D] hover:border-amber-500/40 text-[10px] font-mono transition-colors shadow-sm"
+                    title={`Insert ${item.tag} into speech prompt`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Natural Language Instruct & Delivery Style Steering */}
+            <div className="p-3 rounded-lg bg-[#0E131A] border border-[#242E3D] space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-mono uppercase text-[#94A3B8] flex items-center space-x-1.5">
+                  <Sliders className="w-3.5 h-3.5 text-sky-400" />
+                  <span>Delivery Instruct / Prosody Steering</span>
+                </span>
+                <span className="text-[10px] text-[#64748B] font-mono">Qwen CustomVoice / TADA / Expressive</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <input
+                  type="text"
+                  value={instruct}
+                  onChange={(e) => setInstruct(e.target.value)}
+                  placeholder="e.g. whisper quietly in an intimate tone, urgent fast-paced delivery, cheerful and smiling..."
+                  className="flex-1 bg-[#121820] border border-[#242E3D] rounded px-3 py-1.5 text-xs text-white placeholder-[#64748B] font-mono focus:border-sky-500 focus:outline-none"
+                />
+                {instruct && (
+                  <button
+                    type="button"
+                    onClick={() => setInstruct('')}
+                    className="text-[#64748B] hover:text-white text-xs px-2 font-mono"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {[
+                  { label: 'Whisper', val: 'whisper quietly in an intimate tone' },
+                  { label: 'Urgent', val: 'urgent, fast-paced and high energy' },
+                  { label: 'Cheerful', val: 'cheerful, warm and enthusiastic' },
+                  { label: 'Storyteller', val: 'expressive, theatrical storytelling' },
+                  { label: 'Authoritative', val: 'authoritative, clear, professional broadcast' },
+                ].map((preset) => (
+                  <button
+                    key={preset.label}
+                    type="button"
+                    onClick={() => setInstruct(preset.val)}
+                    className="px-2 py-0.5 rounded text-[10px] font-mono bg-[#161D26] hover:bg-sky-500/20 text-[#94A3B8] hover:text-sky-300 border border-[#242E3D] hover:border-sky-500/30 transition-colors"
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <textarea
               rows={4}
               value={text}
@@ -1882,6 +2004,118 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated }) =>
                 audioElement={audioRef.current}
                 isPlaying={isPlaying}
               />
+            )}
+
+            {/* Takes & Provenance Audition Reel */}
+            {takes.length > 0 && (
+              <div className="rounded-xl bg-[#0D1219] border border-[#242E3D] overflow-hidden shadow-xl space-y-0 animate-in fade-in duration-150">
+                <div className="bg-[#121820] border-b border-[#242E3D] px-4 py-2.5 flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    <span className="text-xs font-bold text-white font-mono uppercase tracking-wider">
+                      Takes & Provenance Reel ({takes.length})
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      takes.forEach((t) => URL.revokeObjectURL(t.audioUrl));
+                      setTakes([]);
+                      setActiveTakeId(null);
+                    }}
+                    className="text-[11px] font-mono text-[#64748B] hover:text-red-400 transition-colors flex items-center space-x-1"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    <span>Clear All Takes</span>
+                  </button>
+                </div>
+
+                <div className="divide-y divide-[#242E3D] max-h-72 overflow-y-auto">
+                  {takes.map((take) => {
+                    const isActive = activeTakeId === take.id;
+                    return (
+                      <div
+                        key={take.id}
+                        className={`p-3.5 flex flex-wrap items-center justify-between gap-3 transition-colors ${
+                          isActive ? 'bg-amber-500/10 border-l-2 border-amber-500' : 'hover:bg-[#121820]/70'
+                        }`}
+                      >
+                        <div className="space-y-1 max-w-md">
+                          <div className="flex items-center space-x-2">
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-[#1A222D] text-amber-400 border border-[#242E3D]">
+                              Take #{take.takeNumber}
+                            </span>
+                            <span className="text-[11px] text-[#94A3B8] font-mono">{take.timestamp}</span>
+                            <span className="text-xs font-semibold text-white truncate max-w-[140px]">
+                              {take.voiceName}
+                            </span>
+                            {take.effectsApplied && (
+                              <span className="text-[9px] font-mono px-1 py-0.2 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                                DSP MASTERED
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-[#CBD5E1] line-clamp-1 italic">
+                            "{take.text}"
+                          </p>
+                          {take.instruct && (
+                            <span className="inline-block text-[10px] font-mono text-sky-400 bg-sky-500/10 px-1.5 py-0.5 rounded border border-sky-500/20">
+                              Instruct: {take.instruct}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center space-x-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveTakeId(take.id);
+                              setAudioUrl(take.audioUrl);
+                              if (audioRef.current) {
+                                audioRef.current.src = take.audioUrl;
+                                audioRef.current.play().catch(() => {});
+                                setIsPlaying(true);
+                              }
+                            }}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-mono font-semibold flex items-center space-x-1.5 transition-colors ${
+                              isActive
+                                ? 'bg-amber-500 text-black shadow'
+                                : 'bg-[#1A222D] hover:bg-[#242E3D] text-white border border-[#242E3D]'
+                            }`}
+                          >
+                            <Play className="w-3.5 h-3.5 fill-current" />
+                            <span>{isActive ? 'Active Take' : 'Audition'}</span>
+                          </button>
+
+                          <a
+                            href={take.audioUrl}
+                            download={`voxforg_take_${take.takeNumber}_${take.voiceId}.wav`}
+                            className="p-1.5 rounded-lg bg-[#1A222D] hover:bg-[#242E3D] text-[#94A3B8] hover:text-white border border-[#242E3D] transition-colors"
+                            title="Download Take WAV"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                          </a>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              URL.revokeObjectURL(take.audioUrl);
+                              setTakes((prev) => prev.filter((t) => t.id !== take.id));
+                              if (activeTakeId === take.id) {
+                                setActiveTakeId(null);
+                              }
+                            }}
+                            className="p-1.5 rounded-lg text-[#64748B] hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                            title="Delete Take"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             )}
           </div>
         </div>

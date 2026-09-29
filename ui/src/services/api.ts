@@ -55,6 +55,8 @@ export const api = {
     model?: string;
     speed?: number;
     pitch?: number;
+    instruct?: string;
+    crossfade_ms?: number;
   }): Promise<Blob> {
     const res = await fetch(`${BASE_URL}/v1/audio/speech`, {
       method: 'POST',
@@ -65,6 +67,8 @@ export const api = {
         voice: options.voice,
         speed: options.speed ?? 1.0,
         pitch: options.pitch ?? 0.0,
+        instruct: options.instruct,
+        crossfade_ms: options.crossfade_ms,
         response_format: 'wav',
       }),
     });

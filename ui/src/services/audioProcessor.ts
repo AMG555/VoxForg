@@ -516,7 +516,44 @@ export class AudioProcessor {
     lastNode.connect(compressor);
     lastNode = compressor;
 
-    // 6. Makeup Gain
+    // 6. Algorithmic Room Reverb (Convolver)
+    if (config.roomReverb && config.roomReverb !== 'dry' && config.reverbMix > 0) {
+      const decaySec =
+        config.roomReverb === 'booth'
+          ? 0.35
+          : config.roomReverb === 'podcast'
+          ? 0.7
+          : config.roomReverb === 'broadcast'
+          ? 1.2
+          : 2.4;
+      const irLen = Math.floor(sampleRate * decaySec);
+      const impulseBuffer = offlineCtx.createBuffer(1, irLen, sampleRate);
+      const irData = impulseBuffer.getChannelData(0);
+      for (let i = 0; i < irLen; i++) {
+        const decay = Math.exp(-3.5 * (i / irLen));
+        irData[i] = (Math.random() * 2 - 1) * decay;
+      }
+      const convolver = offlineCtx.createConvolver();
+      convolver.buffer = impulseBuffer;
+
+      const dryGain = offlineCtx.createGain();
+      const wetGain = offlineCtx.createGain();
+      const wetRatio = Math.min(1.0, config.reverbMix / 100);
+      dryGain.gain.value = 1.0 - wetRatio * 0.4;
+      wetGain.gain.value = wetRatio * 0.8;
+
+      const merger = offlineCtx.createGain();
+      lastNode.connect(dryGain);
+      dryGain.connect(merger);
+
+      lastNode.connect(convolver);
+      convolver.connect(wetGain);
+      wetGain.connect(merger);
+
+      lastNode = merger;
+    }
+
+    // 7. Makeup Gain
     if (config.makeupGainDb !== 0) {
       const gainNode = offlineCtx.createGain();
       gainNode.gain.value = Math.pow(10, config.makeupGainDb / 20);
