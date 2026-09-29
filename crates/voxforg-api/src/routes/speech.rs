@@ -15,7 +15,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tracing::warn;
 
-use voxforg_audio::{AudioMerger, WavEncoder};
+use voxforg_audio::{
+    has_paralinguistic_tags, parse_paralinguistic_text, AudioMerger, ParalinguisticSegment,
+    ParalinguisticSynthesizer, WavEncoder,
+};
 use voxforg_core::error::ProblemDetails;
 use voxforg_core::models::{AudioChunk, AudioContainerFormat, Voice};
 use voxforg_engine::{SynthesisRequest, TtsEngine};
@@ -387,7 +390,6 @@ pub async fn synthesize_speech(
     }
 
     let (engine, voice) = resolve_engine_and_voice(&state, &payload).await?;
-    let chunks = split_text_into_chunks(&payload.input, 800);
     let crossfade_ms = payload.crossfade_ms.unwrap_or(30);
 
     let start = std::time::Instant::now();
@@ -395,36 +397,83 @@ pub async fn synthesize_speech(
     let mut sample_rate = voice.sample_rate_hz;
     let mut channels = 1;
 
-    for chunk_text in chunks {
-        let synth_req = SynthesisRequest {
-            text: state.pronunciation.process(&chunk_text),
-            voice_id: voice.id.clone(),
-            speed: payload.speed,
-            pitch: payload.pitch.unwrap_or(0.0),
-            format: payload.response_format,
-        };
+    if has_paralinguistic_tags(&payload.input) {
+        let segments = parse_paralinguistic_text(&payload.input);
+        for seg in segments {
+            match seg {
+                ParalinguisticSegment::Text(text) => {
+                    let chunks = split_text_into_chunks(&text, 800);
+                    for chunk_text in chunks {
+                        let synth_req = SynthesisRequest {
+                            text: state.pronunciation.process(&chunk_text),
+                            voice_id: voice.id.clone(),
+                            speed: payload.speed,
+                            pitch: payload.pitch.unwrap_or(0.0),
+                            format: payload.response_format,
+                        };
 
-        let chunk = state
-            .engine_registry
-            .synthesize_cached(engine.clone(), &synth_req)
-            .await
-            .map_err(|e| {
-                let err = ProblemDetails {
-                    problem_type: "https://voxforg.org/errors/synthesis-failure".to_string(),
-                    title: "Synthesis Error".to_string(),
-                    status: StatusCode::INTERNAL_SERVER_ERROR.as_u16(),
-                    detail: e.to_string(),
-                    instance: "/v1/audio/speech".to_string(),
-                };
-                (StatusCode::INTERNAL_SERVER_ERROR, Json(err))
-            })?;
-        sample_rate = chunk.sample_rate;
-        channels = chunk.channels;
-        pcm_chunks.push(chunk.pcm_data);
+                        let chunk = state
+                            .engine_registry
+                            .synthesize_cached(engine.clone(), &synth_req)
+                            .await
+                            .map_err(|e| {
+                                let err = ProblemDetails {
+                                    problem_type: "https://voxforg.org/errors/synthesis-failure".to_string(),
+                                    title: "Synthesis Error".to_string(),
+                                    status: StatusCode::INTERNAL_SERVER_ERROR.as_u16(),
+                                    detail: e.to_string(),
+                                    instance: "/v1/audio/speech".to_string(),
+                                };
+                                (StatusCode::INTERNAL_SERVER_ERROR, Json(err))
+                            })?;
+                        sample_rate = chunk.sample_rate;
+                        channels = chunk.channels;
+                        pcm_chunks.push(chunk.pcm_data);
+                    }
+                }
+                ParalinguisticSegment::Emotion(tag) => {
+                    let event_pcm = ParalinguisticSynthesizer::synthesize_event(tag, sample_rate);
+                    if !event_pcm.is_empty() {
+                        pcm_chunks.push(event_pcm);
+                    }
+                }
+            }
+        }
+    } else {
+        let chunks = split_text_into_chunks(&payload.input, 800);
+        for chunk_text in chunks {
+            let synth_req = SynthesisRequest {
+                text: state.pronunciation.process(&chunk_text),
+                voice_id: voice.id.clone(),
+                speed: payload.speed,
+                pitch: payload.pitch.unwrap_or(0.0),
+                format: payload.response_format,
+            };
+
+            let chunk = state
+                .engine_registry
+                .synthesize_cached(engine.clone(), &synth_req)
+                .await
+                .map_err(|e| {
+                    let err = ProblemDetails {
+                        problem_type: "https://voxforg.org/errors/synthesis-failure".to_string(),
+                        title: "Synthesis Error".to_string(),
+                        status: StatusCode::INTERNAL_SERVER_ERROR.as_u16(),
+                        detail: e.to_string(),
+                        instance: "/v1/audio/speech".to_string(),
+                    };
+                    (StatusCode::INTERNAL_SERVER_ERROR, Json(err))
+                })?;
+            sample_rate = chunk.sample_rate;
+            channels = chunk.channels;
+            pcm_chunks.push(chunk.pcm_data);
+        }
     }
 
     let final_pcm = if pcm_chunks.len() == 1 {
         pcm_chunks.remove(0)
+    } else if pcm_chunks.is_empty() {
+        Vec::new()
     } else {
         let slices: Vec<&[i16]> = pcm_chunks.iter().map(|v| v.as_slice()).collect();
         AudioMerger::concatenate_with_equal_power_crossfade(&slices, sample_rate, crossfade_ms)

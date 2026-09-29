@@ -3,6 +3,7 @@ pub mod media;
 pub mod merge;
 pub mod metrics;
 pub mod normalizer;
+pub mod paralinguistics;
 pub mod wav;
 
 pub use dsp::{
@@ -13,6 +14,10 @@ pub use media::MediaProcessor;
 pub use merge::AudioMerger;
 pub use metrics::{AudioAnalyzer, AudioQualityMetrics};
 pub use normalizer::AudioNormalizer;
+pub use paralinguistics::{
+    has_paralinguistic_tags, parse_paralinguistic_text, ParalinguisticSegment,
+    ParalinguisticSynthesizer, ParalinguisticTag,
+};
 pub use wav::WavEncoder;
 
 #[cfg(test)]

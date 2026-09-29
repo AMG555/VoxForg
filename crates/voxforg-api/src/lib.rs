@@ -181,6 +181,35 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_openai_speech_with_paralinguistic_emotion_tags() {
+        let state = setup_test_state(None).await;
+        let app = create_app(state);
+        let payload = serde_json::json!({
+            "model": "mock-tts",
+            "input": "That is incredible! [laugh] I really love it. [sigh] Goodbye.",
+            "voice": "mock-en-female",
+            "response_format": "wav",
+            "speed": 1.0,
+            "crossfade_ms": 25
+        });
+
+        let req = Request::builder()
+            .method("POST")
+            .uri("/v1/audio/speech")
+            .header("Content-Type", "application/json")
+            .body(Body::from(payload.to_string()))
+            .unwrap();
+
+        let res = app.oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(res.headers().get("content-type").unwrap(), "audio/wav");
+
+        let body = res.into_body().collect().await.unwrap().to_bytes();
+        assert!(body.len() > 100);
+        assert_eq!(&body[0..4], b"RIFF");
+    }
+
+    #[tokio::test]
     async fn test_openai_speech_empty_input_fails() {
         let state = setup_test_state(None).await;
         let app = create_app(state);
