@@ -1,6 +1,5 @@
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use tokio::sync::mpsc;
 use tracing::{debug, warn};
 use voxforg_core::error::{Result, VoxForgError};
@@ -156,7 +155,6 @@ pub struct KokoroTtsEngine {
     sample_rate: u32,
     endpoint_url: Option<String>,
     http_client: reqwest::Client,
-    voices_map: HashMap<String, KokoroVoiceDef>,
 }
 
 impl Default for KokoroTtsEngine {
@@ -172,11 +170,6 @@ impl KokoroTtsEngine {
             .or_else(|| std::env::var("KOKORO_API_URL").ok())
             .or_else(|| Some("http://127.0.0.1:8880".to_string()));
 
-        let mut voices_map = HashMap::new();
-        for def in KOKORO_VOICES {
-            voices_map.insert(def.id.to_string(), def.clone());
-        }
-
         Self {
             sample_rate: 24000,
             endpoint_url,
@@ -184,7 +177,6 @@ impl KokoroTtsEngine {
                 .timeout(std::time::Duration::from_secs(45))
                 .build()
                 .unwrap_or_default(),
-            voices_map,
         }
     }
 
@@ -194,6 +186,7 @@ impl KokoroTtsEngine {
     }
 
     /// Decode WAV or RAW PCM payload into 16-bit PCM samples.
+    #[allow(clippy::chunks_exact_to_as_chunks)]
     fn parse_audio_response(&self, bytes: &[u8]) -> Result<Vec<i16>> {
         if bytes.len() >= 44 && &bytes[0..4] == b"RIFF" && &bytes[8..12] == b"WAVE" {
             // Standard WAV format: find 'data' subchunk
@@ -309,7 +302,7 @@ impl TtsEngine for KokoroTtsEngine {
                 name: def.name.to_string(),
                 engine_id: "kokoro".to_string(),
                 language: def.language.to_string(),
-                gender: def.gender,
+                gender: def.gender.clone(),
                 sample_rate_hz: self.sample_rate,
                 tags: vec![
                     def.accent.to_string(),
