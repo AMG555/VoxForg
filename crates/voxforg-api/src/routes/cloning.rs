@@ -250,6 +250,7 @@ pub struct VoiceAudioAssessment {
     pub recommendations: Vec<String>,
 }
 
+#[allow(clippy::chunks_exact_to_as_chunks)]
 fn decode_b64_to_pcm(input: &str) -> Result<(Vec<i16>, u32, u16), String> {
     let clean = if let Some(idx) = input.find(',') {
         input[idx + 1..].trim()

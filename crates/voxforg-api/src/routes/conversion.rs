@@ -88,6 +88,7 @@ fn decode_b64(input: &str) -> Option<Vec<u8>> {
     }
 }
 
+#[allow(clippy::chunks_exact_to_as_chunks)]
 fn decode_audio(payload: &str) -> Result<(Vec<i16>, u32), String> {
     let clean = if let Some(idx) = payload.find(',') {
         payload[idx + 1..].trim()
