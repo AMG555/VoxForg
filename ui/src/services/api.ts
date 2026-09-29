@@ -219,4 +219,52 @@ export const api = {
     }
     return res.json();
   },
+
+  async speechToSpeech(payload: {
+    audio_base64: string;
+    target_voice: string;
+    speed?: number;
+    preserve_tempo?: boolean;
+  }): Promise<Blob> {
+    const res = await fetch(`${BASE_URL}/v1/audio/speech-to-speech`, {
+      method: 'POST',
+      headers: getHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({
+        audio_base64: payload.audio_base64,
+        target_voice: payload.target_voice,
+        speed: payload.speed ?? 1.0,
+        preserve_tempo: payload.preserve_tempo ?? true,
+        response_format: 'wav',
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Speech-to-Speech conversion failed' }));
+      throw new Error(err.detail || 'Speech-to-Speech conversion failed');
+    }
+    return res.blob();
+  },
+
+  async assessAudio(audio_base64: string): Promise<{
+    duration_seconds: number;
+    sample_rate: number;
+    channels: number;
+    peak_dbfs: number;
+    rms_dbfs: number;
+    snr_estimate_db: number;
+    clipping_detected: boolean;
+    is_silent: boolean;
+    clarity_rating: 'excellent' | 'good' | 'fair' | 'noisy';
+    recommendations: string[];
+  }> {
+    const res = await fetch(`${BASE_URL}/v1/voices/assess`, {
+      method: 'POST',
+      headers: getHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ audio_base64 }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Audio assessment failed' }));
+      throw new Error(err.detail || 'Audio assessment failed');
+    }
+    return res.json();
+  },
 };

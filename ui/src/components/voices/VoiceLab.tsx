@@ -93,6 +93,48 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated }) =>
   const [searchQuery, setSearchQuery] = useState<string>('');
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
+  // Studio Playground Mode: Text-to-Speech vs Voice Changer (Speech-to-Speech)
+  const [studioPlaygroundMode, setStudioPlaygroundMode] = useState<'tts' | 'sts'>('tts');
+
+  // Voicebox Karaoke Teleprompter state
+  const [teleprompterProgress, setTeleprompterProgress] = useState<number>(0);
+  const [teleprompterCurrentTime, setTeleprompterCurrentTime] = useState<number>(0);
+  const [teleprompterDuration, setTeleprompterDuration] = useState<number>(0);
+  const [spokenPrompt, setSpokenPrompt] = useState<string>(
+    'The atmospheric density on Kepler-452b allows acoustic waves to travel 1.4 times faster than standard Earth normal.'
+  );
+
+  // Speech-to-Speech Voice Conversion Studio State
+  const [stsIsRecording, setStsIsRecording] = useState<boolean>(false);
+  const [stsRecordingDuration, setStsRecordingDuration] = useState<number>(0);
+  const [stsAudioBlob, setStsAudioBlob] = useState<Blob | null>(null);
+  const [stsAudioUrl, setStsAudioUrl] = useState<string | null>(null);
+  const [stsInputBase64, setStsInputBase64] = useState<string>('');
+  const [stsInputFileName, setStsInputFileName] = useState<string>('');
+  const [stsIsConverting, setStsIsConverting] = useState<boolean>(false);
+  const [stsPreserveTempo, setStsPreserveTempo] = useState<boolean>(true);
+  const [stsSpeed, setStsSpeed] = useState<number>(1.0);
+  const [stsConvertedUrl, setStsConvertedUrl] = useState<string | null>(null);
+  const stsMediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const stsChunksRef = useRef<Blob[]>([]);
+  const stsTimerRef = useRef<any>(null);
+  const stsFileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Reference Audio Quality Assessment state
+  const [cloneAssessment, setCloneAssessment] = useState<{
+    duration_seconds: number;
+    sample_rate: number;
+    channels: number;
+    peak_dbfs: number;
+    rms_dbfs: number;
+    snr_estimate_db: number;
+    clipping_detected: boolean;
+    is_silent: boolean;
+    clarity_rating: 'excellent' | 'good' | 'fair' | 'noisy';
+    recommendations: string[];
+  } | null>(null);
+  const [isAssessingQuality, setIsAssessingQuality] = useState<boolean>(false);
+
   // Takes & Provenance Reel state
   const [takes, setTakes] = useState<VoiceTake[]>([]);
   const [activeTakeId, setActiveTakeId] = useState<string | null>(null);
@@ -537,6 +579,7 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated }) =>
 
       const url = URL.createObjectURL(blob);
       setAudioUrl(url);
+      setSpokenPrompt(promptText);
 
       const newTake: VoiceTake = {
         id: `take_${Date.now()}`,
@@ -586,6 +629,139 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated }) =>
       }
       setKeySaved(true);
       setTimeout(() => setKeySaved(false), 2500);
+    }
+  };
+
+  const assessReferenceClip = async (b64: string) => {
+    if (!b64 || b64.length < 50) {
+      setCloneAssessment(null);
+      return;
+    }
+    try {
+      setIsAssessingQuality(true);
+      const res = await api.assessAudio(b64);
+      setCloneAssessment(res);
+    } catch (err) {
+      console.warn('Reference audio quality assessment error:', err);
+    } finally {
+      setIsAssessingQuality(false);
+    }
+  };
+
+  const handleStartStsRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stsChunksRef.current = [];
+      const mr = new MediaRecorder(stream);
+      stsMediaRecorderRef.current = mr;
+
+      mr.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          stsChunksRef.current.push(e.data);
+        }
+      };
+
+      mr.onstop = () => {
+        const blob = new Blob(stsChunksRef.current, { type: mr.mimeType || 'audio/webm' });
+        if (stsAudioUrl) URL.revokeObjectURL(stsAudioUrl);
+        const url = URL.createObjectURL(blob);
+        setStsAudioBlob(blob);
+        setStsAudioUrl(url);
+        setStsInputFileName(`Microphone Sample (${stsRecordingDuration}s)`);
+
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const res = reader.result as string;
+          const b64 = res.includes(',') ? res.split(',')[1] : res;
+          setStsInputBase64(b64);
+        };
+        reader.readAsDataURL(blob);
+
+        stream.getTracks().forEach((t) => t.stop());
+      };
+
+      mr.start(250);
+      setStsIsRecording(true);
+      setStsRecordingDuration(0);
+      if (stsTimerRef.current) clearInterval(stsTimerRef.current);
+      stsTimerRef.current = setInterval(() => {
+        setStsRecordingDuration((prev) => prev + 1);
+      }, 1000);
+    } catch (err) {
+      console.error('Error starting STS microphone recording:', err);
+    }
+  };
+
+  const handleStopStsRecording = () => {
+    if (stsMediaRecorderRef.current && stsIsRecording) {
+      stsMediaRecorderRef.current.stop();
+      setStsIsRecording(false);
+      if (stsTimerRef.current) {
+        clearInterval(stsTimerRef.current);
+        stsTimerRef.current = null;
+      }
+    }
+  };
+
+  const handleStsFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (stsAudioUrl) URL.revokeObjectURL(stsAudioUrl);
+    const url = URL.createObjectURL(file);
+    setStsAudioBlob(file);
+    setStsAudioUrl(url);
+    setStsInputFileName(file.name);
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const res = reader.result as string;
+      const b64 = res.includes(',') ? res.split(',')[1] : res;
+      setStsInputBase64(b64);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleConvertVoice = async () => {
+    if (!stsInputBase64) return;
+    try {
+      setStsIsConverting(true);
+      if (stsConvertedUrl) {
+        URL.revokeObjectURL(stsConvertedUrl);
+        setStsConvertedUrl(null);
+      }
+
+      const blob = await api.speechToSpeech({
+        audio_base64: stsInputBase64,
+        target_voice: selectedVoiceId,
+        speed: stsSpeed,
+        preserve_tempo: stsPreserveTempo,
+      });
+
+      const url = URL.createObjectURL(blob);
+      setStsConvertedUrl(url);
+      setAudioUrl(url);
+      setSpokenPrompt(`[Voice Conversion to ${selectedVoice?.name || selectedVoiceId}]`);
+
+      const newTake: VoiceTake = {
+        id: `take_sts_${Date.now()}`,
+        takeNumber: takes.length + 1,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+        voiceName: `${selectedVoice?.name || selectedVoiceId} (STS)`,
+        voiceId: selectedVoiceId,
+        text: `[Voice Conversion from ${stsInputFileName || 'Input Audio'}]`,
+        audioUrl: url,
+        blob,
+        effectsApplied: false,
+        speed: stsSpeed,
+        pitch: 0,
+      };
+      setTakes((prev) => [newTake, ...prev]);
+      setActiveTakeId(newTake.id);
+    } catch (err: any) {
+      console.error('Speech-to-Speech conversion failed:', err);
+    } finally {
+      setStsIsConverting(false);
     }
   };
 
@@ -659,6 +835,7 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated }) =>
           const url = URL.createObjectURL(result.wavBlob);
           setRecordedAudioUrl(url);
           setCloneAudioBase64(result.wavBase64);
+          assessReferenceClip(result.wavBase64);
           setAudioQuality(result.metrics);
           setCloneFileName(`Enhanced Studio WAV (${result.durationFormatted})`);
         } catch {
@@ -670,6 +847,7 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated }) =>
             const base64data = reader.result as string;
             const base64 = base64data.includes(',') ? base64data.split(',')[1] : base64data;
             setCloneAudioBase64(base64);
+            assessReferenceClip(base64);
             setCloneFileName(`Microphone Sample (${recordingSeconds}s)`);
           };
           reader.readAsDataURL(rawBlob);
@@ -721,6 +899,7 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated }) =>
     }
     setRecordedAudioUrl(null);
     setCloneAudioBase64('');
+    setCloneAssessment(null);
     setCloneFileName('');
     setAudioQuality(null);
     setRecordingSeconds(0);
@@ -753,6 +932,7 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated }) =>
         if (recordedAudioUrl) URL.revokeObjectURL(recordedAudioUrl);
         setRecordedAudioUrl(URL.createObjectURL(result.wavBlob));
         setCloneAudioBase64(result.wavBase64);
+        assessReferenceClip(result.wavBase64);
         setAudioQuality(result.metrics);
         setCloneFileName(`${file.name} (Enhanced 24kHz Studio WAV)`);
       } catch {
@@ -761,6 +941,7 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated }) =>
           const result = reader.result as string;
           const base64 = result.includes(',') ? result.split(',')[1] : result;
           setCloneAudioBase64(base64);
+          assessReferenceClip(base64);
         };
         reader.readAsDataURL(file);
       }
@@ -832,6 +1013,7 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated }) =>
       if (recordedAudioUrl) URL.revokeObjectURL(recordedAudioUrl);
       setRecordedAudioUrl(URL.createObjectURL(demo.wavBlob));
       setCloneAudioBase64(demo.wavBase64);
+      assessReferenceClip(demo.wavBase64);
       setAudioQuality(demo.metrics);
       setCloneName(demo.name);
       setCloneTranscript(demo.transcript);
@@ -991,6 +1173,210 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated }) =>
               {selectedVoice && getEngineBadge(selectedVoice.engine_id)}
             </div>
           </div>
+
+          {/* Studio Playground Mode Switcher: TTS vs Voice Changer (Speech-to-Speech) */}
+          <div className="flex items-center justify-between p-1.5 bg-[#0D1219] border border-[#242E3D] rounded-xl shadow-lg">
+            <div className="flex items-center space-x-1.5">
+              <button
+                type="button"
+                onClick={() => setStudioPlaygroundMode('tts')}
+                className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  studioPlaygroundMode === 'tts'
+                    ? 'bg-amber-500 text-black shadow-md shadow-amber-500/20'
+                    : 'text-[#94A3B8] hover:text-white hover:bg-[#121820]'
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Text-to-Speech Studio</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setStudioPlaygroundMode('sts')}
+                className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  studioPlaygroundMode === 'sts'
+                    ? 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white shadow-md shadow-purple-500/30'
+                    : 'text-[#94A3B8] hover:text-white hover:bg-[#121820]'
+                }`}
+              >
+                <ArrowRightLeft className="w-3.5 h-3.5" />
+                <span>Voice Changer (Speech-to-Speech)</span>
+              </button>
+            </div>
+
+            <div className="hidden sm:flex items-center space-x-2 pr-2 text-[11px] font-mono text-[#64748B]">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span>Voicebox AI Studio Online</span>
+            </div>
+          </div>
+
+          {studioPlaygroundMode === 'sts' ? (
+            <div className="p-6 rounded-2xl bg-[#0D1219] border border-purple-500/30 space-y-6 shadow-2xl animate-in fade-in duration-200">
+              <div className="flex items-center justify-between border-b border-[#242E3D] pb-3">
+                <div className="flex items-center space-x-2.5">
+                  <span className="p-2 rounded-lg bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                    <ArrowRightLeft className="w-5 h-5" />
+                  </span>
+                  <div>
+                    <h3 className="text-sm font-bold text-white uppercase tracking-wider font-mono">
+                      Voice Changer Studio (Speech-to-Speech)
+                    </h3>
+                    <p className="text-xs text-[#94A3B8] mt-0.5">
+                      Record or upload speech to convert timbre and vocal characteristics into <strong>{selectedVoice?.name || 'Selected Voice'}</strong>.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <span className="px-2.5 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-300 text-[11px] font-mono font-medium">
+                    Zero-Latency Pipeline
+                  </span>
+                </div>
+              </div>
+
+              {/* Step 1: Input Audio */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Microphone Recording Card */}
+                <div className="p-4 rounded-xl bg-[#121820] border border-[#242E3D] flex flex-col justify-between space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-white font-mono flex items-center gap-1.5">
+                      <Mic className="w-4 h-4 text-purple-400" />
+                      <span>Live Microphone Input</span>
+                    </span>
+                    {stsIsRecording && (
+                      <span className="flex items-center space-x-1.5 text-rose-400 text-xs font-mono font-bold animate-pulse">
+                        <span className="w-2 h-2 rounded-full bg-rose-500" />
+                        <span>00:{stsRecordingDuration.toString().padStart(2, '0')}</span>
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-center py-2">
+                    {stsIsRecording ? (
+                      <button
+                        type="button"
+                        onClick={handleStopStsRecording}
+                        className="px-5 py-2.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-semibold text-xs flex items-center space-x-2 shadow-lg shadow-rose-500/30 transition-transform active:scale-95"
+                      >
+                        <Square className="w-4 h-4 fill-white" />
+                        <span>Stop Recording</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleStartStsRecording}
+                        className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-semibold text-xs flex items-center space-x-2 shadow-lg shadow-purple-500/30 transition-transform active:scale-95"
+                      >
+                        <Mic className="w-4 h-4" />
+                        <span>Record Microphone</span>
+                      </button>
+                    )}
+                  </div>
+
+                  <p className="text-[11px] text-[#64748B] text-center font-mono">
+                    Speak naturally. Speech pauses and dynamics are preserved.
+                  </p>
+                </div>
+
+                {/* File Upload Card */}
+                <div className="p-4 rounded-xl bg-[#121820] border border-[#242E3D] flex flex-col justify-between space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-white font-mono flex items-center gap-1.5">
+                      <Upload className="w-4 h-4 text-sky-400" />
+                      <span>Audio File Input</span>
+                    </span>
+                    <span className="text-[10px] text-[#64748B] font-mono">WAV, MP3, OGG, WEBM</span>
+                  </div>
+
+                  <div className="flex items-center justify-center py-2">
+                    <button
+                      type="button"
+                      onClick={() => stsFileInputRef.current?.click()}
+                      className="px-5 py-2.5 rounded-xl bg-[#1A222D] hover:bg-[#242E3D] text-white font-semibold text-xs flex items-center space-x-2 border border-[#242E3D] hover:border-sky-500/50 transition-colors shadow"
+                    >
+                      <FileUp className="w-4 h-4 text-sky-400" />
+                      <span>Select Audio File</span>
+                    </button>
+                    <input
+                      ref={stsFileInputRef}
+                      type="file"
+                      accept="audio/*"
+                      onChange={handleStsFileUpload}
+                      className="hidden"
+                    />
+                  </div>
+
+                  <p className="text-[11px] text-[#64748B] text-center font-mono truncate">
+                    {stsInputFileName || 'No input audio loaded yet'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Input Audio Preview Player */}
+              {stsAudioUrl && (
+                <div className="p-3 bg-[#121820] rounded-xl border border-[#242E3D] flex items-center justify-between gap-3">
+                  <div className="flex items-center space-x-2.5 truncate max-w-sm">
+                    <span className="w-2 h-2 rounded-full bg-purple-400" />
+                    <span className="text-xs text-white font-mono truncate">{stsInputFileName}</span>
+                  </div>
+                  <audio controls src={stsAudioUrl} className="h-8 w-64 rounded bg-[#0B0E14]" />
+                </div>
+              )}
+
+              {/* Controls: Speed & Tempo */}
+              <div className="p-4 bg-[#121820] rounded-xl border border-[#242E3D] grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-mono">
+                <div>
+                  <div className="flex justify-between text-[#94A3B8] mb-1">
+                    <span>Target Voice Playback Speed:</span>
+                    <strong className="text-white">{stsSpeed.toFixed(2)}x</strong>
+                  </div>
+                  <input
+                    type="range"
+                    min="0.6"
+                    max="1.8"
+                    step="0.05"
+                    value={stsSpeed}
+                    onChange={(e) => setStsSpeed(parseFloat(e.target.value))}
+                    className="w-full accent-purple-500"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between sm:justify-end sm:space-x-4">
+                  <label className="flex items-center space-x-2 text-[#CBD5E1] cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={stsPreserveTempo}
+                      onChange={(e) => setStsPreserveTempo(e.target.checked)}
+                      className="accent-purple-500 w-4 h-4"
+                    />
+                    <span>Preserve Natural Speech Tempo</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Action Button */}
+              <div className="flex items-center space-x-4 pt-2">
+                <button
+                  type="button"
+                  onClick={handleConvertVoice}
+                  disabled={!stsInputBase64 || stsIsConverting}
+                  className="flex items-center space-x-2 px-6 py-3 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs transition-all shadow-lg shadow-purple-600/30 disabled:opacity-50 active:scale-95"
+                >
+                  {stsIsConverting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Converting Voice via Neural STS...</span>
+                    </>
+                  ) : (
+                    <>
+                      <ArrowRightLeft className="w-4 h-4" />
+                      <span>Convert Voice to {selectedVoice?.name || 'Target Voice'}</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
 
           {presetUploadStatus && (
             <div className="p-3 rounded-lg bg-sky-500/15 border border-sky-500/30 text-sky-300 text-xs font-mono flex items-center justify-between animate-in fade-in duration-150">
@@ -1955,56 +2341,142 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated }) =>
           )}
 
           <div className="space-y-4">
-            {canGenerate ? (
-              <div className="flex items-center space-x-4">
-                <button
-                  onClick={handleGenerate}
-                  disabled={isGenerating}
-                  className="flex items-center space-x-2 px-5 py-2.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-semibold text-xs transition-colors shadow-lg shadow-amber-500/20 disabled:opacity-50"
-                >
-                  {isGenerating ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Synthesizing...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Play className="w-4 h-4 fill-black" />
-                      <span>Generate Audio</span>
-                    </>
-                  )}
-                </button>
-
-                {audioUrl && (
-                  <audio
-                    ref={audioRef}
-                    controls
-                    src={audioUrl}
-                    onPlay={() => setIsPlaying(true)}
-                    onPause={() => setIsPlaying(false)}
-                    onEnded={() => setIsPlaying(false)}
-                    className="h-10 w-96 rounded-lg bg-[#121820]"
-                  />
-                )}
-              </div>
-            ) : (
-              <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-start space-x-3 text-xs text-amber-300 font-mono">
-                <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-                <div>
-                  <div className="font-semibold text-white">Generate Audio Hidden: Router Setup Required</div>
-                  <div className="text-[11px] text-[#94A3B8] mt-1 leading-relaxed">
-                    This voice routes through an external API. Add your working API key and exact Model ID in the configuration panel above to unlock audio generation.
+            {studioPlaygroundMode === 'tts' && (
+              canGenerate ? (
+                <div className="flex items-center space-x-4">
+                  <button
+                    onClick={handleGenerate}
+                    disabled={isGenerating}
+                    className="flex items-center space-x-2 px-5 py-2.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-semibold text-xs transition-colors shadow-lg shadow-amber-500/20 disabled:opacity-50"
+                  >
+                    {isGenerating ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Synthesizing...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Play className="w-4 h-4 fill-black" />
+                        <span>Generate Audio</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              ) : (
+                <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-start space-x-3 text-xs text-amber-300 font-mono">
+                  <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                  <div>
+                    <div className="font-semibold text-white">Generate Audio Hidden: Router Setup Required</div>
+                    <div className="text-[11px] text-[#94A3B8] mt-1 leading-relaxed">
+                      This voice routes through an external API. Add your working API key and exact Model ID in the configuration panel above to unlock audio generation.
+                    </div>
                   </div>
                 </div>
-              </div>
+              )
             )}
+            </>
+          )}
 
-            {audioUrl && (
+          {audioUrl && (
+            <div className="space-y-4">
+              <div className="p-3 bg-[#121820] rounded-xl border border-[#242E3D] flex items-center justify-between gap-4">
+                <audio
+                  ref={audioRef}
+                  controls
+                  src={audioUrl}
+                  onPlay={() => setIsPlaying(true)}
+                  onPause={() => setIsPlaying(false)}
+                  onEnded={() => setIsPlaying(false)}
+                  onTimeUpdate={(e) => {
+                    const el = e.currentTarget;
+                    if (el.duration && el.duration > 0) {
+                      setTeleprompterProgress(el.currentTime / el.duration);
+                      setTeleprompterCurrentTime(el.currentTime);
+                      setTeleprompterDuration(el.duration);
+                    }
+                  }}
+                  onLoadedMetadata={(e) => {
+                    setTeleprompterDuration(e.currentTarget.duration);
+                  }}
+                  className="h-9 flex-1 rounded bg-[#0B0E14]"
+                />
+              </div>
+
               <AudioVisualizer
                 audioElement={audioRef.current}
                 isPlaying={isPlaying}
               />
-            )}
+
+              {/* Voicebox Live Karaoke Teleprompter */}
+              {spokenPrompt && (
+                <div className="p-4 rounded-xl bg-gradient-to-br from-[#121820] to-[#0D1219] border border-amber-500/30 space-y-3 shadow-2xl animate-in fade-in duration-200">
+                  <div className="flex items-center justify-between border-b border-[#242E3D] pb-2.5">
+                    <div className="flex items-center space-x-2">
+                      <span className="relative flex h-2.5 w-2.5">
+                        {isPlaying && (
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                        )}
+                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+                      </span>
+                      <span className="text-xs font-bold text-white font-mono uppercase tracking-wider flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Voicebox Live Karaoke Teleprompter</span>
+                      </span>
+                    </div>
+                    <div className="flex items-center space-x-3 text-[11px] font-mono text-[#94A3B8]">
+                      <span className="text-amber-400 font-bold">
+                        {teleprompterCurrentTime.toFixed(1)}s
+                      </span>
+                      <span>/</span>
+                      <span>{teleprompterDuration > 0 ? `${teleprompterDuration.toFixed(1)}s` : '--'}</span>
+                      <span className="hidden sm:inline text-[10px] text-[#64748B] border border-[#242E3D] px-1.5 py-0.5 rounded">
+                        Click word to seek
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-1.5 p-3 rounded-lg bg-[#0B0E14]/90 border border-[#1A222D] max-h-48 overflow-y-auto leading-relaxed select-none">
+                    {(() => {
+                      const words = spokenPrompt.trim().split(/\s+/);
+                      const activeIdx = teleprompterDuration > 0
+                        ? Math.min(words.length - 1, Math.floor(teleprompterProgress * words.length))
+                        : -1;
+
+                      return words.map((word, idx) => {
+                        const isPast = isPlaying && idx < activeIdx;
+                        const isCurrent = isPlaying && idx === activeIdx;
+
+                        return (
+                          <span
+                            key={`${word}-${idx}`}
+                            onClick={() => {
+                              if (audioRef.current && teleprompterDuration > 0) {
+                                const targetTime = (idx / words.length) * teleprompterDuration;
+                                audioRef.current.currentTime = targetTime;
+                                if (audioRef.current.paused) {
+                                  audioRef.current.play().catch(() => {});
+                                }
+                              }
+                            }}
+                            className={`cursor-pointer px-1.5 py-0.5 rounded text-sm transition-all duration-150 ${
+                              isCurrent
+                                ? 'bg-amber-500 text-black font-bold scale-110 shadow-lg shadow-amber-500/50 z-10'
+                                : isPast
+                                ? 'text-amber-400 font-semibold drop-shadow-[0_0_8px_rgba(245,158,11,0.35)] hover:underline'
+                                : 'text-[#94A3B8] hover:text-white hover:bg-[#1A222D]'
+                            }`}
+                            title={`Jump to word ${idx + 1} (${((idx / words.length) * teleprompterDuration).toFixed(1)}s)`}
+                          >
+                            {word}
+                          </span>
+                        );
+                      });
+                    })()}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
             {/* Takes & Provenance Audition Reel */}
             {takes.length > 0 && (
@@ -2376,6 +2848,82 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated }) =>
                     </div>
                   </div>
                 )}
+
+                {/* Neural Acoustic Quality Grader from Server Assessment */}
+                {isAssessingQuality ? (
+                  <div className="flex items-center space-x-2 text-xs text-amber-400/80 bg-[#0B0E14] border border-amber-500/20 p-2.5 rounded-lg font-mono animate-pulse">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Analyzing neural SNR & acoustic clipping...</span>
+                  </div>
+                ) : cloneAssessment ? (
+                  <div className="bg-[#0B0E14] border border-emerald-500/30 rounded-xl p-3 space-y-2.5 font-mono text-xs shadow-inner">
+                    <div className="flex items-center justify-between border-b border-[#242E3D] pb-1.5">
+                      <div className="flex items-center space-x-1.5 text-emerald-400 font-semibold text-[11px] uppercase tracking-wider">
+                        <Activity className="w-3.5 h-3.5" />
+                        <span>Neural Acoustic Grader</span>
+                      </div>
+                      <span
+                        className={`text-[10px] px-2 py-0.5 rounded border font-semibold uppercase ${
+                          cloneAssessment.clarity_rating === 'excellent'
+                            ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
+                            : cloneAssessment.clarity_rating === 'good'
+                            ? 'text-sky-400 bg-sky-500/10 border-sky-500/20'
+                            : cloneAssessment.clarity_rating === 'fair'
+                            ? 'text-amber-400 bg-amber-500/10 border-amber-500/20'
+                            : 'text-rose-400 bg-rose-500/10 border-rose-500/20'
+                        }`}
+                      >
+                        {cloneAssessment.clarity_rating} Grade
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 text-[11px]">
+                      <div className="bg-[#121820] p-2 rounded border border-[#242E3D]">
+                        <div className="text-[#64748B] text-[10px] uppercase">Neural SNR</div>
+                        <div className="font-semibold text-emerald-400 mt-0.5">
+                          {cloneAssessment.snr_estimate_db.toFixed(1)} dB
+                        </div>
+                      </div>
+                      <div className="bg-[#121820] p-2 rounded border border-[#242E3D]">
+                        <div className="text-[#64748B] text-[10px] uppercase">Peak / RMS</div>
+                        <div className="font-semibold text-white mt-0.5">
+                          {cloneAssessment.peak_dbfs.toFixed(1)} / {cloneAssessment.rms_dbfs.toFixed(1)} dBFS
+                        </div>
+                      </div>
+                      <div className="bg-[#121820] p-2 rounded border border-[#242E3D]">
+                        <div className="text-[#64748B] text-[10px] uppercase">Headroom</div>
+                        <div
+                          className={`font-semibold mt-0.5 flex items-center space-x-1 ${
+                            cloneAssessment.clipping_detected ? 'text-rose-400' : 'text-emerald-400'
+                          }`}
+                        >
+                          {cloneAssessment.clipping_detected ? (
+                            <>
+                              <AlertTriangle className="w-3 h-3 text-rose-400" />
+                              <span>Clipped</span>
+                            </>
+                          ) : (
+                            <>
+                              <Check className="w-3 h-3 text-emerald-400" />
+                              <span>Clean</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {cloneAssessment.recommendations && cloneAssessment.recommendations.length > 0 && (
+                      <div className="text-[10px] text-[#94A3B8] bg-[#121820] p-2 rounded border border-[#242E3D] space-y-1">
+                        <div className="text-[#64748B] font-semibold uppercase text-[9px]">Acoustic Tips:</div>
+                        <ul className="list-disc list-inside space-y-0.5 text-[10px]">
+                          {cloneAssessment.recommendations.map((rec, idx) => (
+                            <li key={idx} className="truncate">{rec}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                ) : null}
               </div>
 
               <div>
