@@ -1,15 +1,21 @@
+pub mod chorus;
 pub mod compressor;
 pub mod deesser;
+pub mod delay;
 pub mod eq;
 pub mod limiter;
 pub mod profile;
+pub mod reverb;
 pub mod silence;
 pub mod warmth;
 
+pub use chorus::VocalChorus;
 pub use compressor::DynamicCompressor;
 pub use deesser::DeEsser;
+pub use delay::EchoDelay;
 pub use eq::ParametricEq;
 pub use limiter::BrickwallLimiter;
 pub use profile::MasteringProfile;
+pub use reverb::AlgorithmicReverb;
 pub use silence::SilenceTrimmer;
 pub use warmth::HarmonicWarmth;

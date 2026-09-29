@@ -6,8 +6,8 @@ pub mod normalizer;
 pub mod wav;
 
 pub use dsp::{
-    BrickwallLimiter, DeEsser, DynamicCompressor, HarmonicWarmth, MasteringProfile, ParametricEq,
-    SilenceTrimmer,
+    AlgorithmicReverb, BrickwallLimiter, DeEsser, DynamicCompressor, EchoDelay, HarmonicWarmth,
+    MasteringProfile, ParametricEq, SilenceTrimmer, VocalChorus,
 };
 pub use media::MediaProcessor;
 pub use merge::AudioMerger;

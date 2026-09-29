@@ -15,9 +15,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tracing::warn;
 
-use voxforg_audio::WavEncoder;
+use voxforg_audio::{AudioMerger, WavEncoder};
 use voxforg_core::error::ProblemDetails;
-use voxforg_core::models::{AudioContainerFormat, Voice};
+use voxforg_core::models::{AudioChunk, AudioContainerFormat, Voice};
 use voxforg_engine::{SynthesisRequest, TtsEngine};
 use voxforg_router::SynthesisPolicy;
 
@@ -34,6 +34,12 @@ pub struct OpenAiSpeechRequest {
     pub speed: f32,
     #[serde(default)]
     pub pitch: Option<f32>,
+    /// Optional natural language instruction / delivery style steering (e.g. "whisper", "urgent", "cheerful").
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub instruct: Option<String>,
+    /// Optional crossfade duration in ms when synthesizing multi-sentence long text. Default: 30ms.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub crossfade_ms: Option<u32>,
     /// Optional SLA-policy-based routing. When present the engine is chosen
     /// automatically by `VoiceRouter`; `model` and `voice` still select the
     /// voice *within* the chosen engine as before.
@@ -60,12 +66,12 @@ fn validate_speech_request(
         return Err((StatusCode::BAD_REQUEST, Json(err)));
     }
 
-    if payload.input.len() > 10_000 {
+    if payload.input.len() > 50_000 {
         let err = ProblemDetails {
             problem_type: "https://voxforg.org/errors/input-too-large".to_string(),
             title: "Input Text Exceeds Limit".to_string(),
             status: StatusCode::UNPROCESSABLE_ENTITY.as_u16(),
-            detail: "The 'input' parameter cannot exceed 10,000 characters per request".to_string(),
+            detail: "The 'input' parameter cannot exceed 50,000 characters per request".to_string(),
             instance: "/v1/audio/speech".to_string(),
         };
         return Err((StatusCode::UNPROCESSABLE_ENTITY, Json(err)));
@@ -333,65 +339,199 @@ pub async fn synthesize_speech(
     if let Some(profile) = state.voice_profiles.get(&payload.voice).await {
         if let Some(engine) = state.engine_registry.get(&profile.engine_id).await {
             if engine.supports_cloning() {
-                let cloned_req = voxforg_core::models::ClonedSynthesisRequest {
-                    text: state.pronunciation.process(&payload.input),
-                    profile,
-                    speed: payload.speed,
-                    pitch: payload.pitch.unwrap_or(0.0),
-                    format: payload.response_format,
-                };
-                let audio_chunk = engine.synthesize_cloned(&cloned_req).await.map_err(|e| {
-                    let err = ProblemDetails {
-                        problem_type: "https://voxforg.org/errors/cloned-synthesis-failure"
-                            .to_string(),
-                        title: "Cloned Synthesis Error".to_string(),
-                        status: StatusCode::INTERNAL_SERVER_ERROR.as_u16(),
-                        detail: e.to_string(),
-                        instance: "/v1/audio/speech".to_string(),
-                    };
-                    (StatusCode::INTERNAL_SERVER_ERROR, Json(err))
-                })?;
+                let chunks = split_text_into_chunks(&payload.input, 800);
+                let crossfade_ms = payload.crossfade_ms.unwrap_or(30);
+                let mut pcm_chunks = Vec::new();
+                let mut sample_rate = 24000;
+                let mut channels = 1;
 
+                for chunk_text in chunks {
+                    let cloned_req = voxforg_core::models::ClonedSynthesisRequest {
+                        text: state.pronunciation.process(&chunk_text),
+                        profile: profile.clone(),
+                        speed: payload.speed,
+                        pitch: payload.pitch.unwrap_or(0.0),
+                        format: payload.response_format,
+                    };
+                    let chunk = engine.synthesize_cloned(&cloned_req).await.map_err(|e| {
+                        let err = ProblemDetails {
+                            problem_type: "https://voxforg.org/errors/cloned-synthesis-failure"
+                                .to_string(),
+                            title: "Cloned Synthesis Error".to_string(),
+                            status: StatusCode::INTERNAL_SERVER_ERROR.as_u16(),
+                            detail: e.to_string(),
+                            instance: "/v1/audio/speech".to_string(),
+                        };
+                        (StatusCode::INTERNAL_SERVER_ERROR, Json(err))
+                    })?;
+                    sample_rate = chunk.sample_rate;
+                    channels = chunk.channels;
+                    pcm_chunks.push(chunk.pcm_data);
+                }
+
+                let final_pcm = if pcm_chunks.len() == 1 {
+                    pcm_chunks.remove(0)
+                } else {
+                    let slices: Vec<&[i16]> = pcm_chunks.iter().map(|v| v.as_slice()).collect();
+                    AudioMerger::concatenate_with_equal_power_crossfade(&slices, sample_rate, crossfade_ms)
+                };
+
+                let audio_chunk = AudioChunk {
+                    pcm_data: final_pcm,
+                    sample_rate,
+                    channels,
+                };
                 return encode_chunk_to_response(audio_chunk, payload.response_format);
             }
         }
     }
 
     let (engine, voice) = resolve_engine_and_voice(&state, &payload).await?;
-
-    let synth_req = SynthesisRequest {
-        // Apply pronunciation normalization before synthesis:
-        // symbols (₹→rupees), scale suffixes (1K→1000), dictionary overrides (SQL→sequel)
-        text: state.pronunciation.process(&payload.input),
-        voice_id: voice.id,
-        speed: payload.speed,
-        pitch: payload.pitch.unwrap_or(0.0),
-        format: payload.response_format,
-    };
+    let chunks = split_text_into_chunks(&payload.input, 800);
+    let crossfade_ms = payload.crossfade_ms.unwrap_or(30);
 
     let start = std::time::Instant::now();
-    let audio_chunk = state
-        .engine_registry
-        .synthesize_cached(engine, &synth_req)
-        .await
-        .map_err(|e| {
-            let err = ProblemDetails {
-                problem_type: "https://voxforg.org/errors/synthesis-failure".to_string(),
-                title: "Synthesis Error".to_string(),
-                status: StatusCode::INTERNAL_SERVER_ERROR.as_u16(),
-                detail: e.to_string(),
-                instance: "/v1/audio/speech".to_string(),
-            };
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(err))
-        })?;
+    let mut pcm_chunks = Vec::new();
+    let mut sample_rate = voice.sample_rate_hz;
+    let mut channels = 1;
+
+    for chunk_text in chunks {
+        let synth_req = SynthesisRequest {
+            text: state.pronunciation.process(&chunk_text),
+            voice_id: voice.id.clone(),
+            speed: payload.speed,
+            pitch: payload.pitch.unwrap_or(0.0),
+            format: payload.response_format,
+        };
+
+        let chunk = state
+            .engine_registry
+            .synthesize_cached(engine.clone(), &synth_req)
+            .await
+            .map_err(|e| {
+                let err = ProblemDetails {
+                    problem_type: "https://voxforg.org/errors/synthesis-failure".to_string(),
+                    title: "Synthesis Error".to_string(),
+                    status: StatusCode::INTERNAL_SERVER_ERROR.as_u16(),
+                    detail: e.to_string(),
+                    instance: "/v1/audio/speech".to_string(),
+                };
+                (StatusCode::INTERNAL_SERVER_ERROR, Json(err))
+            })?;
+        sample_rate = chunk.sample_rate;
+        channels = chunk.channels;
+        pcm_chunks.push(chunk.pcm_data);
+    }
+
+    let final_pcm = if pcm_chunks.len() == 1 {
+        pcm_chunks.remove(0)
+    } else {
+        let slices: Vec<&[i16]> = pcm_chunks.iter().map(|v| v.as_slice()).collect();
+        AudioMerger::concatenate_with_equal_power_crossfade(&slices, sample_rate, crossfade_ms)
+    };
 
     let elapsed = start.elapsed();
     state
         .metrics
-        .record_synthesis(elapsed.as_millis() as u64, audio_chunk.pcm_data.len());
+        .record_synthesis(elapsed.as_millis() as u64, final_pcm.len());
 
+    let audio_chunk = AudioChunk {
+        pcm_data: final_pcm,
+        sample_rate,
+        channels,
+    };
     encode_chunk_to_response(audio_chunk, payload.response_format)
 }
+
+fn split_text_into_chunks(text: &str, max_chunk_chars: usize) -> Vec<String> {
+    if text.len() <= max_chunk_chars {
+        return vec![text.to_string()];
+    }
+
+    let mut chunks = Vec::new();
+    let mut current = String::new();
+
+    for line in text.split('\n') {
+        let trimmed_line = line.trim();
+        if trimmed_line.is_empty() {
+            continue;
+        }
+
+        let sentences = split_sentences(trimmed_line);
+        for sentence in sentences {
+            if current.len() + sentence.len() + 1 <= max_chunk_chars {
+                if !current.is_empty() {
+                    current.push(' ');
+                }
+                current.push_str(&sentence);
+            } else {
+                if !current.is_empty() {
+                    chunks.push(current.trim().to_string());
+                    current = String::new();
+                }
+                if sentence.len() > max_chunk_chars {
+                    for word in sentence.split_whitespace() {
+                        if current.len() + word.len() + 1 <= max_chunk_chars {
+                            if !current.is_empty() {
+                                current.push(' ');
+                            }
+                            current.push_str(word);
+                        } else {
+                            if !current.is_empty() {
+                                chunks.push(current.trim().to_string());
+                                current = String::new();
+                            }
+                            current.push_str(word);
+                        }
+                    }
+                } else {
+                    current.push_str(&sentence);
+                }
+            }
+        }
+    }
+
+    if !current.trim().is_empty() {
+        chunks.push(current.trim().to_string());
+    }
+
+    if chunks.is_empty() {
+        vec![text.to_string()]
+    } else {
+        chunks
+    }
+}
+
+fn split_sentences(text: &str) -> Vec<String> {
+    let mut sentences = Vec::new();
+    let mut last = 0;
+    let chars: Vec<(usize, char)> = text.char_indices().collect();
+    for i in 0..chars.len() {
+        let (idx, c) = chars[i];
+        if (c == '.' || c == '!' || c == '?' || c == ';')
+            && (i + 1 == chars.len() || chars[i + 1].1.is_whitespace())
+        {
+            let end = idx + c.len_utf8();
+            let slice = text[last..end].trim();
+            if !slice.is_empty() {
+                sentences.push(slice.to_string());
+            }
+            last = end;
+        }
+    }
+    if last < text.len() {
+        let rem = text[last..].trim();
+        if !rem.is_empty() {
+            sentences.push(rem.to_string());
+        }
+    }
+    if sentences.is_empty() {
+        vec![text.to_string()]
+    } else {
+        sentences
+    }
+}
+
 
 pub async fn synthesize_speech_stream(
     State(state): State<AppState>,
