@@ -5,11 +5,13 @@ pub mod cloning;
 pub mod docs;
 pub mod embedded_ui;
 pub mod health;
+pub mod mcp_http;
 pub mod metrics;
 pub mod models;
 pub mod pipeline;
 pub mod pronunciation;
 pub mod qa;
+pub mod refine;
 pub mod speech;
 pub mod voice_ci;
 pub mod voice_identity;
@@ -95,4 +97,8 @@ pub fn build_api_router() -> Router<AppState> {
             "/v1/catalog/models/:id/install",
             post(catalog::install_catalog_model),
         )
+        // Model Context Protocol (MCP) Streamable HTTP + SSE Server
+        .route("/mcp", post(mcp_http::handle_mcp_post).get(mcp_http::handle_mcp_sse))
+        // Verbal Filler & Hallucination Refinement Engine
+        .route("/v1/audio/refine", post(refine::refine_text))
 }
