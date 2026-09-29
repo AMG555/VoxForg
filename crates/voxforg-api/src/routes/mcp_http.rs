@@ -1,10 +1,10 @@
 use axum::{
     body::Body,
-    extract::{HeaderMap, State},
-    http::{header, StatusCode},
+    extract::State,
+    http::{header, HeaderMap, StatusCode},
     response::{
         sse::{Event, KeepAlive, Sse},
-        IntoResponse, Response,
+        Response,
     },
 };
 use futures::stream::{self, Stream};

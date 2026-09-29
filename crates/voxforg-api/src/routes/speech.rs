@@ -387,6 +387,7 @@ pub async fn synthesize_speech(
                     pcm_data: final_pcm,
                     sample_rate,
                     channels,
+                    is_final: true,
                 };
                 return encode_chunk_to_response(audio_chunk, payload.response_format);
             }
@@ -493,6 +494,7 @@ pub async fn synthesize_speech(
         pcm_data: final_pcm,
         sample_rate,
         channels,
+        is_final: true,
     };
     encode_chunk_to_response(audio_chunk, payload.response_format)
 }
@@ -513,7 +515,7 @@ fn split_text_into_chunks(text: &str, max_chunk_chars: usize) -> Vec<String> {
 
         let sentences = split_sentences(trimmed_line);
         for sentence in sentences {
-            if current.len() + sentence.len() + 1 <= max_chunk_chars {
+            if current.len() + sentence.len() < max_chunk_chars {
                 if !current.is_empty() {
                     current.push(' ');
                 }
@@ -525,7 +527,7 @@ fn split_text_into_chunks(text: &str, max_chunk_chars: usize) -> Vec<String> {
                 }
                 if sentence.len() > max_chunk_chars {
                     for word in sentence.split_whitespace() {
-                        if current.len() + word.len() + 1 <= max_chunk_chars {
+                        if current.len() + word.len() < max_chunk_chars {
                             if !current.is_empty() {
                                 current.push(' ');
                             }

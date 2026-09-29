@@ -207,7 +207,7 @@ pub async fn speech_to_speech(
     let target_speed = if payload.preserve_tempo && transcription.duration_seconds > 0.5 {
         let word_count = text.split_whitespace().count().max(1);
         let estimated_normal_dur = word_count as f64 / 2.8;
-        let tempo_ratio = estimated_normal_dur / transcription.duration_seconds;
+        let tempo_ratio = estimated_normal_dur / (transcription.duration_seconds as f64);
         (tempo_ratio as f32 * payload.speed).clamp(0.6, 2.2)
     } else {
         payload.speed
