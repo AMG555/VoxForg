@@ -203,7 +203,7 @@ impl KokoroTtsEngine {
                 let chunk_size = u32::from_le_bytes(
                     bytes[offset + 4..offset + 8]
                         .try_into()
-                        .map_err(|_| VoxForgError::AudioDecoding("Invalid WAV chunk".into()))?,
+                        .map_err(|_| VoxForgError::AudioProcessing("Invalid WAV chunk".into()))?,
                 ) as usize;
                 offset += 8;
 
@@ -304,20 +304,19 @@ impl TtsEngine for KokoroTtsEngine {
     async fn voices(&self) -> Result<Vec<Voice>> {
         let mut result = Vec::new();
         for def in KOKORO_VOICES {
-            let mut labels = HashMap::new();
-            labels.insert("accent".to_string(), def.accent.to_string());
-            labels.insert("style".to_string(), "neural-studio".to_string());
-            labels.insert("architecture".to_string(), "kokoro-82m".to_string());
-
             result.push(Voice {
                 id: def.id.to_string(),
                 name: def.name.to_string(),
+                engine_id: "kokoro".to_string(),
                 language: def.language.to_string(),
                 gender: def.gender,
-                sample_rate: self.sample_rate,
-                engine: "kokoro".to_string(),
+                sample_rate_hz: self.sample_rate,
+                tags: vec![
+                    def.accent.to_string(),
+                    "neural-studio".to_string(),
+                    "kokoro-82m".to_string(),
+                ],
                 description: Some(def.description.to_string()),
-                labels,
             });
         }
         Ok(result)
