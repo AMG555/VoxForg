@@ -180,4 +180,43 @@ export const api = {
     }
     return res.json();
   },
+
+  async transcribeAudio(audioBase64: string, model = 'whisper-base', language?: string): Promise<{ text: string; duration_seconds?: number }> {
+    const res = await fetch(`${BASE_URL}/v1/audio/transcriptions`, {
+      method: 'POST',
+      headers: getHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({
+        audio_base64: audioBase64,
+        model,
+        language: language || undefined,
+        response_format: 'json',
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Audio transcription failed' }));
+      throw new Error(err.detail || 'Audio transcription failed');
+    }
+    return res.json();
+  },
+
+  async refineText(
+    text: string,
+    options: { remove_fillers?: boolean; fix_repetitions?: boolean; punctuation_pass?: boolean } = {}
+  ): Promise<{ refined_text: string; removed_fillers: number; cleaned_repetitions: number }> {
+    const res = await fetch(`${BASE_URL}/v1/audio/refine`, {
+      method: 'POST',
+      headers: getHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({
+        text,
+        remove_fillers: options.remove_fillers ?? true,
+        fix_repetitions: options.fix_repetitions ?? true,
+        punctuation_pass: options.punctuation_pass ?? true,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Text refinement failed' }));
+      throw new Error(err.detail || 'Text refinement failed');
+    }
+    return res.json();
+  },
 };

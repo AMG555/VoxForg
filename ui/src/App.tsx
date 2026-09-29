@@ -7,6 +7,7 @@ import { VoiceLab } from './components/voices/VoiceLab';
 import { HardwareInspector } from './components/telemetry/HardwareInspector';
 import { AbTestLab } from './components/qa/AbTestLab';
 import { ModelCatalog } from './components/catalog/ModelCatalog';
+import { DictationBar } from './components/dictation/DictationBar';
 import { HardwareInfo, Voice } from './types';
 import { api } from './services/api';
 import { WorkflowStorage } from './services/workflowStorage';
@@ -16,6 +17,7 @@ export const App: React.FC = () => {
   const [activeWorkflowId, setActiveWorkflowId] = useState<string>(() => WorkflowStorage.getActiveWorkflowId());
   const [hardware, setHardware] = useState<HardwareInfo | null>(null);
   const [voices, setVoices] = useState<Voice[]>([]);
+  const [isDictationOpen, setIsDictationOpen] = useState<boolean>(false);
 
   useEffect(() => {
     // Fetch readiness / hardware profile
@@ -211,6 +213,8 @@ export const App: React.FC = () => {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         hardware={hardware}
+        onToggleDictation={() => setIsDictationOpen(!isDictationOpen)}
+        isDictationOpen={isDictationOpen}
       />
 
       <main className="flex-1 flex overflow-hidden">
@@ -233,6 +237,16 @@ export const App: React.FC = () => {
         {activeTab === 'hardware' && <HardwareInspector hardware={hardware} onNavigateTab={setActiveTab} />}
         {activeTab === 'qa' && <AbTestLab voices={voices} />}
       </main>
+
+      {/* Voicebox Global Push-to-Talk Dictation Studio */}
+      <DictationBar
+        isOpen={isDictationOpen}
+        onClose={() => setIsDictationOpen(false)}
+        onSendToVoiceLab={(_text) => {
+          setActiveTab('voices');
+          setIsDictationOpen(false);
+        }}
+      />
     </div>
   );
 };

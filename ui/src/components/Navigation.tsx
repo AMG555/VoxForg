@@ -8,9 +8,17 @@ interface NavigationProps {
   activeTab: 'workflows' | 'canvas' | 'timeline' | 'voices' | 'catalog' | 'hardware' | 'qa';
   setActiveTab: (tab: 'workflows' | 'canvas' | 'timeline' | 'voices' | 'catalog' | 'hardware' | 'qa') => void;
   hardware: HardwareInfo | null;
+  onToggleDictation?: () => void;
+  isDictationOpen?: boolean;
 }
 
-export const Navigation: React.FC<NavigationProps> = ({ activeTab, setActiveTab, hardware }) => {
+export const Navigation: React.FC<NavigationProps> = ({
+  activeTab,
+  setActiveTab,
+  hardware,
+  onToggleDictation,
+  isDictationOpen,
+}) => {
   return (
     <header className="h-14 border-b border-[#242E3D] bg-[#121820] flex items-center justify-between px-4 select-none">
       <div className="flex items-center space-x-6">
@@ -106,6 +114,21 @@ export const Navigation: React.FC<NavigationProps> = ({ activeTab, setActiveTab,
       </div>
 
       <div className="flex items-center space-x-3">
+        {onToggleDictation && (
+          <button
+            onClick={onToggleDictation}
+            className={`flex items-center space-x-1.5 px-2.5 py-1 rounded text-xs font-mono transition-colors border ${
+              isDictationOpen
+                ? 'bg-red-500/20 text-red-300 border-red-500/40 animate-pulse'
+                : 'bg-[#1A222D] hover:bg-[#242E3D] text-[#94A3B8] hover:text-white border-[#242E3D]'
+            }`}
+            title="Voicebox Push-to-Talk Dictation (Ctrl+Shift+D)"
+          >
+            <Mic className="w-3.5 h-3.5 text-amber-400" />
+            <span>Dictate</span>
+          </button>
+        )}
+
         <AgentBeacon />
 
         <a
