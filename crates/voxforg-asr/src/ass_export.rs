@@ -36,12 +36,8 @@ impl AssSubtitleExporter {
             let start_ts = Self::format_ass_time(seg.start_ms);
             let end_ts = Self::format_ass_time(seg.end_ms);
 
-            let text = if let Some(words) = &seg.words {
-                if !words.is_empty() {
-                    Self::format_karaoke_words(words, seg.start_ms)
-                } else {
-                    seg.text.trim().to_string()
-                }
+            let text = if !seg.words.is_empty() {
+                Self::format_karaoke_words(&seg.words, seg.start_ms)
             } else {
                 seg.text.trim().to_string()
             };

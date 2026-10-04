@@ -56,8 +56,8 @@ pub async fn embed_watermark_handler(
         }
     };
 
-    let (mut pcm16, sample_rate, channels) = WavEncoder::decode_wav_to_pcm16(&wav_bytes)
-        .map_err(|e| {
+    let (mut pcm16, sample_rate, channels) =
+        WavEncoder::decode_wav_to_pcm16(&wav_bytes).map_err(|e| {
             (
                 StatusCode::BAD_REQUEST,
                 Json(ProblemDetails {
@@ -83,19 +83,18 @@ pub async fn embed_watermark_handler(
         *dst = (src * 32768.0).clamp(-32768.0, 32767.0) as i16;
     }
 
-    let out_wav = WavEncoder::encode_pcm16_to_wav(&pcm16, sample_rate, channels)
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ProblemDetails {
-                    problem_type: "https://voxforg.org/errors/wav-encode-failed".to_string(),
-                    title: "WAV Encode Error".to_string(),
-                    status: 500,
-                    detail: e.to_string(),
-                    instance: "/v1/audio/watermark".to_string(),
-                }),
-            )
-        })?;
+    let out_wav = WavEncoder::encode_pcm16_to_wav(&pcm16, sample_rate, channels).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ProblemDetails {
+                problem_type: "https://voxforg.org/errors/wav-encode-failed".to_string(),
+                title: "WAV Encode Error".to_string(),
+                status: 500,
+                detail: e.to_string(),
+                instance: "/v1/audio/watermark".to_string(),
+            }),
+        )
+    })?;
 
     let duration_seconds = pcm16.len() as f32 / (sample_rate as f32 * channels as f32);
 
@@ -150,7 +149,6 @@ pub async fn verify_watermark_handler(
 }
 
 fn hex_or_base64_decode(input: &str) -> Result<Vec<u8>, String> {
-    use std::io::Read;
     // Standard base64 decoding
     let clean = input.trim().replace("\r", "").replace("\n", "");
     // Remove data URL prefix if present

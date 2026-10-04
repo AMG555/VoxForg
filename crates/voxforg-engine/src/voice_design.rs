@@ -176,11 +176,9 @@ impl ArchetypeBank {
 
         // Weighted vector combination
         let mut combined = [0.0f32; 512];
-        let mut total_w = 0.0f32;
 
         for (i, arc) in self.archetypes.iter().enumerate() {
             let w = weights[i];
-            total_w += w;
             for k in 0..512 {
                 combined[k] += arc.base_vector[k] * w;
             }
