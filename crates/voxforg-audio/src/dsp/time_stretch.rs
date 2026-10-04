@@ -47,16 +47,25 @@ impl WsolaTimeStretch {
     }
 
     /// Time-stretch 16-bit PCM speech by a speed ratio (e.g. 1.25 for 25% faster).
-    pub fn stretch_by_ratio(&self, input: &[i16], speed_ratio: f64, exact_target_len: usize) -> Vec<i16> {
+    pub fn stretch_by_ratio(
+        &self,
+        input: &[i16],
+        speed_ratio: f64,
+        exact_target_len: usize,
+    ) -> Vec<i16> {
         let speed = speed_ratio.clamp(0.4, 2.5);
-        if (speed - 1.0).abs() < 0.005 && (exact_target_len == 0 || exact_target_len == input.len()) {
+        if (speed - 1.0).abs() < 0.005 && (exact_target_len == 0 || exact_target_len == input.len())
+        {
             return input.to_vec();
         }
 
         let n_in = input.len();
         if n_in < self.frame_size + self.search_window {
             // Audio too short for WSOLA frames; fall back to linear interpolation
-            return Self::linear_resample(input, exact_target_len.max((n_in as f64 / speed) as usize));
+            return Self::linear_resample(
+                input,
+                exact_target_len.max((n_in as f64 / speed) as usize),
+            );
         }
 
         let hop_out = self.overlap;
@@ -75,7 +84,9 @@ impl WsolaTimeStretch {
         let mut window = Vec::with_capacity(self.frame_size);
         for i in 0..self.frame_size {
             // Hann window for smooth overlap-add
-            let w = 0.5 * (1.0 - (2.0 * std::f64::consts::PI * i as f64 / (self.frame_size - 1) as f64).cos());
+            let w = 0.5
+                * (1.0
+                    - (2.0 * std::f64::consts::PI * i as f64 / (self.frame_size - 1) as f64).cos());
             window.push(w as f32);
         }
 
@@ -93,7 +104,9 @@ impl WsolaTimeStretch {
         let mut out_pos = hop_out;
         let mut in_pos = hop_in;
 
-        while in_pos + self.frame_size + self.search_window < n_in && out_pos + self.frame_size < out_accum.len() {
+        while in_pos + self.frame_size + self.search_window < n_in
+            && out_pos + self.frame_size < out_accum.len()
+        {
             // Find best matching offset within [-search_window, +search_window]
             let search_start = in_pos.saturating_sub(self.search_window);
             let search_end = (in_pos + self.search_window).min(n_in - self.frame_size);

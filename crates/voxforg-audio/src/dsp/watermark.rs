@@ -50,7 +50,9 @@ impl AudioWatermark {
 
     /// Generate pseudo-random carrier sequence for a given bit index
     fn generate_chip_carrier(&self, bit_index: usize, length: usize) -> Vec<f32> {
-        let mut seed = self.carrier_seed.wrapping_add((bit_index as u64).wrapping_mul(0x517cc1b727220a95));
+        let mut seed = self
+            .carrier_seed
+            .wrapping_add((bit_index as u64).wrapping_mul(0x517cc1b727220a95));
         let mut carrier = Vec::with_capacity(length);
         for _ in 0..length {
             // Xorshift64 PRNG
@@ -69,7 +71,9 @@ impl AudioWatermark {
     /// Loops the 16-bit message across the entire audio length for high redundancy
     pub fn embed(&self, samples: &mut [f32], payload: u16) -> usize {
         let bit_count = 16;
-        let bits: Vec<bool> = (0..bit_count).map(|i| ((payload >> (15 - i)) & 1) == 1).collect();
+        let bits: Vec<bool> = (0..bit_count)
+            .map(|i| ((payload >> (15 - i)) & 1) == 1)
+            .collect();
         let total_samples = samples.len();
         let bits_total = total_samples / self.chip_rate;
 
@@ -153,7 +157,11 @@ impl AudioWatermark {
         WatermarkDetectionResult {
             is_detected,
             confidence: avg_confidence,
-            payload: if is_detected { Some(extracted_payload) } else { None },
+            payload: if is_detected {
+                Some(extracted_payload)
+            } else {
+                None
+            },
             signature_match,
             sample_rate: self.sample_rate,
             duration_seconds,
@@ -177,7 +185,7 @@ mod tests {
         }
 
         let wm = AudioWatermark::new(sample_rate);
-        
+
         // Before embedding: should not be detected
         let pre_result = wm.detect(&audio);
         assert!(!pre_result.is_detected || pre_result.confidence < 0.3);

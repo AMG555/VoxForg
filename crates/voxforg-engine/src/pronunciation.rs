@@ -144,10 +144,18 @@ impl PronunciationLexicon {
 
             let prefix = if starts_word { r"\b" } else { "" };
             let suffix = if ends_word { r"\b" } else { "" };
-            let pattern = format!("(?{}){}{}{}", if rule.case_sensitive { "" } else { "i" }, prefix, escaped, suffix);
+            let pattern = format!(
+                "(?{}){}{}{}",
+                if rule.case_sensitive { "" } else { "i" },
+                prefix,
+                escaped,
+                suffix
+            );
 
             if let Ok(re) = Regex::new(&pattern) {
-                result = re.replace_all(&result, rule.replacement.as_str()).to_string();
+                result = re
+                    .replace_all(&result, rule.replacement.as_str())
+                    .to_string();
             }
         }
 
@@ -170,14 +178,21 @@ impl SsmlLite {
     /// Strips XML/SSML tags leaving clean pronounceable text
     pub fn strip_tags(input: &str) -> String {
         let tag_regex = Regex::new(r"<[^>]+>").unwrap();
-        tag_regex.replace_all(input, " ").replace("  ", " ").trim().to_string()
+        tag_regex
+            .replace_all(input, " ")
+            .replace("  ", " ")
+            .trim()
+            .to_string()
     }
 
     /// Parses SSML-lite into sequential segments with pause and rate controls
     pub fn parse_segments(input: &str) -> Vec<SsmlSegment> {
         let mut segments = Vec::new();
         let break_regex = Regex::new(r#"(?i)<break\s+time=["'](\d+)(ms|s)["']\s*/>"#).unwrap();
-        let phoneme_regex = Regex::new(r#"(?i)<phoneme\s+alphabet=["']\w+["']\s+ph=["']([^"']+)["']>([^<]+)</phoneme>"#).unwrap();
+        let phoneme_regex = Regex::new(
+            r#"(?i)<phoneme\s+alphabet=["']\w+["']\s+ph=["']([^"']+)["']>([^<]+)</phoneme>"#,
+        )
+        .unwrap();
 
         // First replace phoneme tags with the phonetic transcription directly
         let preprocessed = phoneme_regex.replace_all(input, "$1");
@@ -240,13 +255,16 @@ mod tests {
     #[test]
     fn test_pronunciation_lexicon_replacement() {
         let lexicon = PronunciationLexicon::new();
-        
+
         let text = "I love SQL queries, but PostgreSQL is also SQL.";
         let replaced = lexicon.apply(text, Some("en"));
         // "SQL" should become "Sequel", but "PostgreSQL" should NOT be modified because of word boundaries
         assert!(replaced.contains("Sequel queries"));
         assert!(replaced.contains("PostgreSQL"));
-        assert_eq!(replaced, "I love Sequel queries, but PostgreSQL is also Sequel.");
+        assert_eq!(
+            replaced,
+            "I love Sequel queries, but PostgreSQL is also Sequel."
+        );
     }
 
     #[test]

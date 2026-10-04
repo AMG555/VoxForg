@@ -90,7 +90,13 @@ impl JobCheckpointManifest {
     }
 
     /// Mark a chapter as successfully completed
-    pub fn mark_completed(&mut self, index: usize, output_path: String, duration_ms: u64, file_sha256: String) {
+    pub fn mark_completed(
+        &mut self,
+        index: usize,
+        output_path: String,
+        duration_ms: u64,
+        file_sha256: String,
+    ) {
         if let Some(task) = self.chapters.get_mut(index) {
             task.status = TaskStatus::Completed {
                 output_path,
@@ -189,13 +195,23 @@ mod tests {
         assert_eq!(manifest.get_remaining_indices(), vec![0, 1]);
 
         // Complete chapter 1
-        manifest.mark_completed(0, "/tmp/out_1.wav".to_string(), 12500, "abc123sha".to_string());
+        manifest.mark_completed(
+            0,
+            "/tmp/out_1.wav".to_string(),
+            12500,
+            "abc123sha".to_string(),
+        );
         assert_eq!(manifest.completed_chapters, 1);
         assert_eq!(manifest.get_remaining_indices(), vec![1]);
         assert!(!manifest.is_finished());
 
         // Complete chapter 2
-        manifest.mark_completed(1, "/tmp/out_2.wav".to_string(), 14200, "def456sha".to_string());
+        manifest.mark_completed(
+            1,
+            "/tmp/out_2.wav".to_string(),
+            14200,
+            "def456sha".to_string(),
+        );
         assert_eq!(manifest.completed_chapters, 2);
         assert_eq!(manifest.get_remaining_indices(), Vec::<usize>::new());
         assert!(manifest.is_finished());

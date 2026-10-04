@@ -14,7 +14,10 @@ use crate::state::AppState;
 #[serde(tag = "event")]
 pub enum TwilioInboundMessage {
     #[serde(rename = "connected")]
-    Connected { protocol: Option<String>, version: Option<String> },
+    Connected {
+        protocol: Option<String>,
+        version: Option<String>,
+    },
     #[serde(rename = "start")]
     Start {
         #[serde(rename = "streamSid")]

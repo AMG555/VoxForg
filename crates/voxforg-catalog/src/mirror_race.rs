@@ -97,7 +97,8 @@ impl MirrorRaceManager {
                 match tokio::time::timeout(timeout, client.head(&probe_url).send()).await {
                     Ok(Ok(resp)) => {
                         let latency = start.elapsed().as_millis() as u64;
-                        let is_available = resp.status().is_success() || resp.status().is_redirection();
+                        let is_available =
+                            resp.status().is_success() || resp.status().is_redirection();
                         MirrorProbeResult {
                             name,
                             base_url,
@@ -185,13 +186,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_mirror_race_manager_fallback() {
-        let manager = MirrorRaceManager::new().with_candidates(vec![
-            MirrorCandidate {
-                name: "Unreachable Port".to_string(),
-                base_url: "http://127.0.0.1:59999".to_string(),
-                priority: 1,
-            },
-        ]);
+        let manager = MirrorRaceManager::new().with_candidates(vec![MirrorCandidate {
+            name: "Unreachable Port".to_string(),
+            base_url: "http://127.0.0.1:59999".to_string(),
+            priority: 1,
+        }]);
 
         let result = manager.race("/test").await;
         assert_eq!(result.selected_mirror, "Unreachable Port");

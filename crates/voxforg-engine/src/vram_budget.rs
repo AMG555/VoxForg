@@ -83,7 +83,11 @@ impl VramBudgetManager {
     /// Check total currently allocated VRAM.
     pub async fn total_vram_used_mb(&self) -> u64 {
         let models = self.models.read().await;
-        models.values().filter(|m| m.is_loaded).map(|m| m.vram_usage_mb).sum()
+        models
+            .values()
+            .filter(|m| m.is_loaded)
+            .map(|m| m.vram_usage_mb)
+            .sum()
     }
 
     /// Find candidates for eviction based on idle TTL and LRU ordering.
@@ -95,7 +99,8 @@ impl VramBudgetManager {
 
         let now = Utc::now();
         let models = self.models.read().await;
-        let mut loaded: Vec<&ModelMemoryFootprint> = models.values().filter(|m| m.is_loaded).collect();
+        let mut loaded: Vec<&ModelMemoryFootprint> =
+            models.values().filter(|m| m.is_loaded).collect();
 
         // Sort by last_used_at ascending (LRU first)
         loaded.sort_by_key(|m| m.last_used_at);
@@ -104,7 +109,10 @@ impl VramBudgetManager {
         let mut current_vram: u64 = loaded.iter().map(|m| m.vram_usage_mb).sum();
 
         for m in loaded {
-            let idle_duration_sec = now.signed_duration_since(m.last_used_at).num_seconds().max(0) as u64;
+            let idle_duration_sec = now
+                .signed_duration_since(m.last_used_at)
+                .num_seconds()
+                .max(0) as u64;
             let is_idle_expired = idle_duration_sec >= config.idle_ttl_seconds;
             let is_over_budget = current_vram > config.max_vram_mb;
 

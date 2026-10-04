@@ -42,7 +42,9 @@ impl Default for ArchetypeBank {
 
 impl ArchetypeBank {
     pub fn new() -> Self {
-        let mut bank = Self { archetypes: Vec::new() };
+        let mut bank = Self {
+            archetypes: Vec::new(),
+        };
         bank.seed_archetypes();
         bank
     }
@@ -142,18 +144,31 @@ impl ArchetypeBank {
         // Apply Director taxonomy modifiers to archetype weights
         if let Some(dir) = req.director {
             for (i, arc) in self.archetypes.iter().enumerate() {
-                if dir.energy > 0.3 && (arc.name.contains("energetic") || arc.name.contains("bold")) {
+                if dir.energy > 0.3 && (arc.name.contains("energetic") || arc.name.contains("bold"))
+                {
                     weights[i] += dir.energy * 2.0;
                 }
-                if dir.intimacy > 0.3 && (arc.name.contains("whisper") || arc.name.contains("intimate") || arc.name.contains("gentle")) {
+                if dir.intimacy > 0.3
+                    && (arc.name.contains("whisper")
+                        || arc.name.contains("intimate")
+                        || arc.name.contains("gentle"))
+                {
                     weights[i] += dir.intimacy * 2.5;
                 }
-                if dir.formality > 0.3 && (arc.name.contains("broadcast") || arc.name.contains("academic") || arc.name.contains("authoritative")) {
+                if dir.formality > 0.3
+                    && (arc.name.contains("broadcast")
+                        || arc.name.contains("academic")
+                        || arc.name.contains("authoritative"))
+                {
                     weights[i] += dir.formality * 2.0;
                 }
-                if dir.emotion > 0.3 && (arc.name.contains("cheerful") || arc.name.contains("playful")) {
+                if dir.emotion > 0.3
+                    && (arc.name.contains("cheerful") || arc.name.contains("playful"))
+                {
                     weights[i] += dir.emotion * 2.0;
-                } else if dir.emotion < -0.3 && (arc.name.contains("melancholic") || arc.name.contains("raspy")) {
+                } else if dir.emotion < -0.3
+                    && (arc.name.contains("melancholic") || arc.name.contains("raspy"))
+                {
                     weights[i] += (-dir.emotion) * 2.0;
                 }
             }
@@ -182,7 +197,10 @@ impl ArchetypeBank {
             final_embedding.push(combined[k] / norm);
         }
 
-        let voice_id = format!("vdes_{}", Uuid::new_v4().to_string().replace('-', "")[..12].to_string());
+        let voice_id = format!(
+            "vdes_{}",
+            Uuid::new_v4().to_string().replace('-', "")[..12].to_string()
+        );
         let voice_name = req.name.clone().unwrap_or_else(|| {
             // Auto-generate name based on top weighted archetype
             let max_idx = weights
@@ -211,9 +229,18 @@ impl ArchetypeBank {
         if let Some(dir) = req.director {
             metadata.insert("director_energy".to_string(), format!("{:.2}", dir.energy));
             metadata.insert("director_pace".to_string(), format!("{:.2}", dir.pace));
-            metadata.insert("director_intimacy".to_string(), format!("{:.2}", dir.intimacy));
-            metadata.insert("director_formality".to_string(), format!("{:.2}", dir.formality));
-            metadata.insert("director_emotion".to_string(), format!("{:.2}", dir.emotion));
+            metadata.insert(
+                "director_intimacy".to_string(),
+                format!("{:.2}", dir.intimacy),
+            );
+            metadata.insert(
+                "director_formality".to_string(),
+                format!("{:.2}", dir.formality),
+            );
+            metadata.insert(
+                "director_emotion".to_string(),
+                format!("{:.2}", dir.emotion),
+            );
         }
 
         VoiceProfile {
@@ -225,7 +252,9 @@ impl ArchetypeBank {
             gender: req.gender.clone().or(Some(Gender::Neutral)),
             reference_audio_path: None,
             reference_audio_base64: None,
-            reference_transcript: Some("The voice identity was engineered through neural archetype design.".to_string()),
+            reference_transcript: Some(
+                "The voice identity was engineered through neural archetype design.".to_string(),
+            ),
             embedding: Some(final_embedding),
             clone_capabilities: Some(vec![
                 "zero-shot-synthesis".to_string(),
