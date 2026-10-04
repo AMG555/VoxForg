@@ -958,11 +958,9 @@ impl PipelineExecutor {
                     .and_then(|w| w.as_f64())
                     .unwrap_or(0.5) as f32;
 
-                let warmth = voxforg_audio::dsp::HarmonicWarmth::new(warmth_amount, 0.4);
-
                 let process_samples = |samples: &mut [i16]| {
                     // 1. Apply harmonic warmth to shift vocal timbre
-                    warmth.process(samples);
+                    voxforg_audio::dsp::HarmonicWarmth::process(samples, warmth_amount, 0.4);
 
                     // 2. If pitch shift requested, apply WSOLA resampling
                     if pitch_shift.abs() > 0.05 {
