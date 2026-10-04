@@ -143,6 +143,12 @@ impl VoiceProfileStore {
         }
     }
 
+    /// Save a profile (alias for insert returning Result).
+    pub async fn save(&self, profile: VoiceProfile) -> Result<(), String> {
+        self.insert(profile).await;
+        Ok(())
+    }
+
     /// Retrieve a voice profile by ID.
     pub async fn get(&self, id: &str) -> Option<VoiceProfile> {
         let lock = self.profiles.read().await;

@@ -109,11 +109,7 @@ pub async fn design_voice(
     let bank = voxforg_engine::ArchetypeBank::new();
     let profile = bank.design_voice(&payload);
 
-    state
-        .voice_profiles
-        .save(profile.clone())
-        .await
-        .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e))?;
+    state.voice_profiles.insert(profile.clone()).await;
 
     Ok(Json(profile))
 }
@@ -139,11 +135,7 @@ pub async fn import_persona(
     Json(bundle): Json<voxforg_engine::PersonaBundle>,
 ) -> Result<Json<voxforg_core::models::VoiceProfile>, (axum::http::StatusCode, String)> {
     let profile = bundle.unpack_profile();
-    state
-        .voice_profiles
-        .save(profile.clone())
-        .await
-        .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e))?;
+    state.voice_profiles.insert(profile.clone()).await;
 
     Ok(Json(profile))
 }
