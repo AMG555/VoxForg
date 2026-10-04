@@ -28,10 +28,12 @@ import {
   FileUp,
   Languages,
   ArrowRightLeft,
+  BookA,
 } from 'lucide-react';
 import { Voice } from '../../types';
 import { api } from '../../services/api';
 import { AudioVisualizer } from '../common/AudioVisualizer';
+import { PronunciationModal } from './PronunciationModal';
 import {
   AudioProcessor,
   AudioQualityAssessment,
@@ -137,6 +139,7 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated }) =>
 
   // Voice Design Studio State
   const [showDesignModal, setShowDesignModal] = useState<boolean>(false);
+  const [showPronunciationModal, setShowPronunciationModal] = useState<boolean>(false);
   const [designPrompt, setDesignPrompt] = useState<string>('');
   const [designName, setDesignName] = useState<string>('');
   const [designGender, setDesignGender] = useState<'male' | 'female' | 'neutral'>('neutral');
@@ -1192,6 +1195,14 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated }) =>
           >
             <FolderDown className="w-3 h-3 text-sky-400" />
             <span>Import .voxpersona Bundle</span>
+          </button>
+          <button
+            onClick={() => setShowPronunciationModal(true)}
+            className="w-full flex items-center justify-center space-x-1.5 py-1.5 px-2 rounded bg-[#161D26] hover:bg-[#1E2633] text-amber-300 hover:text-white border border-[#242E3D] text-[11px] font-mono transition-colors"
+            title="Manage pronunciation dictionary and phonetic rules"
+          >
+            <BookA className="w-3 h-3 text-amber-400" />
+            <span>Pronunciation Lexicon</span>
           </button>
           <input
             ref={personaFileInputRef}
@@ -3392,6 +3403,12 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated }) =>
           </div>
         </div>
       )}
+
+      {/* Pronunciation Lexicon Modal */}
+      <PronunciationModal
+        isOpen={showPronunciationModal}
+        onClose={() => setShowPronunciationModal(false)}
+      />
     </div>
   );
 };

@@ -1137,6 +1137,13 @@ Authorization: Bearer <api_key>
 | GET  | `/v1/pronunciation/dictionary` | List pronunciation overrides |
 | POST | `/v1/pronunciation/dictionary` | Add/update a pronunciation entry |
 | DELETE | `/v1/pronunciation/dictionary/{term}` | Remove a pronunciation entry |
+| POST | `/v1/pronunciation/apply` | Apply pronunciation dictionary rules to text |
+| POST | `/v1/audio/watermark` | Embed invisible spread-spectrum provenance watermark |
+| POST | `/v1/audio/verify-watermark` | Verify audio provenance watermark & tamper state |
+| GET  | `/v1/jobs/checkpoints` | List longform/audiobook job checkpoint manifests |
+| POST | `/v1/jobs/checkpoint` | Register a longform render job checkpoint |
+| POST | `/v1/jobs/{id}/resume` | Resume an interrupted render job from checkpoint |
+| GET  | `/v1/telephony/twilio/stream` | Bidirectional WebSocket stream for Twilio Media Streams |
 | GET  | `/v1/voice-identities` | List portable voice identities |
 | POST | `/v1/voice-identities` | Register/update a portable voice identity |
 | GET  | `/v1/voice-identities/{id}` | Get voice identity by ID |

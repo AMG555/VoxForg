@@ -18,6 +18,8 @@ pub enum NodeType {
     DocumentChunker,
     AudioTimeStretch,
     AudioMux,
+    Watermark,
+    VoiceConversion,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

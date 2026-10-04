@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Award, Loader2, Scale, Eye, EyeOff, Sparkles, Star } from 'lucide-react';
+import { Award, Loader2, Scale, Eye, EyeOff, Sparkles, Star, ShieldCheck, Upload, CheckCircle2, AlertTriangle, FileAudio } from 'lucide-react';
 import { AbTestComparison, Voice } from '../../types';
 import { api } from '../../services/api';
 
@@ -30,6 +30,38 @@ export const AbTestLab: React.FC<AbTestLabProps> = ({ voices }) => {
   const [blindSwap, setBlindSwap] = useState<boolean>(false);
   const [ratingAlpha, setRatingAlpha] = useState<number>(0);
   const [ratingBeta, setRatingBeta] = useState<number>(0);
+
+  // Audio Provenance & Watermark Verification State
+  const [verifyingWatermark, setVerifyingWatermark] = useState<boolean>(false);
+  const [watermarkResult, setWatermarkResult] = useState<{
+    is_detected: boolean;
+    confidence: number;
+    payload?: number;
+    signature_match: boolean;
+    sample_rate: number;
+    duration_seconds: number;
+  } | null>(null);
+  const [watermarkFileName, setWatermarkFileName] = useState<string>('');
+
+  const handleVerifyWatermarkFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setVerifyingWatermark(true);
+      setWatermarkFileName(file.name);
+      const buffer = await file.arrayBuffer();
+      const base64 = btoa(
+        new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
+      );
+      const res = await api.verifyWatermark(base64);
+      setWatermarkResult(res);
+    } catch (err: any) {
+      alert(`Watermark detection failed: ${err.message}`);
+    } finally {
+      setVerifyingWatermark(false);
+    }
+  };
 
   React.useEffect(() => {
     return () => {
@@ -449,6 +481,99 @@ export const AbTestLab: React.FC<AbTestLabProps> = ({ voices }) => {
             </div>
           </div>
         )}
+
+        {/* Audio Provenance & Watermark Verifier */}
+        <div className="p-6 rounded-2xl bg-[#121820] border border-[#242E3D] space-y-4 shadow-xl">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
+                <ShieldCheck className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-white tracking-tight flex items-center space-x-2">
+                  <span>Audio Provenance & Watermark Verifier</span>
+                  <span className="px-2 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                    Spread-Spectrum
+                  </span>
+                </h3>
+                <p className="text-xs text-[#94A3B8]">
+                  Detect imperceptible 16-bit neural provenance signatures and check for post-synthesis audio tampering
+                </p>
+              </div>
+            </div>
+            <label className="flex items-center space-x-2 px-3.5 py-2 rounded-xl bg-[#1A222D] hover:bg-[#242E3D] border border-[#242E3D] text-xs text-white cursor-pointer transition-colors shadow-sm">
+              <Upload className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Verify Audio File</span>
+              <input
+                type="file"
+                accept=".wav,.mp3"
+                onChange={handleVerifyWatermarkFile}
+                className="hidden"
+              />
+            </label>
+          </div>
+
+          {verifyingWatermark && (
+            <div className="p-4 rounded-xl bg-[#0B0E14] border border-[#242E3D] flex items-center justify-center space-x-2 text-xs text-amber-400">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>Computing cross-correlation with spread-spectrum chip sequence...</span>
+            </div>
+          )}
+
+          {watermarkResult && !verifyingWatermark && (
+            <div className="p-4 rounded-xl bg-[#0B0E14] border border-[#242E3D] space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <FileAudio className="w-4 h-4 text-sky-400" />
+                  <span className="text-xs font-mono font-semibold text-white truncate max-w-xs">
+                    {watermarkFileName}
+                  </span>
+                  <span className="text-[10px] text-[#64748B] font-mono">
+                    ({watermarkResult.duration_seconds.toFixed(2)}s @ {watermarkResult.sample_rate}Hz)
+                  </span>
+                </div>
+                {watermarkResult.is_detected && watermarkResult.signature_match ? (
+                  <span className="px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center space-x-1">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>AUTHENTIC VOXFORG SIGNATURE</span>
+                  </span>
+                ) : (
+                  <span className="px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40 flex items-center space-x-1">
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                    <span>NO PROVENANCE WATERMARK</span>
+                  </span>
+                )}
+              </div>
+
+              <div className="grid grid-cols-3 gap-3 pt-2 border-t border-[#242E3D]/50 text-xs font-mono">
+                <div className="p-3 rounded-lg bg-[#161F2C] border border-[#242E3D]">
+                  <span className="text-[10px] text-[#94A3B8] block">Correlation Confidence</span>
+                  <span className="text-base font-bold text-white">
+                    {(watermarkResult.confidence * 100).toFixed(1)}%
+                  </span>
+                </div>
+                <div className="p-3 rounded-lg bg-[#161F2C] border border-[#242E3D]">
+                  <span className="text-[10px] text-[#94A3B8] block">Decoded Payload</span>
+                  <span className="text-base font-bold text-amber-400">
+                    {watermarkResult.payload
+                      ? `0x${watermarkResult.payload.toString(16).toUpperCase()}`
+                      : 'None'}
+                  </span>
+                </div>
+                <div className="p-3 rounded-lg bg-[#161F2C] border border-[#242E3D]">
+                  <span className="text-[10px] text-[#94A3B8] block">Tamper Check</span>
+                  <span
+                    className={`text-base font-bold ${
+                      watermarkResult.signature_match ? 'text-emerald-400' : 'text-[#64748B]'
+                    }`}
+                  >
+                    {watermarkResult.signature_match ? 'PASS (Untampered)' : 'N/A'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

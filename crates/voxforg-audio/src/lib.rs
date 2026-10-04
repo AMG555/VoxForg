@@ -7,8 +7,10 @@ pub mod paralinguistics;
 pub mod wav;
 
 pub use dsp::{
-    AlgorithmicReverb, BrickwallLimiter, DeEsser, DynamicCompressor, EchoDelay, HarmonicWarmth,
-    MasteringProfile, ParametricEq, SilenceTrimmer, VocalChorus,
+    AcousticEchoCanceller, AlgorithmicReverb, AudioWatermark, BrickwallLimiter, DeEsser,
+    DynamicCompressor, EchoDelay, HarmonicWarmth, MasteringProfile, ParametricEq, ProsodyMirror,
+    SilenceTrimmer, SmartFitPlanner, VocalChorus, WatermarkDetectionResult, WsolaTimeStretch,
+    DEFAULT_SIGNATURE_PAYLOAD,
 };
 pub use media::MediaProcessor;
 pub use merge::AudioMerger;

@@ -1,8 +1,10 @@
+pub mod checkpoint;
 pub mod context;
 pub mod executor;
 pub mod graph;
 pub mod templates;
 
+pub use checkpoint::{ChapterTask, JobCheckpointManifest, TaskStatus, RESUME_MANIFEST_FILE};
 pub use context::{ExecutionContext, ScriptSegment};
 pub use executor::PipelineExecutor;
 pub use graph::GraphValidator;

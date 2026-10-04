@@ -19,6 +19,8 @@ import {
   Headphones,
   Clock,
   Film,
+  ShieldCheck,
+  Wand2,
 } from 'lucide-react';
 import { PipelineNode, NodeExecutionState } from '../../types';
 
@@ -52,6 +54,8 @@ const nodeIcons: Record<string, React.ReactNode> = {
   document_chunker: <FileText className="w-4 h-4 text-teal-400" />,
   audio_time_stretch: <Clock className="w-4 h-4 text-amber-400" />,
   audio_mux: <Film className="w-4 h-4 text-rose-400" />,
+  watermark: <ShieldCheck className="w-4 h-4 text-emerald-400" />,
+  voice_conversion: <Wand2 className="w-4 h-4 text-purple-400" />,
 };
 
 const nodeCategoryLabels: Record<string, string> = {
@@ -68,6 +72,8 @@ const nodeCategoryLabels: Record<string, string> = {
   document_chunker: 'Preprocessing',
   audio_time_stretch: 'DSP Warp',
   audio_mux: 'Video Dubbing',
+  watermark: 'Provenance',
+  voice_conversion: 'Voice Morph',
 };
 
 export const NodeCard: React.FC<NodeCardProps> = ({
@@ -392,6 +398,33 @@ export const NodeCard: React.FC<NodeCardProps> = ({
           <div className="text-[11px] text-rose-300">
             <span>Muxer: </span>
             <span>FFmpeg Stream Copy</span>
+          </div>
+        )}
+        {node.node_type === 'watermark' && (
+          <div className="space-y-0.5 text-[11px]">
+            <div className="flex items-center justify-between text-emerald-300">
+              <span>Provenance:</span>
+              <span className="font-mono text-[10px] text-emerald-400 font-bold uppercase">
+                0x{((node.params.payload || 0x5658) as number).toString(16).toUpperCase()} (VX)
+              </span>
+            </div>
+            <div className="text-[10px] text-[#94A3B8] font-mono">
+              Spread-Spectrum Invisible Embed
+            </div>
+          </div>
+        )}
+        {node.node_type === 'voice_conversion' && (
+          <div className="space-y-0.5 text-[11px]">
+            <div className="flex items-center justify-between text-purple-300">
+              <span>Pitch Shift:</span>
+              <span className="font-mono text-[10px] text-purple-400 font-bold">
+                {node.params.pitch_shift_semitones || 0} st
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-[#94A3B8] text-[10px] font-mono">
+              <span>Warmth:</span>
+              <span>{((node.params.timbre_warmth || 0.5) * 100).toFixed(0)}%</span>
+            </div>
           </div>
         )}
       </div>

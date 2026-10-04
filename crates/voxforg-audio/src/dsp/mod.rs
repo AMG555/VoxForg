@@ -12,6 +12,7 @@ pub mod reverb;
 pub mod silence;
 pub mod time_stretch;
 pub mod warmth;
+pub mod watermark;
 
 pub use aec::AcousticEchoCanceller;
 pub use chorus::VocalChorus;
@@ -27,3 +28,4 @@ pub use reverb::AlgorithmicReverb;
 pub use silence::SilenceTrimmer;
 pub use time_stretch::WsolaTimeStretch;
 pub use warmth::HarmonicWarmth;
+pub use watermark::{AudioWatermark, WatermarkDetectionResult, DEFAULT_SIGNATURE_PAYLOAD};

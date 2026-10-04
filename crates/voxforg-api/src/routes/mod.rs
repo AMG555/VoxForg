@@ -6,6 +6,7 @@ pub mod conversion;
 pub mod docs;
 pub mod embedded_ui;
 pub mod health;
+pub mod jobs;
 pub mod mcp_http;
 pub mod metrics;
 pub mod models;
@@ -14,9 +15,11 @@ pub mod pronunciation;
 pub mod qa;
 pub mod refine;
 pub mod speech;
+pub mod telephony;
 pub mod voice_ci;
 pub mod voice_identity;
 pub mod voices;
+pub mod watermark;
 pub mod workers;
 
 use crate::state::AppState;
@@ -59,6 +62,16 @@ pub fn build_api_router() -> Router<AppState> {
             "/v1/pronunciation/dictionary/:term",
             delete(pronunciation::delete_entry),
         )
+        .route("/v1/pronunciation/apply", post(pronunciation::apply_pronunciation))
+        // Audio Provenance Watermarking
+        .route("/v1/audio/watermark", post(watermark::embed_watermark_handler))
+        .route("/v1/audio/verify-watermark", post(watermark::verify_watermark_handler))
+        // Longform & Audiobook Checkpointing & Resumption
+        .route("/v1/jobs/checkpoints", get(jobs::list_checkpoints_handler))
+        .route("/v1/jobs/checkpoint", post(jobs::create_checkpoint_handler))
+        .route("/v1/jobs/:id/resume", post(jobs::resume_job_handler))
+        // Telephony Twilio Media Streams Gateway
+        .route("/v1/telephony/twilio/stream", get(telephony::twilio_media_stream_handler))
         // Voice identities (portable voice abstraction)
         .route(
             "/v1/voice-identities",

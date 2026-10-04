@@ -145,3 +145,48 @@ pub async fn delete_entry(
         )),
     }
 }
+
+#[derive(Debug, Deserialize)]
+pub struct ApplyPronunciationRequest {
+    pub text: String,
+    pub language: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ApplyPronunciationResponse {
+    pub original: String,
+    pub processed: String,
+    pub replacements_count: usize,
+}
+
+/// `POST /v1/pronunciation/apply` — apply runtime pronunciation dictionary replacements to text
+pub async fn apply_pronunciation(
+    State(state): State<AppState>,
+    Json(body): Json<ApplyPronunciationRequest>,
+) -> Json<ApplyPronunciationResponse> {
+    let original = body.text;
+    let entries = state.pronunciation.dictionary().list();
+
+    let mut processed = original.clone();
+    let mut replacements_count = 0;
+
+    for entry in entries {
+        if entry.term.trim().is_empty() {
+            continue;
+        }
+        let escaped = regex::escape(&entry.term);
+        let pattern = format!(r"(?i)\b{}\b", escaped);
+        if let Ok(re) = regex::Regex::new(&pattern) {
+            if re.is_match(&processed) {
+                processed = re.replace_all(&processed, entry.replacement.as_str()).to_string();
+                replacements_count += 1;
+            }
+        }
+    }
+
+    Json(ApplyPronunciationResponse {
+        original,
+        processed,
+        replacements_count,
+    })
+}

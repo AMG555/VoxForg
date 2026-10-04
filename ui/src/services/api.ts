@@ -316,4 +316,77 @@ export const api = {
     }
     return res.json();
   },
+
+  async getDictionary(): Promise<{ count: number; entries: Array<{ term: string; replacement: string; note?: string }> }> {
+    const res = await fetch(`${BASE_URL}/v1/pronunciation/dictionary`, {
+      headers: getHeaders(),
+    });
+    if (!res.ok) throw new Error('Failed to fetch pronunciation dictionary');
+    return res.json();
+  },
+
+  async upsertDictionary(entry: { term: string; replacement: string; note?: string }): Promise<any> {
+    const res = await fetch(`${BASE_URL}/v1/pronunciation/dictionary`, {
+      method: 'POST',
+      headers: getHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(entry),
+    });
+    if (!res.ok) throw new Error('Failed to save pronunciation entry');
+    return res.json();
+  },
+
+  async deleteDictionary(term: string): Promise<void> {
+    const res = await fetch(`${BASE_URL}/v1/pronunciation/dictionary/${encodeURIComponent(term)}`, {
+      method: 'DELETE',
+      headers: getHeaders(),
+    });
+    if (!res.ok) throw new Error('Failed to delete pronunciation entry');
+  },
+
+  async applyPronunciation(text: string, language?: string): Promise<{ original: string; processed: string; replacements_count: number }> {
+    const res = await fetch(`${BASE_URL}/v1/pronunciation/apply`, {
+      method: 'POST',
+      headers: getHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ text, language }),
+    });
+    if (!res.ok) throw new Error('Failed to apply pronunciation rules');
+    return res.json();
+  },
+
+  async embedWatermark(audioBase64: string, payload?: number, strength?: number): Promise<{ audio_base64: string; payload: number; repetitions: number; duration_seconds: number }> {
+    const res = await fetch(`${BASE_URL}/v1/audio/watermark`, {
+      method: 'POST',
+      headers: getHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ audio_base64: audioBase64, payload, strength }),
+    });
+    if (!res.ok) throw new Error('Failed to embed audio watermark');
+    return res.json();
+  },
+
+  async verifyWatermark(audioBase64: string): Promise<{ is_detected: boolean; confidence: number; payload?: number; signature_match: boolean; sample_rate: number; duration_seconds: number }> {
+    const res = await fetch(`${BASE_URL}/v1/audio/verify-watermark`, {
+      method: 'POST',
+      headers: getHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ audio_base64: audioBase64 }),
+    });
+    if (!res.ok) throw new Error('Failed to verify audio watermark');
+    return res.json();
+  },
+
+  async getJobCheckpoints(): Promise<{ jobs: any[] }> {
+    const res = await fetch(`${BASE_URL}/v1/jobs/checkpoints`, {
+      headers: getHeaders(),
+    });
+    if (!res.ok) throw new Error('Failed to fetch job checkpoints');
+    return res.json();
+  },
+
+  async resumeJob(jobId: string): Promise<{ manifest: any; remaining_indices: number[]; is_finished: boolean }> {
+    const res = await fetch(`${BASE_URL}/v1/jobs/${encodeURIComponent(jobId)}/resume`, {
+      method: 'POST',
+      headers: getHeaders(),
+    });
+    if (!res.ok) throw new Error('Failed to resume job checkpoint');
+    return res.json();
+  },
 };

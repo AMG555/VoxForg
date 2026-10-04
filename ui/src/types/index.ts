@@ -11,7 +11,9 @@ export type NodeType =
   | 'diarization'
   | 'document_chunker'
   | 'audio_time_stretch'
-  | 'audio_mux';
+  | 'audio_mux'
+  | 'watermark'
+  | 'voice_conversion';
 
 export type NodeExecutionStatus = 'idle' | 'waiting' | 'running' | 'success' | 'error' | 'bypassed';
 

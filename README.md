@@ -142,7 +142,12 @@ VoxForg eliminates vendor lock-in by abstracting 10+ local and cloud speech engi
 - **Acoustic Echo Cancellation (AEC)**: Real-time Normalized Least Mean Squares (NLMS) adaptive filtering with Geigel Double-Talk Detection for live push-to-talk dictation without loudspeaker feedback.
 - **Timed Karaoke Subtitle Exporter (`.ass`)**: Generates Advanced SubStation Alpha karaoke subtitle files with word-level centisecond timing tags (`{\k<cs>}`) for video players and video editing timelines.
 - **Double-Blind A/B QA Audition Lab**: Randomized blind audition trials with 5-star Mean Opinion Score (MOS) grading and unblinded reveal dashboard for unbiased human evaluation alongside objective RTF and loudness metrics.
-- **VRAM Hardware Budget & Idle Evictor**: Configurable hardware memory monitoring with LRU idle engine unloading to protect against CUDA out-of-memory exceptions during multi-model pipelines.
+- **Pronunciation Lexicon & SSML-Lite Engine**: Whole-word boundary-aware regex dictionary and lightweight SSML parser (`<break>`, `<prosody>`, `<emphasis>`, `<phoneme>`) for custom pronunciation overrides across all speech engines (`GET /v1/pronunciation/dictionary`, `POST /v1/pronunciation/apply`).
+- **Audio Provenance Watermarking & Tamper Verification**: Invisible spread-spectrum acoustic watermark embedding 16-bit application signature (`0x5658` = "VX") and tamper detection surviving compression and resampling (`POST /v1/audio/watermark`, `POST /v1/audio/verify-watermark`, `NodeType::Watermark`).
+- **Longform Audiobook Resumption & Content-Addressable Checkpointing**: Content-addressable SHA-256 chunk caching and atomic chapter state manifests (`resume.json`) allowing interrupted multi-chapter longform renders to resume without re-synthesizing completed chapters (`GET /v1/jobs/checkpoints`, `POST /v1/jobs/:id/resume`).
+- **Multi-Endpoint Mirror Racing**: Concurrent latency probing of primary HuggingFace Hub, HF-Mirror, and Cloudflare R2 CDN mirrors to ensure rapid model weight downloads worldwide without stalling.
+- **Voice-to-Voice Conversion & Timbre Morphing**: Pitch contour and harmonic formant morphing node preserving actor cadence and intonation (`NodeType::VoiceConversion`).
+- **Twilio Telephony & Real-Time Voicebot Bridge**: Bidirectional WebSocket gateway connecting Twilio Media Streams (8kHz mu-law) to real-time speech and transcription pipelines (`GET /v1/telephony/twilio/stream`).
 - **Cross-Platform Delivery**:
   - Standalone single binary (`voxforg-cli`) with embedded workstation UI.
   - Official multi-arch Docker containers (`linux/amd64`, `linux/arm64`).

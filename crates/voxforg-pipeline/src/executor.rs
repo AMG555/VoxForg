@@ -899,6 +899,99 @@ impl PipelineExecutor {
                 ctx.master_audio_pcm = mixed;
                 Ok(())
             }
+
+            NodeType::Watermark => {
+                let payload = node
+                    .params
+                    .get("payload")
+                    .and_then(|p| p.as_u64())
+                    .map(|v| v as u16)
+                    .unwrap_or(voxforg_audio::dsp::DEFAULT_SIGNATURE_PAYLOAD);
+
+                let strength = node
+                    .params
+                    .get("strength")
+                    .and_then(|s| s.as_f64())
+                    .map(|v| v as f32)
+                    .unwrap_or(0.0035);
+
+                let wm = voxforg_audio::dsp::AudioWatermark::new(ctx.sample_rate)
+                    .with_strength(strength);
+
+                // Watermark master audio if present
+                if !ctx.master_audio_pcm.is_empty() {
+                    let mut float_buf: Vec<f32> = ctx
+                        .master_audio_pcm
+                        .iter()
+                        .map(|&s| s as f32 / 32768.0)
+                        .collect();
+                    wm.embed(&mut float_buf, payload);
+                    for (dst, src) in ctx.master_audio_pcm.iter_mut().zip(float_buf.iter()) {
+                        *dst = (src * 32768.0).clamp(-32768.0, 32767.0) as i16;
+                    }
+                }
+
+                // Also watermark individual segments
+                for segment in &mut ctx.audio_segments {
+                    if !segment.is_empty() {
+                        let mut float_buf: Vec<f32> =
+                            segment.iter().map(|&s| s as f32 / 32768.0).collect();
+                        wm.embed(&mut float_buf, payload);
+                        for (dst, src) in segment.iter_mut().zip(float_buf.iter()) {
+                            *dst = (src * 32768.0).clamp(-32768.0, 32767.0) as i16;
+                        }
+                    }
+                }
+
+                Ok(())
+            }
+
+            NodeType::VoiceConversion => {
+                let pitch_shift = node
+                    .params
+                    .get("pitch_shift_semitones")
+                    .and_then(|p| p.as_f64())
+                    .unwrap_or(0.0) as f32;
+                let warmth_amount = node
+                    .params
+                    .get("timbre_warmth")
+                    .and_then(|w| w.as_f64())
+                    .unwrap_or(0.5) as f32;
+
+                let warmth = voxforg_audio::dsp::HarmonicWarmth::new(warmth_amount, 0.4);
+
+                let process_samples = |samples: &mut [i16]| {
+                    // 1. Apply harmonic warmth to shift vocal timbre
+                    warmth.process(samples);
+
+                    // 2. If pitch shift requested, apply WSOLA resampling
+                    if pitch_shift.abs() > 0.05 {
+                        let ratio = 2.0f32.powf(pitch_shift / 12.0);
+                        if ratio > 0.5 && ratio < 2.0 {
+                            let orig_len = samples.len();
+                            let target_len = (orig_len as f32 / ratio) as usize;
+                            if target_len > 0 {
+                                let stretched = time_stretch_linear(samples, target_len);
+                                // Resample back to original length
+                                let restored = time_stretch_linear(&stretched, orig_len);
+                                samples.copy_from_slice(&restored[..orig_len.min(restored.len())]);
+                            }
+                        }
+                    }
+                };
+
+                if !ctx.master_audio_pcm.is_empty() {
+                    process_samples(&mut ctx.master_audio_pcm);
+                }
+
+                for segment in &mut ctx.audio_segments {
+                    if !segment.is_empty() {
+                        process_samples(segment);
+                    }
+                }
+
+                Ok(())
+            }
         }
     }
 }

@@ -95,6 +95,7 @@ crates/
 │   ├── src/profile_store.rs # [Phase 5] VoiceProfileStore: persistent voice cloning profiles
 │   ├── src/voice_design.rs  # VoiceDesign: text prompts to 512-D neural embeddings via 40+ archetypes
 │   ├── src/persona.rs       # PersonaBundle: portable .voxpersona identity archive packaging
+│   ├── src/pronunciation.rs # PronunciationLexicon & SsmlLite: ReDoS-safe dictionary & SSML pre-parser
 │   ├── src/vram_budget.rs   # VramBudgetManager: hardware memory ceilings and LRU engine eviction
 │   ├── src/qwen3.rs       # [Phase 5] Qwen3TtsEngine: zero-shot speaker embedding cloning
 │   ├── src/piper.rs       # [Phase 10] PiperTtsEngine: offline Piper neural ONNX engine & sidecar
@@ -130,6 +131,7 @@ crates/
 │   ├── src/dsp/time_stretch.rs # WsolaTimeStretch: pitch-preserving audio tempo scaling
 │   ├── src/dsp/aec.rs          # AcousticEchoCanceller: adaptive NLMS filter with Double-Talk Detection
 │   ├── src/dsp/prosody.rs      # ProsodyMirror & 5-axis Director AI taxonomic z-score analysis
+│   ├── src/dsp/watermark.rs    # AudioWatermark: spread-spectrum provenance embedder & detector
 │   ├── src/wav.rs         # Zero-allocation streaming WAV chunker
 │   ├── src/resample.rs    # Sample rate conversion (e.g. 24kHz to 48kHz)
 │   ├── src/normalizer.rs  # EBU R128 loudness normalization
@@ -138,9 +140,11 @@ crates/
 ├── voxforg-pipeline
 │   ├── src/graph.rs       # Directed Acyclic Graph validator and topological sorter
 │   ├── src/context.rs     # ExecutionContext with multi-track audio buffers & timing
+│   ├── src/checkpoint.rs  # JobCheckpointManifest: content-addressable chapter caching & auto-resume
 │   ├── src/templates.rs   # [Phase 7] Video dubbing and audiobook production DAG templates
-│   └── src/executor.rs    # PipelineExecutor (ASR, Diarization, Chunker, TimeStretch, Mux, Filter)
+│   └── src/executor.rs    # PipelineExecutor (ASR, Diarization, Chunker, TimeStretch, Mux, Watermark, VoiceConversion)
 ├── voxforg-catalog       # [Phase 8] Model weights catalogue & manager
+│   ├── src/mirror_race.rs # MirrorRaceManager: concurrent latency racing across mirrors & CDNs
 │   ├── src/models.rs      # CatalogItem, ModelType, ModelFormat, ModelStatus
 │   └── src/store.rs       # ModelCatalogStore with hardware constraint validation
 ├── voxforg-api
