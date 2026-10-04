@@ -119,7 +119,7 @@ impl PronunciationLexicon {
         }
 
         // Sort longest keys first so "Dr. Smith" wins over "Dr."
-        active_rules.sort_by(|a, b| b.original.len().cmp(&a.original.len()));
+        active_rules.sort_by_key(|a| std::cmp::Reverse(a.original.len()));
 
         let mut result = text.to_string();
 
@@ -144,13 +144,8 @@ impl PronunciationLexicon {
 
             let prefix = if starts_word { r"\b" } else { "" };
             let suffix = if ends_word { r"\b" } else { "" };
-            let pattern = format!(
-                "(?{}){}{}{}",
-                if rule.case_sensitive { "" } else { "i" },
-                prefix,
-                escaped,
-                suffix
-            );
+            let case_flag = if rule.case_sensitive { "" } else { "(?i)" };
+            let pattern = format!("{}{}{}{}", case_flag, prefix, escaped, suffix);
 
             if let Ok(re) = Regex::new(&pattern) {
                 result = re

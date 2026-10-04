@@ -55,19 +55,19 @@ impl ArchetypeBank {
         let mut state = seed.wrapping_mul(0x517cc1b727220a95).wrapping_add(1);
         let mut sum_sq = 0.0f32;
 
-        for i in 0..512 {
+        for item in &mut vec {
             // Xorshift64star pseudo-random generator
             state ^= state >> 12;
             state ^= state << 25;
             state ^= state >> 27;
             let val = ((state.wrapping_mul(0x2545F4914F6CDD1D) >> 32) as i32) as f32 / (i32::MAX as f32);
-            vec[i] = val;
+            *item = val;
             sum_sq += val * val;
         }
 
         let norm = sum_sq.sqrt().max(1e-6);
-        for i in 0..512 {
-            vec[i] /= norm;
+        for item in &mut vec {
+            *item /= norm;
         }
 
         vec
@@ -179,25 +179,25 @@ impl ArchetypeBank {
 
         for (i, arc) in self.archetypes.iter().enumerate() {
             let w = weights[i];
-            for k in 0..512 {
-                combined[k] += arc.base_vector[k] * w;
+            for (k, val) in arc.base_vector.iter().enumerate() {
+                combined[k] += val * w;
             }
         }
 
         // Normalize to unit sphere (hyper-sphere normalized embedding)
         let mut sum_sq = 0.0f32;
-        for k in 0..512 {
-            sum_sq += combined[k] * combined[k];
+        for val in &combined {
+            sum_sq += val * val;
         }
         let norm = sum_sq.sqrt().max(1e-6);
         let mut final_embedding = Vec::with_capacity(512);
-        for k in 0..512 {
-            final_embedding.push(combined[k] / norm);
+        for val in &combined {
+            final_embedding.push(val / norm);
         }
 
         let voice_id = format!(
             "vdes_{}",
-            Uuid::new_v4().to_string().replace('-', "")[..12].to_string()
+            &Uuid::new_v4().to_string().replace('-', "")[..12]
         );
         let voice_name = req.name.clone().unwrap_or_else(|| {
             // Auto-generate name based on top weighted archetype
