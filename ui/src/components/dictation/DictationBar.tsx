@@ -5,11 +5,9 @@ import {
   Sparkles,
   Copy,
   Check,
-  Volume2,
   Trash2,
   X,
   Keyboard,
-  Wand2,
   Activity,
   ArrowRight,
 } from 'lucide-react';
@@ -40,11 +38,12 @@ export const DictationBar: React.FC<DictationBarProps> = ({
   const [removeFillers, setRemoveFillers] = useState<boolean>(true);
   const [fixRepetitions, setFixRepetitions] = useState<boolean>(true);
   const [removedCount, setRemovedCount] = useState<number>(0);
+  const [aecEnabled, setAecEnabled] = useState<boolean>(true);
 
   // Audio Recording Refs
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
-  const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animFrameRef = useRef<number | null>(null);
@@ -75,7 +74,7 @@ export const DictationBar: React.FC<DictationBarProps> = ({
         audio: {
           channelCount: 1,
           sampleRate: 24000,
-          echoCancellation: true,
+          echoCancellation: aecEnabled,
           noiseSuppression: true,
         },
       });
@@ -299,6 +298,20 @@ export const DictationBar: React.FC<DictationBarProps> = ({
               />
               <span>Anti-Loop</span>
             </label>
+
+            <button
+              type="button"
+              onClick={() => setAecEnabled(!aecEnabled)}
+              className={`flex items-center space-x-1 px-2 py-0.5 rounded text-[11px] font-mono border transition-colors ${
+                aecEnabled
+                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                  : 'bg-[#121820] text-[#64748B] border-[#242E3D]'
+              }`}
+              title="Acoustic Echo Cancellation: eliminates feedback from speakers"
+            >
+              <Activity className="w-3 h-3" />
+              <span>AEC {aecEnabled ? 'ON' : 'OFF'}</span>
+            </button>
           </div>
         </div>
 

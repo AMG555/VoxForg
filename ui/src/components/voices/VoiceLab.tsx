@@ -107,7 +107,7 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated }) =>
   // Speech-to-Speech Voice Conversion Studio State
   const [stsIsRecording, setStsIsRecording] = useState<boolean>(false);
   const [stsRecordingDuration, setStsRecordingDuration] = useState<number>(0);
-  const [stsAudioBlob, setStsAudioBlob] = useState<Blob | null>(null);
+  const [_stsAudioBlob, setStsAudioBlob] = useState<Blob | null>(null);
   const [stsAudioUrl, setStsAudioUrl] = useState<string | null>(null);
   const [stsInputBase64, setStsInputBase64] = useState<string>('');
   const [stsInputFileName, setStsInputFileName] = useState<string>('');
@@ -134,6 +134,25 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated }) =>
     recommendations: string[];
   } | null>(null);
   const [isAssessingQuality, setIsAssessingQuality] = useState<boolean>(false);
+
+  // Voice Design Studio State
+  const [showDesignModal, setShowDesignModal] = useState<boolean>(false);
+  const [designPrompt, setDesignPrompt] = useState<string>('');
+  const [designName, setDesignName] = useState<string>('');
+  const [designGender, setDesignGender] = useState<'male' | 'female' | 'neutral'>('neutral');
+  const [designLanguage, setDesignLanguage] = useState<string>('en-US');
+  const [designDirector, setDesignDirector] = useState<{
+    energy: number;
+    emotion: number;
+    pace: number;
+    intimacy: number;
+    formality: number;
+  }>({ energy: 0, emotion: 0, pace: 0, intimacy: 0, formality: 0 });
+  const [isDesigning, setIsDesigning] = useState<boolean>(false);
+  const [designStatus, setDesignStatus] = useState<string | null>(null);
+
+  // Persona Bundle Ref
+  const personaFileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Takes & Provenance Reel state
   const [takes, setTakes] = useState<VoiceTake[]>([]);
@@ -1007,6 +1026,88 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated }) =>
     }
   };
 
+  const handleDesignSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!designPrompt.trim()) return;
+    setIsDesigning(true);
+    setDesignStatus(null);
+    try {
+      const res = await api.designVoice({
+        prompt: designPrompt.trim(),
+        name: designName.trim() || undefined,
+        gender: designGender,
+        language: designLanguage,
+        director: designDirector,
+      });
+
+      const newVoice: Voice = {
+        id: res.id,
+        name: res.name,
+        engine_id: res.engine_id || 'qwen3-tts',
+        language: res.language || designLanguage,
+        gender: res.gender || designGender,
+        sample_rate_hz: 24000,
+        tags: ['designed', 'ai-archetype', 'zero-shot'],
+        description: res.description || `AI designed voice: "${designPrompt.trim()}"`,
+      };
+
+      setLocalVoices((prev) => [newVoice, ...prev.filter((v) => v.id !== newVoice.id)]);
+      onVoiceCreated?.(newVoice);
+      setSelectedVoiceId(newVoice.id);
+      setShowDesignModal(false);
+      setDesignPrompt('');
+      setDesignName('');
+    } catch (err: any) {
+      setDesignStatus(`Voice design failed: ${err.message || err}`);
+    } finally {
+      setIsDesigning(false);
+    }
+  };
+
+  const handleExportPersona = async (voiceId: string) => {
+    try {
+      const bundle = await api.exportPersona(voiceId);
+      const jsonStr = JSON.stringify(bundle, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${voiceId}.voxpersona`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      alert(`Persona export failed: ${err.message || err}`);
+    }
+  };
+
+  const handleImportPersonaFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const bundle = JSON.parse(text);
+      const imported = await api.importPersona(bundle);
+      const newVoice: Voice = {
+        id: imported.id,
+        name: imported.name,
+        engine_id: imported.engine_id || 'qwen3-tts',
+        language: imported.language || 'en-US',
+        gender: imported.gender || 'neutral',
+        sample_rate_hz: 24000,
+        tags: ['imported', 'persona-bundle'],
+        description: imported.description || 'Imported .voxpersona bundle',
+      };
+      setLocalVoices((prev) => [newVoice, ...prev.filter((v) => v.id !== newVoice.id)]);
+      onVoiceCreated?.(newVoice);
+      setSelectedVoiceId(newVoice.id);
+      alert(`Successfully imported voice persona: ${imported.name}`);
+    } catch (err: any) {
+      alert(`Import failed: ${err.message || err}`);
+    } finally {
+      if (e.target) e.target.value = '';
+    }
+  };
+
   const handleLoadDemoSample = async (type: 'broadcaster' | 'dispatcher') => {
     try {
       const demo = await AudioProcessor.createDemoReferenceSample(type);
@@ -1066,13 +1167,39 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated }) =>
       {/* Voices List Sidebar */}
       <div className="w-80 border-r border-[#242E3D] bg-[#121820] flex flex-col h-full select-none">
         <div className="p-3 border-b border-[#242E3D] space-y-2">
+          <div className="grid grid-cols-2 gap-1.5">
+            <button
+              onClick={() => setShowCloneModal(true)}
+              className="flex items-center justify-center space-x-1.5 py-2 px-2 rounded bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-mono font-semibold transition-colors shadow-sm"
+              title="Clone voice profile from microphone or audio file"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Clone Voice</span>
+            </button>
+            <button
+              onClick={() => setShowDesignModal(true)}
+              className="flex items-center justify-center space-x-1.5 py-2 px-2 rounded bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/30 text-xs font-mono font-semibold transition-colors shadow-sm"
+              title="Design new voice with prompt & 5-axis Director AI"
+            >
+              <Wand2 className="w-3.5 h-3.5" />
+              <span>Design Voice</span>
+            </button>
+          </div>
           <button
-            onClick={() => setShowCloneModal(true)}
-            className="w-full flex items-center justify-center space-x-2 py-2 px-3 rounded bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-mono font-semibold transition-colors shadow-sm"
+            onClick={() => personaFileInputRef.current?.click()}
+            className="w-full flex items-center justify-center space-x-1.5 py-1.5 px-2 rounded bg-[#161D26] hover:bg-[#1E2633] text-[#94A3B8] hover:text-white border border-[#242E3D] text-[11px] font-mono transition-colors"
+            title="Import .voxpersona bundle"
           >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Clone New Voice</span>
+            <FolderDown className="w-3 h-3 text-sky-400" />
+            <span>Import .voxpersona Bundle</span>
           </button>
+          <input
+            ref={personaFileInputRef}
+            type="file"
+            accept=".voxpersona,.json"
+            onChange={handleImportPersonaFile}
+            className="hidden"
+          />
 
           <div className="relative">
             <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[#64748B]" />
@@ -1144,6 +1271,18 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated }) =>
                 onChange={handlePresetFileInputChange}
                 className="hidden"
               />
+
+              {selectedVoice && (
+                <button
+                  type="button"
+                  onClick={() => handleExportPersona(selectedVoice.id)}
+                  className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg border border-[#242E3D] bg-[#121820] text-[#94A3B8] hover:text-white hover:border-purple-500/50 hover:bg-purple-500/10 text-xs font-mono transition-colors shadow"
+                  title="Export this voice profile as a portable .voxpersona bundle"
+                >
+                  <Download className="w-3.5 h-3.5 text-purple-400" />
+                  <span>Export Persona</span>
+                </button>
+              )}
 
               <button
                 type="button"
@@ -2374,8 +2513,6 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated }) =>
                 </div>
               )
             )}
-            </>
-          )}
 
           {audioUrl && (
             <div className="space-y-4">
@@ -2590,8 +2727,10 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated }) =>
               </div>
             )}
           </div>
-        </div>
-      </div>
+        </>
+      )}
+    </div>
+  </div>
 
       {/* Voice Cloning Studio Modal */}
       {showCloneModal && (
@@ -3023,6 +3162,228 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated }) =>
                     <>
                       <Mic className="w-3.5 h-3.5" />
                       <span>Clone Profile</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Voice Design Studio Modal */}
+      {showDesignModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
+          <div className="bg-[#121820] border border-[#242E3D] rounded-xl w-full max-w-xl overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-150 max-h-[90vh] flex flex-col">
+            <div className="p-4 border-b border-[#242E3D] flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <div className="p-1.5 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-400">
+                  <Wand2 className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">Voice Design Studio</h3>
+                  <p className="text-[11px] text-[#94A3B8] font-mono">Synthesize 512-D neural acoustic embedding from text & 5-axis Director AI</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowDesignModal(false)}
+                className="p-1 rounded-lg text-[#64748B] hover:text-white hover:bg-[#1A222D] transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleDesignSubmit} className="p-5 space-y-4 overflow-y-auto flex-1">
+              <div>
+                <label className="block text-xs font-semibold text-[#CBD5E1] mb-1.5">
+                  Natural Language Voice Description <span className="text-purple-400">*</span>
+                </label>
+                <textarea
+                  rows={3}
+                  value={designPrompt}
+                  onChange={(e) => setDesignPrompt(e.target.value)}
+                  placeholder="e.g. Warm, soothing British podcast narrator with slight chest resonance and calm, intimate cadence"
+                  className="w-full bg-[#0B0E14] border border-[#242E3D] rounded-lg p-2.5 text-xs text-white placeholder-[#64748B] focus:border-purple-500 focus:outline-none resize-none"
+                  required
+                />
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {[
+                    'Deep warm baritone podcast host',
+                    'Crisp authoritative news anchor',
+                    'Intimate whispered storytelling ASMR',
+                    'Raspy cynical detective noir',
+                    'Cheerful energetic youth host',
+                    'Wise weathered elder philosopher',
+                  ].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setDesignPrompt(preset)}
+                      className="px-2 py-0.5 rounded text-[10px] font-mono bg-[#161D26] hover:bg-purple-500/20 text-[#94A3B8] hover:text-purple-300 border border-[#242E3D] transition-colors"
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-[#CBD5E1] mb-1.5">Voice Name (Optional)</label>
+                  <input
+                    type="text"
+                    value={designName}
+                    onChange={(e) => setDesignName(e.target.value)}
+                    placeholder="e.g. Aurelius Storyteller"
+                    className="w-full bg-[#0B0E14] border border-[#242E3D] rounded-lg px-3 py-1.5 text-xs text-white placeholder-[#64748B] focus:border-purple-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#CBD5E1] mb-1.5">Vocal Gender</label>
+                  <select
+                    value={designGender}
+                    onChange={(e) => setDesignGender(e.target.value as any)}
+                    className="w-full bg-[#0B0E14] border border-[#242E3D] rounded-lg px-3 py-1.5 text-xs text-white focus:border-purple-500 focus:outline-none"
+                  >
+                    <option value="male">Male Archetypes</option>
+                    <option value="female">Female Archetypes</option>
+                    <option value="neutral">Neutral / Balanced</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#CBD5E1] mb-1.5">Language</label>
+                  <select
+                    value={designLanguage}
+                    onChange={(e) => setDesignLanguage(e.target.value)}
+                    className="w-full bg-[#0B0E14] border border-[#242E3D] rounded-lg px-3 py-1.5 text-xs text-white focus:border-purple-500 focus:outline-none"
+                  >
+                    <option value="en-US">English (US)</option>
+                    <option value="en-GB">English (UK)</option>
+                    <option value="ml-IN">Malayalam (ML)</option>
+                    <option value="hi-IN">Hindi (HI)</option>
+                    <option value="ta-IN">Tamil (TA)</option>
+                    <option value="te-IN">Telugu (TE)</option>
+                    <option value="de-DE">German (DE)</option>
+                    <option value="fr-FR">French (FR)</option>
+                    <option value="es-ES">Spanish (ES)</option>
+                    <option value="ja-JP">Japanese (JA)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Director AI 5-Axis Taxonomic Sliders */}
+              <div className="p-3.5 bg-[#0B0E14] rounded-xl border border-[#242E3D] space-y-3 font-mono text-xs">
+                <div className="flex items-center justify-between border-b border-[#1A222D] pb-1.5">
+                  <span className="text-[11px] font-bold text-purple-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Sliders className="w-3.5 h-3.5" />
+                    <span>Director AI 5-Axis Taxonomy</span>
+                  </span>
+                  <span className="text-[10px] text-[#64748B]">Latent Bias Modifiers</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <div className="flex justify-between text-[11px] text-[#94A3B8] mb-0.5">
+                      <span>Energy:</span>
+                      <strong className={designDirector.energy >= 0 ? 'text-purple-400' : 'text-sky-400'}>
+                        {designDirector.energy > 0 ? `+${designDirector.energy.toFixed(2)}` : designDirector.energy.toFixed(2)}
+                      </strong>
+                    </div>
+                    <input
+                      type="range"
+                      min="-1.0"
+                      max="1.0"
+                      step="0.05"
+                      value={designDirector.energy}
+                      onChange={(e) => setDesignDirector((prev) => ({ ...prev, energy: parseFloat(e.target.value) }))}
+                      className="w-full accent-purple-500"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between text-[11px] text-[#94A3B8] mb-0.5">
+                      <span>Pace / Tempo:</span>
+                      <strong className={designDirector.pace >= 0 ? 'text-purple-400' : 'text-sky-400'}>
+                        {designDirector.pace > 0 ? `+${designDirector.pace.toFixed(2)}` : designDirector.pace.toFixed(2)}
+                      </strong>
+                    </div>
+                    <input
+                      type="range"
+                      min="-1.0"
+                      max="1.0"
+                      step="0.05"
+                      value={designDirector.pace}
+                      onChange={(e) => setDesignDirector((prev) => ({ ...prev, pace: parseFloat(e.target.value) }))}
+                      className="w-full accent-purple-500"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between text-[11px] text-[#94A3B8] mb-0.5">
+                      <span>Intimacy:</span>
+                      <strong className={designDirector.intimacy >= 0 ? 'text-purple-400' : 'text-sky-400'}>
+                        {designDirector.intimacy > 0 ? `+${designDirector.intimacy.toFixed(2)}` : designDirector.intimacy.toFixed(2)}
+                      </strong>
+                    </div>
+                    <input
+                      type="range"
+                      min="-1.0"
+                      max="1.0"
+                      step="0.05"
+                      value={designDirector.intimacy}
+                      onChange={(e) => setDesignDirector((prev) => ({ ...prev, intimacy: parseFloat(e.target.value) }))}
+                      className="w-full accent-purple-500"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between text-[11px] text-[#94A3B8] mb-0.5">
+                      <span>Formality:</span>
+                      <strong className={designDirector.formality >= 0 ? 'text-purple-400' : 'text-sky-400'}>
+                        {designDirector.formality > 0 ? `+${designDirector.formality.toFixed(2)}` : designDirector.formality.toFixed(2)}
+                      </strong>
+                    </div>
+                    <input
+                      type="range"
+                      min="-1.0"
+                      max="1.0"
+                      step="0.05"
+                      value={designDirector.formality}
+                      onChange={(e) => setDesignDirector((prev) => ({ ...prev, formality: parseFloat(e.target.value) }))}
+                      className="w-full accent-purple-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {designStatus && (
+                <div className="p-2.5 rounded bg-purple-500/10 border border-purple-500/30 text-purple-300 text-xs font-mono">
+                  {designStatus}
+                </div>
+              )}
+
+              <div className="pt-3 flex items-center justify-end space-x-3 border-t border-[#242E3D]">
+                <button
+                  type="button"
+                  onClick={() => setShowDesignModal(false)}
+                  className="px-4 py-2 rounded-lg bg-[#1A222D] hover:bg-[#242E3D] text-[#94A3B8] hover:text-white text-xs font-semibold transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isDesigning || !designPrompt.trim()}
+                  className="flex items-center space-x-2 px-5 py-2 rounded-lg bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-400 hover:to-indigo-500 text-white text-xs font-semibold transition-colors shadow-lg shadow-purple-500/20 disabled:opacity-50"
+                >
+                  {isDesigning ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Synthesizing Archetypes...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Wand2 className="w-3.5 h-3.5" />
+                      <span>Synthesize Voice</span>
                     </>
                   )}
                 </button>

@@ -3,6 +3,7 @@
 //! Provides abstract engine contracts, standard OpenAI-compatible transcription
 //! types, word-level timestamping, and multi-engine registry routing.
 
+pub mod ass_export;
 pub mod mock;
 pub mod openai;
 pub mod registry;
@@ -10,6 +11,7 @@ pub mod traits;
 pub mod types;
 pub mod whisper;
 
+pub use ass_export::AssSubtitleExporter;
 pub use mock::MockAsrEngine;
 pub use openai::OpenAiAsrEngine;
 pub use registry::AsrRegistry;

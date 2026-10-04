@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Award, Loader2, Scale } from 'lucide-react';
+import { Award, Loader2, Scale, Eye, EyeOff, Sparkles, Star } from 'lucide-react';
 import { AbTestComparison, Voice } from '../../types';
 import { api } from '../../services/api';
 
@@ -24,6 +24,13 @@ export const AbTestLab: React.FC<AbTestLabProps> = ({ voices }) => {
   const [audioUrlA, setAudioUrlA] = useState<string | null>(null);
   const [audioUrlB, setAudioUrlB] = useState<string | null>(null);
 
+  // Double-Blind QA Trial Mode State
+  const [isBlindTest, setIsBlindTest] = useState<boolean>(false);
+  const [isUnblinded, setIsUnblinded] = useState<boolean>(false);
+  const [blindSwap, setBlindSwap] = useState<boolean>(false);
+  const [ratingAlpha, setRatingAlpha] = useState<number>(0);
+  const [ratingBeta, setRatingBeta] = useState<number>(0);
+
   React.useEffect(() => {
     return () => {
       if (audioUrlA) URL.revokeObjectURL(audioUrlA);
@@ -35,6 +42,11 @@ export const AbTestLab: React.FC<AbTestLabProps> = ({ voices }) => {
     if (!text.trim()) return;
     try {
       setIsRunning(true);
+      setIsUnblinded(false);
+      setRatingAlpha(0);
+      setRatingBeta(0);
+      setBlindSwap(Math.random() > 0.5);
+
       if (audioUrlA) {
         URL.revokeObjectURL(audioUrlA);
         setAudioUrlA(null);
@@ -70,15 +82,33 @@ export const AbTestLab: React.FC<AbTestLabProps> = ({ voices }) => {
   return (
     <div className="flex-1 p-8 overflow-y-auto bg-[#0B0E14] space-y-6">
       <div className="max-w-5xl space-y-6">
-        <div>
-          <div className="flex items-center space-x-2 text-amber-500 font-mono text-xs uppercase tracking-wider">
-            <Scale className="w-4 h-4" />
-            <span>Automated QA & Comparative Evaluation</span>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <div className="flex items-center space-x-2 text-amber-500 font-mono text-xs uppercase tracking-wider">
+              <Scale className="w-4 h-4" />
+              <span>Automated QA & Comparative Evaluation</span>
+            </div>
+            <h2 className="text-xl font-bold text-white mt-1">Voice & Engine A/B Testing Lab</h2>
+            <p className="text-xs text-[#94A3B8] font-mono mt-1">
+              Conduct double-blind synthesis comparisons, analyze real-time factor, and detect clipping.
+            </p>
           </div>
-          <h2 className="text-xl font-bold text-white mt-1">Voice & Engine A/B Testing Lab</h2>
-          <p className="text-xs text-[#94A3B8] font-mono mt-1">
-            Conduct double-blind synthesis comparisons, analyze real-time factor, and detect clipping.
-          </p>
+
+          <button
+            type="button"
+            onClick={() => {
+              setIsBlindTest(!isBlindTest);
+              setIsUnblinded(false);
+            }}
+            className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg border text-xs font-mono transition-all ${
+              isBlindTest
+                ? 'bg-purple-500/20 text-purple-300 border-purple-500/50 shadow-md shadow-purple-500/10'
+                : 'bg-[#121820] text-[#94A3B8] border-[#242E3D] hover:text-white'
+            }`}
+          >
+            {isBlindTest ? <EyeOff className="w-3.5 h-3.5 text-purple-400" /> : <Eye className="w-3.5 h-3.5 text-[#64748B]" />}
+            <span>Double-Blind Trial: {isBlindTest ? 'ACTIVE' : 'OFF'}</span>
+          </button>
         </div>
 
         {/* Input Text Box */}
@@ -96,7 +126,7 @@ export const AbTestLab: React.FC<AbTestLabProps> = ({ voices }) => {
         </div>
 
         {/* Side-by-side Variant Configuration */}
-        <div className="grid grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Variant A */}
           <div className="bg-[#121820] border border-[#242E3D] p-5 rounded-lg space-y-4">
             <div className="flex items-center justify-between border-b border-[#242E3D] pb-3">
@@ -159,7 +189,7 @@ export const AbTestLab: React.FC<AbTestLabProps> = ({ voices }) => {
               </div>
             </div>
 
-            {audioUrlA && (
+            {!isBlindTest && audioUrlA && (
               <div className="pt-2">
                 <audio controls src={audioUrlA} className="h-8 w-full rounded bg-[#0B0E14]" />
               </div>
@@ -228,7 +258,7 @@ export const AbTestLab: React.FC<AbTestLabProps> = ({ voices }) => {
               </div>
             </div>
 
-            {audioUrlB && (
+            {!isBlindTest && audioUrlB && (
               <div className="pt-2">
                 <audio controls src={audioUrlB} className="h-8 w-full rounded bg-[#0B0E14]" />
               </div>
@@ -251,11 +281,99 @@ export const AbTestLab: React.FC<AbTestLabProps> = ({ voices }) => {
             ) : (
               <>
                 <Scale className="w-4 h-4" />
-                <span>Execute Automated A/B Evaluation</span>
+                <span>{isBlindTest ? 'Start Double-Blind Audition Trial' : 'Execute Automated A/B Evaluation'}</span>
               </>
             )}
           </button>
         </div>
+
+        {/* Double-Blind Audition Deck */}
+        {isBlindTest && audioUrlA && audioUrlB && !isUnblinded && (
+          <div className="p-6 rounded-xl bg-gradient-to-br from-[#121820] to-[#0D1219] border border-purple-500/40 space-y-6 shadow-2xl animate-in fade-in duration-200">
+            <div className="flex items-center justify-between border-b border-[#242E3D] pb-3">
+              <div className="flex items-center space-x-2">
+                <EyeOff className="w-4 h-4 text-purple-400" />
+                <span className="text-xs font-bold text-white font-mono uppercase tracking-wider">
+                  Blind Audition Session (Randomized Playback)
+                </span>
+              </div>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-purple-500/10 text-purple-300 border border-purple-500/20">
+                Double-Blind Active
+              </span>
+            </div>
+
+            <p className="text-xs text-[#94A3B8]">
+              Listen to both anonymized samples below. Rate the perceived naturalness and clarity of each sample (MOS 1–5), then unblind to reveal models.
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Sample Alpha */}
+              <div className="p-4 rounded-lg bg-[#0B0E14] border border-[#242E3D] space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-purple-400 font-mono">Sample Alpha</span>
+                  <span className="text-[10px] text-[#64748B] font-mono">Anonymized</span>
+                </div>
+                <audio controls src={blindSwap ? audioUrlB : audioUrlA} className="w-full h-8 rounded bg-[#121820]" />
+                <div>
+                  <div className="text-[11px] font-mono text-[#94A3B8] mb-1">Perceived Naturalness (MOS):</div>
+                  <div className="flex items-center space-x-1">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        type="button"
+                        onClick={() => setRatingAlpha(star)}
+                        className={`p-1 rounded ${ratingAlpha >= star ? 'text-amber-400' : 'text-[#334155] hover:text-amber-400/50'}`}
+                      >
+                        <Star className="w-4 h-4 fill-current" />
+                      </button>
+                    ))}
+                    <span className="text-xs font-mono font-bold text-white ml-2">
+                      {ratingAlpha > 0 ? `${ratingAlpha}.0` : '--'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sample Beta */}
+              <div className="p-4 rounded-lg bg-[#0B0E14] border border-[#242E3D] space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-sky-400 font-mono">Sample Beta</span>
+                  <span className="text-[10px] text-[#64748B] font-mono">Anonymized</span>
+                </div>
+                <audio controls src={blindSwap ? audioUrlA : audioUrlB} className="w-full h-8 rounded bg-[#121820]" />
+                <div>
+                  <div className="text-[11px] font-mono text-[#94A3B8] mb-1">Perceived Naturalness (MOS):</div>
+                  <div className="flex items-center space-x-1">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        type="button"
+                        onClick={() => setRatingBeta(star)}
+                        className={`p-1 rounded ${ratingBeta >= star ? 'text-amber-400' : 'text-[#334155] hover:text-amber-400/50'}`}
+                      >
+                        <Star className="w-4 h-4 fill-current" />
+                      </button>
+                    ))}
+                    <span className="text-xs font-mono font-bold text-white ml-2">
+                      {ratingBeta > 0 ? `${ratingBeta}.0` : '--'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => setIsUnblinded(true)}
+                className="flex items-center space-x-2 px-5 py-2.5 rounded-lg bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-400 hover:to-indigo-500 text-white font-bold text-xs shadow-lg transition-all"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Reveal Identities & Verdict</span>
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Results Scorecard */}
         {comparison && (

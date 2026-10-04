@@ -795,6 +795,7 @@ impl PipelineExecutor {
             }
 
             NodeType::AudioTimeStretch => {
+                let wsola = voxforg_audio::dsp::WsolaTimeStretch::new(ctx.sample_rate);
                 for (i, pcm) in ctx.audio_segments.iter_mut().enumerate() {
                     if let Some(seg) = ctx.segments.get(i) {
                         if let Some(target_ms) = seg.target_duration_ms {
@@ -805,7 +806,7 @@ impl PipelineExecutor {
                                 && current_samples > 0
                                 && target_samples != current_samples
                             {
-                                *pcm = time_stretch_linear(pcm, target_samples);
+                                *pcm = wsola.stretch_to_len(pcm, target_samples);
                             }
                         }
                     }

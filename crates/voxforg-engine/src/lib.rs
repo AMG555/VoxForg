@@ -4,12 +4,15 @@ pub mod edge_tts;
 pub mod identity;
 pub mod kokoro;
 pub mod mock;
+pub mod persona;
 pub mod piper;
 pub mod profile_store;
 pub mod qwen3;
 pub mod registry;
 pub mod router;
 pub mod traits;
+pub mod voice_design;
+pub mod vram_budget;
 
 pub use ab_test::{AbTestComparison, AbTestRunner, AbTestScenario, VariantResult};
 pub use cache::AudioCache;
@@ -17,12 +20,15 @@ pub use edge_tts::EdgeTtsEngine;
 pub use identity::VoiceIdentityResolver;
 pub use kokoro::{KokoroTtsEngine, KokoroVoiceDef, KOKORO_VOICES};
 pub use mock::MockTtsEngine;
+pub use persona::PersonaBundle;
 pub use piper::PiperTtsEngine;
 pub use profile_store::VoiceProfileStore;
 pub use qwen3::Qwen3TtsEngine;
 pub use registry::EngineRegistry;
 pub use router::OpenAiRouterEngine;
 pub use traits::{EngineCapabilities, SynthesisRequest, TtsEngine};
+pub use voice_design::{ArchetypeBank, VoiceDesignRequest};
+pub use vram_budget::{ModelMemoryFootprint, VramBudgetConfig, VramBudgetManager};
 
 #[cfg(test)]
 mod tests {

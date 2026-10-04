@@ -93,3 +93,58 @@ pub async fn compose_in_character(
         persona_used: persona,
     }))
 }
+
+/// Design a custom voice from natural language prompt and Director AI controls.
+pub async fn design_voice(
+    State(state): State<AppState>,
+    Json(payload): Json<voxforg_engine::VoiceDesignRequest>,
+) -> Result<Json<voxforg_core::models::VoiceProfile>, (axum::http::StatusCode, String)> {
+    if payload.prompt.trim().is_empty() {
+        return Err((
+            axum::http::StatusCode::BAD_REQUEST,
+            "Design prompt cannot be empty".to_string(),
+        ));
+    }
+
+    let bank = voxforg_engine::ArchetypeBank::new();
+    let profile = bank.design_voice(&payload);
+
+    state
+        .voice_profiles
+        .save(profile.clone())
+        .await
+        .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e))?;
+
+    Ok(Json(profile))
+}
+
+/// Export a voice profile as a portable persona bundle.
+pub async fn export_persona(
+    State(state): State<AppState>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> Result<Json<voxforg_engine::PersonaBundle>, (axum::http::StatusCode, String)> {
+    let profile = state
+        .voice_profiles
+        .get(&id)
+        .await
+        .ok_or((axum::http::StatusCode::NOT_FOUND, "Voice profile not found".to_string()))?;
+
+    let bundle = voxforg_engine::PersonaBundle::from_profile(profile);
+    Ok(Json(bundle))
+}
+
+/// Import a portable persona bundle into the persistent voice profiles store.
+pub async fn import_persona(
+    State(state): State<AppState>,
+    Json(bundle): Json<voxforg_engine::PersonaBundle>,
+) -> Result<Json<voxforg_core::models::VoiceProfile>, (axum::http::StatusCode, String)> {
+    let profile = bundle.unpack_profile();
+    state
+        .voice_profiles
+        .save(profile.clone())
+        .await
+        .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e))?;
+
+    Ok(Json(profile))
+}
+

@@ -152,3 +152,36 @@ export interface CloneVoicePayload {
   gender?: 'male' | 'female' | 'neutral';
   description?: string;
 }
+
+export interface DirectorTaxonomy {
+  energy: number;
+  emotion: number;
+  pace: number;
+  intimacy: number;
+  formality: number;
+}
+
+export interface VoiceDesignPayload {
+  prompt: string;
+  name?: string;
+  gender?: 'male' | 'female' | 'neutral';
+  language?: string;
+  director?: DirectorTaxonomy;
+}
+
+export interface PersonaBundle {
+  format_version: number;
+  profile: {
+    id: string;
+    name: string;
+    engine_id: string;
+    description?: string;
+    language: string;
+    gender?: 'male' | 'female' | 'neutral';
+    embedding?: number[];
+    metadata?: Record<string, string>;
+  };
+  prosody_defaults?: DirectorTaxonomy;
+  avatar_base64?: string;
+}
+

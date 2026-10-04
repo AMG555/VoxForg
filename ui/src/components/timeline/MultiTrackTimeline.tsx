@@ -4,11 +4,8 @@ import {
   Pause,
   Plus,
   Trash2,
-  Volume2,
-  VolumeX,
   Download,
   Sparkles,
-  Sliders,
   RotateCcw,
   Clock,
   Layers,
@@ -105,7 +102,7 @@ export const MultiTrackTimeline: React.FC<MultiTrackTimelineProps> = ({ voices }
   const [masterAudioUrl, setMasterAudioUrl] = useState<string | null>(null);
   const [newClipText, setNewClipText] = useState<string>('');
   const [activeTrackIdForAdd, setActiveTrackIdForAdd] = useState<string>(tracks[0]?.id || '');
-  const playheadIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const playheadIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const totalDurationSec = Math.max(
     20,

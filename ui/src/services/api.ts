@@ -267,4 +267,53 @@ export const api = {
     }
     return res.json();
   },
+
+  async designVoice(payload: {
+    prompt: string;
+    name?: string;
+    gender?: 'male' | 'female' | 'neutral';
+    language?: string;
+    director?: {
+      energy: number;
+      emotion: number;
+      pace: number;
+      intimacy: number;
+      formality: number;
+    };
+  }): Promise<Voice> {
+    const res = await fetch(`${BASE_URL}/v1/voices/design`, {
+      method: 'POST',
+      headers: getHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Voice design failed' }));
+      throw new Error(err.detail || 'Voice design failed');
+    }
+    return res.json();
+  },
+
+  async exportPersona(voiceId: string): Promise<any> {
+    const res = await fetch(`${BASE_URL}/v1/voices/${encodeURIComponent(voiceId)}/export`, {
+      headers: getHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to export persona bundle' }));
+      throw new Error(err.detail || 'Failed to export persona bundle');
+    }
+    return res.json();
+  },
+
+  async importPersona(bundle: any): Promise<Voice> {
+    const res = await fetch(`${BASE_URL}/v1/voices/import`, {
+      method: 'POST',
+      headers: getHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(bundle),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to import persona bundle' }));
+      throw new Error(err.detail || 'Failed to import persona bundle');
+    }
+    return res.json();
+  },
 };

@@ -35,6 +35,9 @@ pub fn build_api_router() -> Router<AppState> {
         .route("/health/ready", get(health::readiness_check))
         .route("/v1/models", get(models::list_models))
         .route("/v1/voices", get(voices::list_voices))
+        .route("/v1/voices/design", post(voices::design_voice))
+        .route("/v1/voices/import", post(voices::import_persona))
+        .route("/v1/voices/:id/export", get(voices::export_persona))
         .route("/v1/voices/:id/compose", post(voices::compose_in_character))
         .route("/v1/audio/speech", post(speech::synthesize_speech))
         .route(
