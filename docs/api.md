@@ -1125,6 +1125,10 @@ Authorization: Bearer <api_key>
 | GET  | `/v1/voices` | List all voices from all engines |
 | GET  | `/v1/voices/profiles` | List all stored voice profiles |
 | POST | `/v1/voices/clone` | Clone a voice from reference audio |
+| POST | `/v1/voices/design` | Synthesize 512-D neural acoustic embedding from text prompt & Director AI |
+| GET  | `/v1/voices/{id}/export` | Export voice profile as a portable `.voxpersona` bundle |
+| POST | `/v1/voices/import` | Import portable `.voxpersona` bundle into persistent voice store |
+| POST | `/v1/voices/assess` | Quality grade reference audio for SNR, RMS, peak dBFS, and clipping |
 | GET  | `/v1/voices/profiles/{id}` | Get voice profile by ID |
 | DELETE | `/v1/voices/profiles/{id}` | Delete voice profile |
 | GET  | `/v1/models` | List all registered engines |

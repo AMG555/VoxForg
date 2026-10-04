@@ -93,6 +93,9 @@ crates/
 │   ├── src/registry.rs    # Thread-safe EngineRegistry with LRU audio cache
 │   ├── src/identity.rs    # [Phase 2B] VoiceIdentityResolver: portable voices across engines
 │   ├── src/profile_store.rs # [Phase 5] VoiceProfileStore: persistent voice cloning profiles
+│   ├── src/voice_design.rs  # VoiceDesign: text prompts to 512-D neural embeddings via 40+ archetypes
+│   ├── src/persona.rs       # PersonaBundle: portable .voxpersona identity archive packaging
+│   ├── src/vram_budget.rs   # VramBudgetManager: hardware memory ceilings and LRU engine eviction
 │   ├── src/qwen3.rs       # [Phase 5] Qwen3TtsEngine: zero-shot speaker embedding cloning
 │   ├── src/piper.rs       # [Phase 10] PiperTtsEngine: offline Piper neural ONNX engine & sidecar
 │   ├── src/edge_tts/      # Microsoft Edge TTS WebSocket client
@@ -117,11 +120,16 @@ crates/
 ├── voxforg-asr            # [Phase 6] Automated Speech Recognition layer
 │   ├── src/traits.rs      # AsrEngine trait and AsrEngineInfo metadata
 │   ├── src/types.rs       # TranscriptionOptions, TranscriptionResult, WordTimestamp, SRT/VTT
+│   ├── src/ass_export.rs  # AssSubtitleExporter: Timed karaoke .ass subtitles with centisecond tags
 │   ├── src/openai.rs      # OpenAiAsrEngine: HTTP multipart bridge to OpenAI-compatible ASR (Faster-Whisper/WhisperX)
 │   ├── src/whisper.rs     # WhisperAsrEngine with VAD energy segmentation & upstream delegation
 │   ├── src/mock.rs        # MockAsrEngine for deterministic CI testing
 │   └── src/registry.rs    # Thread-safe multi-engine AsrRegistry
 ├── voxforg-audio
+│   ├── src/dsp/fit_planner.rs  # SmartFitPlanner: dubbing silence absorption & geometric 50/50 split
+│   ├── src/dsp/time_stretch.rs # WsolaTimeStretch: pitch-preserving audio tempo scaling
+│   ├── src/dsp/aec.rs          # AcousticEchoCanceller: adaptive NLMS filter with Double-Talk Detection
+│   ├── src/dsp/prosody.rs      # ProsodyMirror & 5-axis Director AI taxonomic z-score analysis
 │   ├── src/wav.rs         # Zero-allocation streaming WAV chunker
 │   ├── src/resample.rs    # Sample rate conversion (e.g. 24kHz to 48kHz)
 │   ├── src/normalizer.rs  # EBU R128 loudness normalization

@@ -135,6 +135,14 @@ VoxForg eliminates vendor lock-in by abstracting 10+ local and cloud speech engi
   - Strict server-side proxying; frontend never handles downstream API credentials.
   - Granular API key permissions (`tts:read`, `tts:write`, `pipeline:admin`).
   - Strict CORS validation, rate-limiting (token bucket), and RFC 7807 problem details.
+- **Voice Design Studio & Semantic Archetypes**: Synthesize custom 512-D neural acoustic speaker embeddings directly from natural language prompts (e.g. "Warm, soothing storyteller voice with slight chest resonance and calm cadence") and 5-axis Director AI controls via 40+ semantic anchor archetypes (`POST /v1/voices/design`).
+- **Portable Persona Bundles (`.voxpersona`)**: Self-contained voice sharing archive format packaging speaker identity metadata, 512-D neural embeddings, reference WAV audio samples, prosody baseline, and visual avatar (`GET /v1/voices/:id/export`, `POST /v1/voices/import`).
+- **Smart Fit Dubbing Planner & WSOLA Time-Stretch**: Intelligent dubbing synchronization engine featuring pause gap absorption (120ms natural floor), underrun floor protection (0.85x duration), and geometric 50/50 audio rate and video slow-motion split. Uses pitch-preserving WSOLA (Waveform Similarity Overlap-Add) audio time-stretching with zero pitch artifacting.
+- **5-Axis Director AI Taxonomy & Prosody Mirroring**: Fine-grained acoustic direction across 5 standardized axes (`energy`, `emotion`, `pace`, `intimacy`, `formality`) mapped to speaker-relative z-scores (F0 pitch mean/std, RMS loudness, syllable cadence, voicing ratio).
+- **Acoustic Echo Cancellation (AEC)**: Real-time Normalized Least Mean Squares (NLMS) adaptive filtering with Geigel Double-Talk Detection for live push-to-talk dictation without loudspeaker feedback.
+- **Timed Karaoke Subtitle Exporter (`.ass`)**: Generates Advanced SubStation Alpha karaoke subtitle files with word-level centisecond timing tags (`{\k<cs>}`) for video players and video editing timelines.
+- **Double-Blind A/B QA Audition Lab**: Randomized blind audition trials with 5-star Mean Opinion Score (MOS) grading and unblinded reveal dashboard for unbiased human evaluation alongside objective RTF and loudness metrics.
+- **VRAM Hardware Budget & Idle Evictor**: Configurable hardware memory monitoring with LRU idle engine unloading to protect against CUDA out-of-memory exceptions during multi-model pipelines.
 - **Cross-Platform Delivery**:
   - Standalone single binary (`voxforg-cli`) with embedded workstation UI.
   - Official multi-arch Docker containers (`linux/amd64`, `linux/arm64`).
