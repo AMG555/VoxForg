@@ -13,7 +13,8 @@ const https = require('https');
 const { spawn } = require('child_process');
 
 const REPO = 'AMG555/VoxForg';
-const DEFAULT_VERSION = 'v0.1.0';
+const pkg = require('../package.json');
+const DEFAULT_VERSION = process.env.VOXFORG_VERSION || `v${pkg.version}`;
 
 function getTargetInfo() {
   const platform = process.platform;

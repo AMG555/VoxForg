@@ -199,3 +199,55 @@ impl ParametricEq {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parametric_eq_empty_input() {
+        let mut samples = vec![];
+        ParametricEq::process_3band(&mut samples, 24000, 3.0, -2.0, 1.0);
+        assert!(samples.is_empty());
+
+        ParametricEq::high_pass(&mut samples, 24000, 80.0);
+        assert!(samples.is_empty());
+    }
+
+    #[test]
+    fn test_parametric_eq_zero_gain_is_noop() {
+        let mut samples = vec![1000, 2000, -3000, 4000];
+        let original = samples.clone();
+        ParametricEq::process_3band(&mut samples, 24000, 0.0, 0.0, 0.0);
+        assert_eq!(samples, original);
+    }
+
+    #[test]
+    fn test_parametric_eq_nan_and_inf_handled_safely() {
+        let mut samples = vec![500, 1000, -1500];
+        let original = samples.clone();
+        ParametricEq::process_3band(&mut samples, 24000, f32::NAN, f32::INFINITY, f32::NEG_INFINITY);
+        assert_eq!(samples, original);
+
+        ParametricEq::high_pass(&mut samples, 24000, f32::NAN);
+        assert_eq!(samples, original);
+    }
+
+    #[test]
+    fn test_high_pass_filter_attenuates_low_frequencies() {
+        let sample_rate = 24000u32;
+        let mut samples = Vec::with_capacity(2400);
+        // 20Hz signal at 24kHz
+        for i in 0..2400 {
+            let t = i as f32 / sample_rate as f32;
+            samples.push((10000.0 * (2.0 * PI * 20.0 * t).sin()).round() as i16);
+        }
+
+        let initial_peak = samples.iter().map(|&s| (s as i32).abs()).max().unwrap();
+        ParametricEq::high_pass(&mut samples, sample_rate, 80.0);
+        // After settling, tail should be heavily attenuated
+        let tail_peak = samples[1200..].iter().map(|&s| (s as i32).abs()).max().unwrap();
+        assert!(tail_peak < initial_peak / 3);
+    }
+}
+

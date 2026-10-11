@@ -10,8 +10,8 @@
     "start": "node ./packages/voxforg/bin/voxforg.js serve --open",
     "voxforg": "node ./packages/voxforg/bin/voxforg.js",
     "ui:dev": "npm --prefix ui run dev",
-    "ui:build": "npm --prefix ui run build",
-    "build:all": "npm --prefix ui run build && cargo build --release --bin voxforg"
+    "ui:build": "npm --prefix ui run build && node -e \"fs.rmSync('crates/voxforg-api/ui_dist', {recursive: true, force: true}); fs.cpSync('ui/dist', 'crates/voxforg-api/ui_dist', {recursive: true, force: true})\"",
+    "build:all": "npm run ui:build && cargo build --release --bin voxforg"
   },
   "keywords": [
     "tts",

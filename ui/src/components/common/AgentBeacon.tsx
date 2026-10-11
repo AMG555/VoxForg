@@ -5,7 +5,7 @@ interface AgentBeaconProps {
   serverUrl?: string;
 }
 
-export const AgentBeacon: React.FC<AgentBeaconProps> = ({ serverUrl = 'http://localhost:8080' }) => {
+export const AgentBeacon: React.FC<AgentBeaconProps> = ({ serverUrl = '' }) => {
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
   const [activeClient, setActiveClient] = useState<string>('Claude Desktop');
   const [showFlyout, setShowFlyout] = useState<boolean>(false);
@@ -26,7 +26,8 @@ export const AgentBeacon: React.FC<AgentBeaconProps> = ({ serverUrl = 'http://lo
     window.addEventListener('voxforg:agent-end', handleAgentEnd);
 
     // Initial MCP readiness ping
-    fetch(`${serverUrl}/mcp`, {
+    const endpoint = serverUrl ? `${serverUrl}/mcp` : '/mcp';
+    fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ jsonrpc: '2.0', method: 'ping', id: 1 }),
@@ -107,7 +108,7 @@ export const AgentBeacon: React.FC<AgentBeaconProps> = ({ serverUrl = 'http://lo
             <div className="bg-[#0B0E14] p-2.5 rounded-lg border border-[#242E3D]">
               <div className="text-[10px] text-[#94A3B8] font-mono uppercase mb-1">MCP Endpoint</div>
               <div className="font-mono text-amber-300 text-[11px] select-all flex items-center justify-between">
-                <span>{serverUrl}/mcp</span>
+                <span>{serverUrl ? `${serverUrl}/mcp` : `${typeof window !== 'undefined' ? window.location.origin : ''}/mcp`}</span>
                 <span className="text-[9px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/30">
                   HTTP + SSE
                 </span>
@@ -144,7 +145,7 @@ export const AgentBeacon: React.FC<AgentBeaconProps> = ({ serverUrl = 'http://lo
               </button>
 
               <a
-                href={`${serverUrl}/docs`}
+                href={serverUrl ? `${serverUrl}/docs` : '/docs'}
                 target="_blank"
                 rel="noreferrer"
                 className="text-[11px] text-amber-400 hover:text-amber-300 flex items-center space-x-1"

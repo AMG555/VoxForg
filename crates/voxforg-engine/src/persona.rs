@@ -79,3 +79,76 @@ impl PersonaBundle {
         self.profile
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    #[test]
+    fn test_persona_from_profile_with_defaults() {
+        let profile = VoiceProfile {
+            id: "vp_test".to_string(),
+            name: "Test Speaker".to_string(),
+            engine_id: "qwen3".to_string(),
+            description: None,
+            language: "en-US".to_string(),
+            gender: None,
+            reference_audio_path: None,
+            reference_audio_base64: None,
+            reference_transcript: None,
+            embedding: Some(vec![0.1; 512]),
+            clone_capabilities: None,
+            metadata: HashMap::new(),
+            created_at: chrono::Utc::now(),
+        };
+
+        let bundle = PersonaBundle::from_profile(profile.clone());
+        assert_eq!(bundle.format_version, 1);
+        assert_eq!(bundle.prosody_defaults.energy, 0.0);
+        assert_eq!(bundle.prosody_defaults.pace, 0.0);
+        assert_eq!(bundle.profile.id, "vp_test");
+        assert_eq!(bundle.unpack_profile().id, "vp_test");
+    }
+
+    #[test]
+    fn test_persona_from_profile_with_director_metadata() {
+        let mut metadata = HashMap::new();
+        metadata.insert("director_energy".to_string(), "0.75".to_string());
+        metadata.insert("director_pace".to_string(), "1.2".to_string());
+        metadata.insert("director_emotion".to_string(), "0.5".to_string());
+        metadata.insert("director_intimacy".to_string(), "0.3".to_string());
+        metadata.insert("director_formality".to_string(), "-0.2".to_string());
+
+        let profile = VoiceProfile {
+            id: "vp_custom".to_string(),
+            name: "Custom Persona".to_string(),
+            engine_id: "qwen3".to_string(),
+            description: Some("Custom voice".to_string()),
+            language: "en-US".to_string(),
+            gender: None,
+            reference_audio_path: None,
+            reference_audio_base64: Some("data:audio/wav;base64,UklGRg==".to_string()),
+            reference_transcript: None,
+            embedding: Some(vec![0.2; 512]),
+            clone_capabilities: None,
+            metadata,
+            created_at: chrono::Utc::now(),
+        };
+
+        let bundle = PersonaBundle::from_profile(profile);
+        assert_eq!(bundle.prosody_defaults.energy, 0.75);
+        assert_eq!(bundle.prosody_defaults.pace, 1.2);
+        assert_eq!(bundle.prosody_defaults.emotion, 0.5);
+        assert_eq!(bundle.prosody_defaults.intimacy, 0.3);
+        assert_eq!(bundle.prosody_defaults.formality, -0.2);
+
+        // Serialization roundtrip
+        let json = bundle.to_json().expect("Serialization failed");
+        let parsed = PersonaBundle::from_json(&json).expect("Deserialization failed");
+        assert_eq!(parsed.profile.id, "vp_custom");
+        assert_eq!(parsed.prosody_defaults.energy, 0.75);
+    }
+}
+
+

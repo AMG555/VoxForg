@@ -11,7 +11,7 @@ impl HarmonicWarmth {
     /// - `drive`: Saturation amount between 0.0 (clean linear bypass) and 1.0 (rich analogue warmth).
     /// - `warmth_blend`: Mix level between dry and saturated signal (0.0 to 1.0).
     pub fn process(samples: &mut [i16], drive: f32, warmth_blend: f32) {
-        if samples.is_empty() {
+        if samples.is_empty() || !drive.is_finite() || !warmth_blend.is_finite() {
             return;
         }
 
@@ -60,5 +60,16 @@ mod tests {
             "Warmth saturation must gently compress loud peaks"
         );
         assert!(samples[1] > -30000);
+    }
+
+    #[test]
+    fn test_warmth_nan_leaves_samples_unaltered() {
+        let mut samples = vec![1000, -2000, 3000];
+        let original = samples.clone();
+        HarmonicWarmth::process(&mut samples, f32::NAN, 1.0);
+        assert_eq!(samples, original);
+
+        HarmonicWarmth::process(&mut samples, 0.5, f32::NAN);
+        assert_eq!(samples, original);
     }
 }

@@ -1,9 +1,9 @@
 ; VoxForg Inno Setup Installer Script
-; Produces: VoxForg-Setup-v0.1.0-windows-x64.exe
+; Produces: VoxForg-Setup-v0.1.2-windows-x64.exe
 ; Requires Inno Setup 6.x: https://jrsoftware.org/isinfo.php
 
 #define MyAppName "VoxForg"
-#define MyAppVersion "0.1.0"
+#define MyAppVersion "0.1.2"
 #define MyAppPublisher "VoxForg Contributors"
 #define MyAppURL "https://github.com/AMG555/VoxForg"
 #define MyAppExeName "voxforg.exe"

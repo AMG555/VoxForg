@@ -54,6 +54,9 @@ impl AcousticEchoCanceller {
 
     /// Process a single scalar sample pair.
     pub fn process_sample(&mut self, mic: f32, speaker_ref: f32) -> f32 {
+        let mic = if mic.is_finite() { mic } else { 0.0 };
+        let speaker_ref = if speaker_ref.is_finite() { speaker_ref } else { 0.0 };
+
         // 1. Update circular buffer with new reference sample
         self.x_history[self.history_idx] = speaker_ref;
 
@@ -109,5 +112,47 @@ impl AcousticEchoCanceller {
         self.x_history.fill(0.0);
         self.history_idx = 0;
         self.double_talk_counter = 0;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_aec_attenuates_correlated_echo() {
+        let mut aec = AcousticEchoCanceller::new(128);
+        // Simulate speaker playing 440Hz tone
+        let n = 2000;
+        let mut spk = Vec::with_capacity(n);
+        let mut mic = Vec::with_capacity(n);
+
+        for i in 0..n {
+            let t = i as f32 / 24000.0;
+            let s = ((2.0 * std::f32::consts::PI * 440.0 * t).sin() * 10000.0) as i16;
+            spk.push(s);
+            // Mic picks up delayed and scaled echo
+            let delayed_s = if i >= 10 { (spk[i - 10] as f32 * 0.5) as i16 } else { 0 };
+            mic.push(delayed_s);
+        }
+
+        let out = aec.process_frame(&mic, &spk);
+        assert_eq!(out.len(), n);
+
+        // After initial convergence, residual error should decrease
+        let mic_rms: f32 = mic[1200..1500].iter().map(|&x| (x as f32).powi(2)).sum::<f32>() / 300.0;
+        let residual_rms: f32 = out[1200..1500].iter().map(|&x| (x as f32).powi(2)).sum::<f32>() / 300.0;
+        assert!(
+            residual_rms < mic_rms * 0.001,
+            "AEC must dramatically attenuate echo energy"
+        );
+    }
+
+    #[test]
+    fn test_aec_nan_handling() {
+        let mut aec = AcousticEchoCanceller::new(64);
+        let out = aec.process_sample(f32::NAN, f32::NAN);
+        assert!(out.is_finite());
+        assert_eq!(out, 0.0);
     }
 }

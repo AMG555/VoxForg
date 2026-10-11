@@ -75,17 +75,27 @@ export interface VoiceTake {
 interface VoiceLabProps {
   voices: Voice[];
   onVoiceCreated?: (voice: Voice) => void;
+  initialText?: string;
 }
 
-export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated }) => {
+export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated, initialText }) => {
   const [localVoices, setLocalVoices] = useState<Voice[]>(voices);
   useEffect(() => {
     setLocalVoices(voices);
   }, [voices]);
   const [selectedVoiceId, setSelectedVoiceId] = useState<string>('en-US-AriaNeural');
   const [text, setText] = useState<string>(
-    'The atmospheric density on Kepler-452b allows acoustic waves to travel 1.4 times faster than standard Earth normal.'
+    initialText ||
+      'The atmospheric density on Kepler-452b allows acoustic waves to travel 1.4 times faster than standard Earth normal.'
   );
+
+  useEffect(() => {
+    if (initialText) {
+      setText(initialText);
+      setSpokenPrompt(initialText);
+    }
+  }, [initialText]);
+
   const [speed, setSpeed] = useState<number>(1.0);
   const [pitch, setPitch] = useState<number>(0.0);
   const [instruct, setInstruct] = useState<string>('');

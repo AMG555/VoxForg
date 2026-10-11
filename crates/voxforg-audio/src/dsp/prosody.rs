@@ -195,3 +195,42 @@ impl ProsodyMirror {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_prosody_mirror_empty_or_zero_sr() {
+        let features = ProsodyMirror::analyze(&[], 24000);
+        assert_eq!(features.f0_mean_hz, 140.0);
+        assert_eq!(features.voicing_ratio, 0.0);
+        let director = ProsodyMirror::features_to_director(&features);
+        assert!(director.energy.is_finite());
+        assert!(director.pace.is_finite());
+
+        let features_zero_sr = ProsodyMirror::analyze(&[100, 200, 300], 0);
+        assert_eq!(features_zero_sr.voicing_ratio, 0.0);
+    }
+
+    #[test]
+    fn test_prosody_mirror_synthetic_speech_tone() {
+        let sample_rate = 24000;
+        let mut samples = Vec::with_capacity(sample_rate as usize);
+        // Synthesize 1s of 220Hz tone at strong amplitude
+        for i in 0..sample_rate {
+            let t = i as f32 / sample_rate as f32;
+            let s = ((2.0 * std::f32::consts::PI * 220.0 * t).sin() * 15000.0) as i16;
+            samples.push(s);
+        }
+
+        let features = ProsodyMirror::analyze(&samples, sample_rate);
+        assert!(features.rms_dbfs > -30.0);
+        assert!(features.f0_mean_hz > 200.0 && features.f0_mean_hz < 240.0);
+        assert!(features.voicing_ratio > 0.5);
+
+        let director = ProsodyMirror::features_to_director(&features);
+        assert!(director.energy >= -1.0 && director.energy <= 1.0);
+        assert!(director.formality >= -1.0 && director.formality <= 1.0);
+    }
+}

@@ -72,3 +72,52 @@ impl AudioNormalizer {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_empty_and_nan_peak_normalize() {
+        let mut samples = vec![];
+        AudioNormalizer::peak_normalize(&mut samples, 0.9);
+        assert!(samples.is_empty());
+
+        let mut samples = vec![100, 200];
+        let original = samples.clone();
+        AudioNormalizer::peak_normalize(&mut samples, f32::NAN);
+        assert_eq!(samples, original);
+    }
+
+    #[test]
+    fn test_all_zeros_peak_normalize() {
+        let mut samples = vec![0, 0, 0];
+        AudioNormalizer::peak_normalize(&mut samples, 1.0);
+        assert_eq!(samples, vec![0, 0, 0]);
+    }
+
+    #[test]
+    fn test_rms_normalize_nan_and_silence() {
+        let mut samples = vec![0, 0, 0];
+        AudioNormalizer::rms_normalize(&mut samples, 0.2);
+        assert_eq!(samples, vec![0, 0, 0]);
+
+        let mut samples = vec![1000, 2000];
+        let original = samples.clone();
+        AudioNormalizer::rms_normalize(&mut samples, f32::NAN);
+        assert_eq!(samples, original);
+    }
+
+    #[test]
+    fn test_apply_gain_db_boundary() {
+        let mut samples = vec![10000];
+        // Large boost clamps to i16::MAX safely
+        AudioNormalizer::apply_gain_db(&mut samples, 40.0);
+        assert_eq!(samples[0], 32767);
+
+        // Huge attenuation brings to near-zero
+        AudioNormalizer::apply_gain_db(&mut samples, -100.0);
+        assert!(samples[0].abs() <= 1);
+    }
+}
+

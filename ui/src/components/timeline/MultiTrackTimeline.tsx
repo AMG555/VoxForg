@@ -129,6 +129,12 @@ export const MultiTrackTimeline: React.FC<MultiTrackTimelineProps> = ({ voices }
     };
   }, [isPlaying, totalDurationSec]);
 
+  useEffect(() => {
+    return () => {
+      if (masterAudioUrl) URL.revokeObjectURL(masterAudioUrl);
+    };
+  }, [masterAudioUrl]);
+
   const handleAddTrack = () => {
     const newIdx = tracks.length + 1;
     const color = DEFAULT_TRACK_COLORS[tracks.length % DEFAULT_TRACK_COLORS.length];

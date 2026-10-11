@@ -20,7 +20,11 @@ impl DeEsser {
         threshold_dbfs: f32,
         max_reduction_db: f32,
     ) {
-        if samples.is_empty() {
+        if samples.is_empty()
+            || !frequency_hz.is_finite()
+            || !threshold_dbfs.is_finite()
+            || !max_reduction_db.is_finite()
+        {
             return;
         }
 
@@ -150,5 +154,17 @@ mod tests {
             avg_diff < 50.0,
             "De-Esser must not alter non-sibilant low frequencies"
         );
+    }
+
+    #[test]
+    fn test_deesser_nan_handling() {
+        let mut samples = vec![1000, -1000, 500, -500];
+        let orig = samples.clone();
+        DeEsser::process(&mut samples, 24000, f32::NAN, -20.0, 10.0);
+        assert_eq!(samples, orig);
+        DeEsser::process(&mut samples, 24000, 6000.0, f32::NAN, 10.0);
+        assert_eq!(samples, orig);
+        DeEsser::process(&mut samples, 24000, 6000.0, -20.0, f32::NAN);
+        assert_eq!(samples, orig);
     }
 }

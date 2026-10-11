@@ -70,7 +70,13 @@ impl AlgorithmicReverb {
         dry_mix: f32,
         sample_rate: u32,
     ) {
-        if samples.is_empty() || wet_mix <= 0.001 {
+        if samples.is_empty()
+            || !room_size.is_finite()
+            || !damping.is_finite()
+            || !wet_mix.is_finite()
+            || !dry_mix.is_finite()
+            || wet_mix <= 0.001
+        {
             return;
         }
 

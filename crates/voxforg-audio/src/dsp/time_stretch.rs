@@ -192,3 +192,65 @@ impl WsolaTimeStretch {
         output
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_empty_and_zero_target() {
+        let stretcher = WsolaTimeStretch::new(24000);
+        assert!(stretcher.stretch_to_len(&[], 100).is_empty());
+        assert!(stretcher.stretch_to_len(&[1, 2, 3], 0).is_empty());
+    }
+
+    #[test]
+    fn test_identity_stretch() {
+        let stretcher = WsolaTimeStretch::new(24000);
+        let input = vec![100, 200, -300, 400, 500];
+        let result = stretcher.stretch_to_len(&input, input.len());
+        assert_eq!(result, input);
+    }
+
+    #[test]
+    fn test_short_audio_fallback() {
+        let stretcher = WsolaTimeStretch::new(24000);
+        let input = vec![1000, 2000, 3000, 4000];
+        let stretched = stretcher.stretch_to_len(&input, 8);
+        assert_eq!(stretched.len(), 8);
+        assert_eq!(stretched[0], 1000);
+        assert_eq!(stretched[7], 4000);
+    }
+
+    #[test]
+    fn test_wsola_full_stretch_longer_and_shorter() {
+        let stretcher = WsolaTimeStretch::new(24000);
+        // Generate a 1-second sine wave at 440 Hz
+        let sample_rate = 24000;
+        let mut wave = Vec::with_capacity(sample_rate);
+        for i in 0..sample_rate {
+            let t = i as f64 / sample_rate as f64;
+            let val = (t * 440.0 * 2.0 * std::f64::consts::PI).sin() * 15000.0;
+            wave.push(val as i16);
+        }
+
+        // Stretch to 1.5x length (slow down)
+        let target_longer = 36000;
+        let longer = stretcher.stretch_to_len(&wave, target_longer);
+        assert_eq!(longer.len(), target_longer);
+
+        // Stretch to 0.75x length (speed up)
+        let target_shorter = 18000;
+        let shorter = stretcher.stretch_to_len(&wave, target_shorter);
+        assert_eq!(shorter.len(), target_shorter);
+    }
+
+    #[test]
+    fn test_stretch_by_ratio() {
+        let stretcher = WsolaTimeStretch::new(16000);
+        let input = vec![100i16; 5000];
+        let sped_up = stretcher.stretch_by_ratio(&input, 1.25, 0);
+        assert!(sped_up.len() < input.len());
+    }
+}
+

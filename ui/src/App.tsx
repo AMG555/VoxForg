@@ -18,6 +18,7 @@ export const App: React.FC = () => {
   const [hardware, setHardware] = useState<HardwareInfo | null>(null);
   const [voices, setVoices] = useState<Voice[]>([]);
   const [isDictationOpen, setIsDictationOpen] = useState<boolean>(false);
+  const [voiceLabInitialText, setVoiceLabInitialText] = useState<string>('');
 
   useEffect(() => {
     // Fetch readiness / hardware profile
@@ -232,7 +233,13 @@ export const App: React.FC = () => {
           />
         )}
         {activeTab === 'timeline' && <MultiTrackTimeline voices={voices} />}
-        {activeTab === 'voices' && <VoiceLab voices={voices} onVoiceCreated={handleVoiceCreated} />}
+        {activeTab === 'voices' && (
+          <VoiceLab
+            voices={voices}
+            onVoiceCreated={handleVoiceCreated}
+            initialText={voiceLabInitialText}
+          />
+        )}
         {activeTab === 'catalog' && <ModelCatalog />}
         {activeTab === 'hardware' && <HardwareInspector hardware={hardware} onNavigateTab={setActiveTab} />}
         {activeTab === 'qa' && <AbTestLab voices={voices} />}
@@ -242,7 +249,8 @@ export const App: React.FC = () => {
       <DictationBar
         isOpen={isDictationOpen}
         onClose={() => setIsDictationOpen(false)}
-        onSendToVoiceLab={(_text) => {
+        onSendToVoiceLab={(text) => {
+          if (text) setVoiceLabInitialText(text);
           setActiveTab('voices');
           setIsDictationOpen(false);
         }}
