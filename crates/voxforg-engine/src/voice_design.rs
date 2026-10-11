@@ -144,29 +144,35 @@ impl ArchetypeBank {
         // Apply Director taxonomy modifiers to archetype weights
         if let Some(dir) = req.director {
             for (i, arc) in self.archetypes.iter().enumerate() {
-                if dir.energy > 0.3 && (arc.name.contains("energetic") || arc.name.contains("bold"))
+                if dir.energy.is_finite()
+                    && dir.energy > 0.3
+                    && (arc.name.contains("energetic") || arc.name.contains("bold"))
                 {
                     weights[i] += dir.energy * 2.0;
                 }
-                if dir.intimacy > 0.3
+                if dir.intimacy.is_finite()
+                    && dir.intimacy > 0.3
                     && (arc.name.contains("whisper")
                         || arc.name.contains("intimate")
                         || arc.name.contains("gentle"))
                 {
                     weights[i] += dir.intimacy * 2.5;
                 }
-                if dir.formality > 0.3
+                if dir.formality.is_finite()
+                    && dir.formality > 0.3
                     && (arc.name.contains("broadcast")
                         || arc.name.contains("academic")
                         || arc.name.contains("authoritative"))
                 {
                     weights[i] += dir.formality * 2.0;
                 }
-                if dir.emotion > 0.3
+                if dir.emotion.is_finite()
+                    && dir.emotion > 0.3
                     && (arc.name.contains("cheerful") || arc.name.contains("playful"))
                 {
                     weights[i] += dir.emotion * 2.0;
-                } else if dir.emotion < -0.3
+                } else if dir.emotion.is_finite()
+                    && dir.emotion < -0.3
                     && (arc.name.contains("melancholic") || arc.name.contains("raspy"))
                 {
                     weights[i] += (-dir.emotion) * 2.0;
@@ -261,6 +267,76 @@ impl ArchetypeBank {
             ]),
             metadata,
             created_at: Utc::now(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_archetype_bank_initialization() {
+        let bank = ArchetypeBank::new();
+        assert_eq!(bank.archetypes.len(), 20);
+
+        // Verify all anchor vectors are normalized to unit sphere
+        for arc in &bank.archetypes {
+            let sum_sq: f32 = arc.base_vector.iter().map(|&x| x * x).sum();
+            let norm = sum_sq.sqrt();
+            assert!((norm - 1.0).abs() < 1e-4, "Archetype {} vector must be unit length", arc.name);
+        }
+    }
+
+    #[test]
+    fn test_voice_design_from_prompt() {
+        let bank = ArchetypeBank::new();
+        let req = VoiceDesignRequest {
+            prompt: "warm deep baritone soothing voice for meditation and audiobook".to_string(),
+            name: None,
+            gender: Some(Gender::Male),
+            language: Some("en-US".to_string()),
+            director: None,
+        };
+
+        let profile = bank.design_voice(&req);
+        assert!(profile.name.starts_with("Designed"));
+        assert_eq!(profile.gender, Some(Gender::Male));
+        assert_eq!(profile.engine_id, "qwen3-tts");
+
+        let embedding = profile.embedding.expect("Embedding must be generated");
+        assert_eq!(embedding.len(), 512);
+
+        // Check unit length
+        let sum_sq: f32 = embedding.iter().map(|&x| x * x).sum();
+        let norm = sum_sq.sqrt();
+        assert!((norm - 1.0).abs() < 1e-4, "Generated embedding must be unit length");
+    }
+
+    #[test]
+    fn test_voice_design_with_director_taxonomy_and_nan() {
+        let bank = ArchetypeBank::new();
+        let req = VoiceDesignRequest {
+            prompt: "energetic host podcast".to_string(),
+            name: Some("Apex Podcaster".to_string()),
+            gender: Some(Gender::Female),
+            language: Some("en-GB".to_string()),
+            director: Some(DirectorTaxonomy {
+                energy: 0.8,
+                emotion: f32::NAN, // Defensive test for NaN
+                pace: 0.6,
+                intimacy: -0.5,
+                formality: 0.4,
+            }),
+        };
+
+        let profile = bank.design_voice(&req);
+        assert_eq!(profile.name, "Apex Podcaster");
+        assert_eq!(profile.language, "en-GB");
+
+        let embedding = profile.embedding.expect("Embedding must be generated");
+        for val in &embedding {
+            assert!(val.is_finite(), "All embedding dimensions must be finite");
         }
     }
 }
