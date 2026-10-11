@@ -48,8 +48,19 @@ export const DictationBar: React.FC<DictationBarProps> = ({
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animFrameRef = useRef<number | null>(null);
 
+  const isMountedRef = useRef<boolean>(true);
+
+  // Stop recording if modal closes
+  useEffect(() => {
+    if (!isOpen && isRecording) {
+      stopRecording();
+    }
+  }, [isOpen, isRecording]);
+
   // Global hotkey listener (Ctrl+Shift+D or Space hold when open)
   useEffect(() => {
+    isMountedRef.current = true;
+
     const handleKeyDown = (e: KeyboardEvent) => {
       // Toggle dictation with Ctrl+Shift+D
       if (e.ctrlKey && e.shiftKey && e.code === 'KeyD') {
@@ -63,7 +74,27 @@ export const DictationBar: React.FC<DictationBarProps> = ({
     };
 
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      isMountedRef.current = false;
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+        timerIntervalRef.current = null;
+      }
+      if (animFrameRef.current) {
+        cancelAnimationFrame(animFrameRef.current);
+        animFrameRef.current = null;
+      }
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        try {
+          mediaRecorderRef.current.stream.getTracks().forEach((t) => t.stop());
+          mediaRecorderRef.current.stop();
+        } catch (_) {}
+      }
+      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+        audioContextRef.current.close().catch(() => {});
+      }
+    };
   }, [isRecording]);
 
   const startRecording = async () => {
@@ -160,6 +191,7 @@ export const DictationBar: React.FC<DictationBarProps> = ({
 
       // Transcribe via ASR
       const transcription = await api.transcribeAudio(preprocessed.wavBase64);
+      if (!isMountedRef.current) return;
       const text = transcription.text.trim();
       setRawTranscript(text);
 
@@ -177,14 +209,18 @@ export const DictationBar: React.FC<DictationBarProps> = ({
         punctuation_pass: true,
       });
 
+      if (!isMountedRef.current) return;
       setRefinedTranscript(refinement.refined_text);
       setRemovedCount(refinement.removed_fillers + refinement.cleaned_repetitions);
       setStatusMessage('Transcription & neural text refinement complete!');
     } catch (err: any) {
+      if (!isMountedRef.current) return;
       console.error('Dictation processing error:', err);
       setStatusMessage(`Error: ${err.message || 'Processing failed'}`);
     } finally {
-      setIsProcessing(false);
+      if (isMountedRef.current) {
+        setIsProcessing(false);
+      }
     }
   };
 
