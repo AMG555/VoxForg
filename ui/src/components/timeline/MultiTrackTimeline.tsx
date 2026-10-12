@@ -43,6 +43,59 @@ interface MultiTrackTimelineProps {
 
 const DEFAULT_TRACK_COLORS = ['#F59E0B', '#38BDF8', '#A855F7', '#10B981', '#EC4899'];
 
+function audioBufferToWav(buffer: AudioBuffer): Blob {
+  const numOfChan = buffer.numberOfChannels;
+  const length = buffer.length * numOfChan * 2 + 44;
+  const outBuffer = new ArrayBuffer(length);
+  const view = new DataView(outBuffer);
+  const channels: Float32Array[] = [];
+  const sampleRate = buffer.sampleRate;
+  let offset = 0;
+  let pos = 0;
+
+  function setUint16(data: number) {
+    view.setUint16(pos, data, true);
+    pos += 2;
+  }
+  function setUint32(data: number) {
+    view.setUint32(pos, data, true);
+    pos += 4;
+  }
+
+  // write WAVE header
+  setUint32(0x46464952); // "RIFF"
+  setUint32(length - 8); // file length - 8
+  setUint32(0x45564157); // "WAVE"
+
+  setUint32(0x20746d66); // "fmt " chunk
+  setUint32(16); // length = 16
+  setUint16(1); // PCM (uncompressed)
+  setUint16(numOfChan);
+  setUint32(sampleRate);
+  setUint32(sampleRate * 2 * numOfChan); // avg. bytes/sec
+  setUint16(numOfChan * 2); // block-align
+  setUint16(16); // 16-bit precision
+
+  setUint32(0x61746164); // "data" - chunk
+  setUint32(length - pos - 4); // chunk length
+
+  for (let i = 0; i < numOfChan; i++) {
+    channels.push(buffer.getChannelData(i));
+  }
+
+  while (offset < buffer.length) {
+    for (let i = 0; i < numOfChan; i++) {
+      let sample = Math.max(-1, Math.min(1, channels[i][offset]));
+      sample = (sample < 0 ? sample * 32768 : sample * 32767) | 0;
+      view.setInt16(pos, sample, true);
+      pos += 2;
+    }
+    offset++;
+  }
+
+  return new Blob([outBuffer], { type: 'audio/wav' });
+}
+
 export const MultiTrackTimeline: React.FC<MultiTrackTimelineProps> = ({ voices }) => {
   const [tracks, setTracks] = useState<TimelineTrack[]>([
     {
@@ -103,6 +156,13 @@ export const MultiTrackTimeline: React.FC<MultiTrackTimelineProps> = ({ voices }
   const [isAuditioningMaster, setIsAuditioningMaster] = useState<boolean>(false);
   const [newClipText, setNewClipText] = useState<string>('');
   const [activeTrackIdForAdd, setActiveTrackIdForAdd] = useState<string>(tracks[0]?.id || '');
+  const [draggedClip, setDraggedClip] = useState<{
+    trackId: string;
+    clipId: string;
+    startX: number;
+    initialStartSec: number;
+  } | null>(null);
+
   const playheadIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const masterAudioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -110,6 +170,39 @@ export const MultiTrackTimeline: React.FC<MultiTrackTimelineProps> = ({ voices }
     20,
     ...tracks.flatMap((t) => t.clips.map((c) => c.startSec + c.durationSec + 2))
   );
+
+  // Dragging clips horizontally along the timeline
+  useEffect(() => {
+    if (!draggedClip) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const deltaSec = (e.clientX - draggedClip.startX) / zoomPxPerSec;
+      const newStartSec = Math.max(0, Math.round((draggedClip.initialStartSec + deltaSec) * 10) / 10);
+      setTracks((prev) =>
+        prev.map((t) =>
+          t.id === draggedClip.trackId
+            ? {
+                ...t,
+                clips: t.clips.map((c) =>
+                  c.id === draggedClip.clipId ? { ...c, startSec: newStartSec } : c
+                ),
+              }
+            : t
+        )
+      );
+    };
+
+    const handleMouseUp = () => {
+      setDraggedClip(null);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [draggedClip, zoomPxPerSec]);
 
   // Playhead scrubber simulation
   useEffect(() => {
@@ -188,7 +281,7 @@ export const MultiTrackTimeline: React.FC<MultiTrackTimelineProps> = ({ voices }
     const targetTrack = tracks.find((t) => t.id === trackId);
     if (!targetTrack) return;
 
-    const estimatedDuration = Math.max(2.0, (newClipText.split(/\s+/).length / 2.8));
+    const estimatedDuration = Math.max(2.0, newClipText.split(/\s+/).length / 2.8);
     const latestEnd = Math.max(
       currentTimeSec,
       ...targetTrack.clips.map((c) => c.startSec + c.durationSec)
@@ -220,31 +313,89 @@ export const MultiTrackTimeline: React.FC<MultiTrackTimelineProps> = ({ voices }
   const handleRenderMaster = async () => {
     try {
       setIsRenderingMaster(true);
-      // Synthesize clips that need audio
-      const allClips = tracks.flatMap((t) =>
-        t.clips.map((c) => ({
-          ...c,
-          trackMuted: t.isMuted,
-          trackVolume: t.volume,
-        }))
+      const allActiveClips = tracks
+        .filter((t) => !t.isMuted)
+        .flatMap((t) =>
+          t.clips.map((c) => ({
+            ...c,
+            trackVolume: t.volume,
+            trackPan: t.pan,
+            trackVoiceId: t.voiceId,
+          }))
+        )
+        .sort((a, b) => a.startSec - b.startSec);
+
+      if (allActiveClips.length === 0) return;
+
+      const maxEndTime = Math.max(
+        ...allActiveClips.map((c) => c.startSec + (c.durationSec || 3.0))
+      );
+      const sampleRate = 24000;
+      const offlineCtx = new (window.OfflineAudioContext ||
+        (window as unknown as { webkitOfflineAudioContext: typeof OfflineAudioContext })
+          .webkitOfflineAudioContext)(
+        2,
+        Math.max(1, Math.ceil((maxEndTime + 1.0) * sampleRate)),
+        sampleRate
       );
 
-      const activeClips = allClips.filter((c) => !c.trackMuted);
-      if (activeClips.length === 0) return;
+      for (const clip of allActiveClips) {
+        let blob = clip.audioBlob;
+        if (!blob) {
+          blob = await api.synthesizeDirect({
+            input: clip.text,
+            voice: clip.voiceId || clip.trackVoiceId,
+            speed: 1.0,
+          });
+        }
+        const arrayBuf = await blob.arrayBuffer();
+        const audioBuffer = await offlineCtx.decodeAudioData(arrayBuf);
 
-      // Concatenate and create composite master audio
-      const firstClip = activeClips[0];
-      const blob = await api.synthesizeDirect({
-        input: activeClips.map((c) => c.text).join(' ... '),
-        voice: firstClip.voiceId,
-        speed: 1.0,
-      });
+        const source = offlineCtx.createBufferSource();
+        source.buffer = audioBuffer;
+
+        const gainNode = offlineCtx.createGain();
+        gainNode.gain.value = clip.trackVolume ?? 1.0;
+
+        let lastNode: AudioNode = gainNode;
+        if (typeof offlineCtx.createStereoPanner === 'function' && clip.trackPan !== 0) {
+          const panner = offlineCtx.createStereoPanner();
+          panner.pan.value = Math.max(-1, Math.min(1, clip.trackPan));
+          gainNode.connect(panner);
+          lastNode = panner;
+        }
+
+        source.connect(gainNode);
+        lastNode.connect(offlineCtx.destination);
+        source.start(clip.startSec);
+      }
+
+      const renderedBuffer = await offlineCtx.startRendering();
+      const wavBlob = audioBufferToWav(renderedBuffer);
 
       if (masterAudioUrl) URL.revokeObjectURL(masterAudioUrl);
-      const url = URL.createObjectURL(blob);
+      const url = URL.createObjectURL(wavBlob);
       setMasterAudioUrl(url);
     } catch (err) {
-      console.error('Master export error:', err);
+      console.error('Master multi-track mix error, falling back:', err);
+      try {
+        const activeClips = tracks
+          .filter((t) => !t.isMuted)
+          .flatMap((t) => t.clips)
+          .sort((a, b) => a.startSec - b.startSec);
+
+        if (activeClips.length > 0) {
+          const fallbackBlob = await api.synthesizeDirect({
+            input: activeClips.map((c) => c.text).join(' ... '),
+            voice: activeClips[0].voiceId,
+            speed: 1.0,
+          });
+          if (masterAudioUrl) URL.revokeObjectURL(masterAudioUrl);
+          setMasterAudioUrl(URL.createObjectURL(fallbackBlob));
+        }
+      } catch (fallbackErr) {
+        console.error('Fallback synthesis failed:', fallbackErr);
+      }
     } finally {
       setIsRenderingMaster(false);
     }
@@ -566,7 +717,18 @@ export const MultiTrackTimeline: React.FC<MultiTrackTimelineProps> = ({ voices }
                   return (
                     <div
                       key={clip.id}
-                      className="absolute top-2 bottom-2 rounded-lg border p-2 flex flex-col justify-between overflow-hidden shadow-md transition-all cursor-move group select-none"
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        setDraggedClip({
+                          trackId: track.id,
+                          clipId: clip.id,
+                          startX: e.clientX,
+                          initialStartSec: clip.startSec,
+                        });
+                      }}
+                      className={`absolute top-2 bottom-2 rounded-lg border p-2 flex flex-col justify-between overflow-hidden shadow-md transition-shadow cursor-grab active:cursor-grabbing group select-none ${
+                        draggedClip?.clipId === clip.id ? 'ring-2 ring-amber-400 z-20 shadow-lg' : ''
+                      }`}
                       style={{
                         left: `${clipLeft}px`,
                         width: `${clipWidth}px`,
