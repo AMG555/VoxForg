@@ -52,9 +52,9 @@ export const SUPPORTED_LANGUAGES: LanguageOption[] = [
 
 // Lexicon for Romanized Manglish (Malayalam written in Latin script)
 const MANGLISH_KEYWORDS = new Set([
-  'adipoli', 'adpoli', 'kidilam', 'machane', 'chunke', 'pwoli', 'scene', 'sceneanu', 'sceneaanu',
+  'adipoli', 'adpoli', 'kidilam', 'machane', 'chunke', 'pwoli', 'sceneanu', 'sceneaanu',
   'enthokke', 'vishesham', 'njan', 'njangal', 'ninte', 'ningal', 'ivide', 'avide', 'evide', 'evideya',
-  'poda', 'mone', 'chetta', 'chechi', 'aano', 'und', 'undu', 'illa', 'raksha', 'poli', 'valare',
+  'poda', 'mone', 'chetta', 'chechi', 'aano', 'undu', 'illa', 'raksha', 'poli', 'valare',
   'nannayi', 'manassilayi', 'engane', 'ippo', 'ippol', 'kollam', 'thanne', 'sathyam', 'pinne',
   'nokku', 'parayu', 'parayam', 'enthaanu', 'entha', 'kidu', 'mass', 'chumma', 'parayamo',
   'ariyilla', 'sheriyaanu', 'sheriyaa', 'veruthe', 'thante', 'cheyyanam', 'enthoru', 'nalla',
@@ -69,14 +69,14 @@ const HINGLISH_KEYWORDS = new Set([
   'dhanyawad', 'yaar', 'kaise', 'kahan', 'karo', 'suno', 'dekho', 'kuch', 'nahi', 'nahin',
   'hota', 'samajh', 'gaya', 'chalega', 'bahut', 'badhiya', 'jhakaas', 'arre', 'arey', 'bolo',
   'apna', 'apne', 'kaam', 'karna', 'kardo', 'zara', 'sunao', 'sabko', 'hoga', 'namaste',
-  'dost', 'chalo', 'batao', 'sahi', 'hai', 'hain', 'mujhe', 'tumhe', 'hum', 'aap', 'mera',
-  'tera', 'bolo', 'sun', 'karega', 'lao', 'khabar', 'paani', 'arrewaah', 'waah'
+  'dost', 'chalo', 'batao', 'sahi', 'hai', 'hain', 'mujhe', 'tumhe', 'humlog', 'aap', 'mera',
+  'humara', 'karega', 'khabar', 'paani', 'arrewaah', 'waah'
 ]);
 
 // Lexicon for Romanized Tanglish (Tamil written in Latin script)
 const TANGLISH_KEYWORDS = new Set([
-  'machi', 'vanakkam', 'epdi', 'irukka', 'semma', 'vera', 'level', 'veralevel', 'nandri',
-  'theriyum', 'solla', 'vaanga', 'ponga', 'thalaiva', 'supera', 'romba', 'illai', 'podu',
+  'machi', 'vanakkam', 'epdi', 'irukka', 'semma', 'vera', 'veralevel', 'nandri',
+  'theriyum', 'solla', 'vaanga', 'ponga', 'thalaiva', 'romba', 'illai', 'podu',
   'paravala', 'solunga', 'kudunga', 'nanba', 'nanbi', 'ennada', 'enna', 'inga', 'anga',
   'seri', 'amma', 'appa', 'anna', 'machan', 'kandippa', 'apdiya', 'kelunga'
 ]);
@@ -312,14 +312,28 @@ export function detectLanguage(text: string): DetectedLanguage {
     .split(/\s+/)
     .filter((w) => w.length > 1);
 
+  const COMMON_ENGLISH_WORDS = new Set([
+    'the', 'be', 'to', 'of', 'and', 'a', 'in', 'that', 'have', 'i', 'it', 'for', 'not', 'on', 'with',
+    'he', 'as', 'you', 'do', 'at', 'this', 'but', 'his', 'by', 'from', 'they', 'we', 'say', 'her', 'she',
+    'or', 'an', 'will', 'my', 'one', 'all', 'would', 'there', 'their', 'what', 'so', 'up', 'out', 'if',
+    'about', 'who', 'get', 'which', 'go', 'me', 'when', 'make', 'can', 'like', 'time', 'no', 'just', 'him',
+    'know', 'take', 'people', 'into', 'year', 'your', 'good', 'some', 'could', 'them', 'see', 'other',
+    'than', 'then', 'now', 'look', 'only', 'come', 'its', 'over', 'think', 'also', 'back', 'after', 'use',
+    'two', 'how', 'our', 'work', 'first', 'well', 'way', 'even', 'new', 'want', 'because', 'any', 'these',
+    'give', 'day', 'most', 'us', 'room', 'morning', 'sun', 'transforms', 'golden', 'paradise', 'whispered',
+    'wonder', 'voice', 'eyes', 'watched', 'play', 'light', 'old', 'wooden', 'floorboards'
+  ]);
+
   const matchedManglish: string[] = [];
   const matchedHinglish: string[] = [];
   const matchedTanglish: string[] = [];
   const matchedSpanish: string[] = [];
   const matchedFrench: string[] = [];
   const matchedGerman: string[] = [];
+  let matchedEnglishCount = 0;
 
   for (const word of words) {
+    if (COMMON_ENGLISH_WORDS.has(word)) matchedEnglishCount++;
     if (MANGLISH_KEYWORDS.has(word)) matchedManglish.push(word);
     if (HINGLISH_KEYWORDS.has(word)) matchedHinglish.push(word);
     if (TANGLISH_KEYWORDS.has(word)) matchedTanglish.push(word);
@@ -328,8 +342,12 @@ export function detectLanguage(text: string): DetectedLanguage {
     if (GERMAN_KEYWORDS.has(word)) matchedGerman.push(word);
   }
 
-  // Manglish Detection: If 1+ distinct Manglish keywords match and exceeds other indic romanizations
-  if (matchedManglish.length > 0 && matchedManglish.length >= matchedHinglish.length && matchedManglish.length >= matchedTanglish.length) {
+  // If text is predominantly English, do not falsely flag as Romanized Indic dialect
+  const isPredominantlyEnglish = matchedEnglishCount >= 2 && matchedEnglishCount > (matchedHinglish.length + matchedManglish.length + matchedTanglish.length);
+
+  // Manglish Detection: requires at least 2 distinct keywords if sentence has 4+ words, or single keyword only if not English
+  const manglishThreshold = words.length >= 4 ? 2 : 1;
+  if (!isPredominantlyEnglish && matchedManglish.length >= manglishThreshold && matchedManglish.length >= matchedHinglish.length && matchedManglish.length >= matchedTanglish.length) {
     const confidence = Math.min(0.98, 0.65 + matchedManglish.length * 0.12);
     return {
       code: 'ml-Latn',
@@ -344,7 +362,8 @@ export function detectLanguage(text: string): DetectedLanguage {
   }
 
   // Hinglish Detection
-  if (matchedHinglish.length > 0 && matchedHinglish.length >= matchedTanglish.length) {
+  const hinglishThreshold = words.length >= 4 ? 2 : 1;
+  if (!isPredominantlyEnglish && matchedHinglish.length >= hinglishThreshold && matchedHinglish.length >= matchedTanglish.length) {
     const confidence = Math.min(0.98, 0.65 + matchedHinglish.length * 0.12);
     return {
       code: 'hi-Latn',
@@ -359,7 +378,8 @@ export function detectLanguage(text: string): DetectedLanguage {
   }
 
   // Tanglish Detection
-  if (matchedTanglish.length > 0) {
+  const tanglishThreshold = words.length >= 4 ? 2 : 1;
+  if (!isPredominantlyEnglish && matchedTanglish.length >= tanglishThreshold) {
     const confidence = Math.min(0.98, 0.65 + matchedTanglish.length * 0.12);
     return {
       code: 'ta-Latn',

@@ -29,6 +29,7 @@ import {
   Languages,
   ArrowRightLeft,
   BookA,
+  History,
 } from 'lucide-react';
 import { Voice } from '../../types';
 import { api } from '../../services/api';
@@ -170,6 +171,8 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated, init
   // Takes & Provenance Reel state
   const [takes, setTakes] = useState<VoiceTake[]>([]);
   const [activeTakeId, setActiveTakeId] = useState<string | null>(null);
+  const takesReelRef = useRef<HTMLDivElement | null>(null);
+  const manualVoiceOverrideRef = useRef<boolean>(false);
 
   const handleInsertTag = (tag: string) => {
     setText((prev) => {
@@ -267,7 +270,10 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated, init
   const [autoMatchVoice, setAutoMatchVoice] = useState<boolean>(true);
 
   useEffect(() => {
-    if (autoMatchVoice && detectedLang.suggestedVoiceId && text.trim().length >= 2) {
+    // If the user explicitly clicked/selected a specific voice, respect their explicit choice!
+    if (manualVoiceOverrideRef.current) return;
+
+    if (autoMatchVoice && detectedLang.suggestedVoiceId && text.trim().length >= 4) {
       const currentVoice = localVoices.find((v) => v.id === selectedVoiceId);
       const targetPrefix = detectedLang.code.split('-')[0];
       const currentPrefix = currentVoice?.language ? currentVoice.language.split('-')[0] : 'en';
@@ -279,7 +285,7 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated, init
         }
       }
     }
-  }, [detectedLang.suggestedVoiceId, detectedLang.code, autoMatchVoice, text, selectedVoiceId, localVoices]);
+  }, [detectedLang.suggestedVoiceId, detectedLang.code, autoMatchVoice, text, localVoices]);
 
   const toggleStudioMode = () => {
     const next = !studioMode;
@@ -577,9 +583,9 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated, init
       }
 
       let blob: Blob;
-      // Ensure target voice matches the language family if autoMatchVoice is active
+      // Ensure target voice matches language family ONLY if autoMatchVoice is active AND user has not manually chosen a voice
       let voiceToSynthesize = selectedVoice.id;
-      if (autoMatchVoice && detectedLang.suggestedVoiceId) {
+      if (!manualVoiceOverrideRef.current && autoMatchVoice && detectedLang.suggestedVoiceId) {
         const currentPrefix = selectedVoice.language ? selectedVoice.language.split('-')[0] : 'en';
         const targetPrefix = detectedLang.code.split('-')[0];
         if (currentPrefix !== targetPrefix) {
@@ -1029,6 +1035,7 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated, init
       };
       setLocalVoices((prev) => [newVoice, ...prev.filter((v) => v.id !== newVoice.id)]);
       onVoiceCreated?.(newVoice);
+      manualVoiceOverrideRef.current = true;
       setSelectedVoiceId(newVoice.id);
       setShowCloneModal(false);
       setCloneName('');
@@ -1071,6 +1078,7 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated, init
 
       setLocalVoices((prev) => [newVoice, ...prev.filter((v) => v.id !== newVoice.id)]);
       onVoiceCreated?.(newVoice);
+      manualVoiceOverrideRef.current = true;
       setSelectedVoiceId(newVoice.id);
       setShowDesignModal(false);
       setDesignPrompt('');
@@ -1117,6 +1125,7 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated, init
       };
       setLocalVoices((prev) => [newVoice, ...prev.filter((v) => v.id !== newVoice.id)]);
       onVoiceCreated?.(newVoice);
+      manualVoiceOverrideRef.current = true;
       setSelectedVoiceId(newVoice.id);
       alert(`Successfully imported voice persona: ${imported.name}`);
     } catch (err: any) {
@@ -1243,7 +1252,10 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated, init
           {filteredVoices.map((voice) => (
             <div
               key={voice.id}
-              onClick={() => setSelectedVoiceId(voice.id)}
+              onClick={() => {
+                manualVoiceOverrideRef.current = true;
+                setSelectedVoiceId(voice.id);
+              }}
               className={`p-3 cursor-pointer transition-colors ${
                 selectedVoiceId === voice.id
                   ? 'bg-amber-500/10 border-l-2 border-amber-500'
@@ -1266,7 +1278,7 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated, init
       </div>
 
       {/* Synthesis Playground */}
-      <div className="flex-1 p-6 lg:p-8 overflow-y-auto space-y-6">
+      <div className="flex-1 p-6 lg:p-8 pb-48 overflow-y-auto space-y-6">
         <div className="w-full max-w-6xl mx-auto space-y-6">
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -1325,6 +1337,18 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated, init
                   Studio Mode: <strong className={studioMode ? 'text-amber-400' : 'text-[#94A3B8]'}>{studioMode ? 'PRO STUDIO' : 'DEFAULT'}</strong>
                 </span>
               </button>
+
+              {takes.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => takesReelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                  className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs font-mono font-semibold transition-all shadow-sm"
+                  title="Jump directly to Takes & Provenance Audition Reel"
+                >
+                  <History className="w-3.5 h-3.5" />
+                  <span>Takes Reel ({takes.length})</span>
+                </button>
+              )}
 
               {activePresetId && (
                 <span className="hidden sm:inline-flex items-center space-x-1 px-2 py-1 rounded text-[10px] font-mono bg-sky-500/10 text-sky-300 border border-sky-500/30">
@@ -1726,7 +1750,12 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated, init
                   <input
                     type="checkbox"
                     checked={autoMatchVoice}
-                    onChange={(e) => setAutoMatchVoice(e.target.checked)}
+                    onChange={(e) => {
+                      setAutoMatchVoice(e.target.checked);
+                      if (e.target.checked) {
+                        manualVoiceOverrideRef.current = false;
+                      }
+                    }}
                     className="accent-amber-500 w-3 h-3"
                   />
                   <span>Auto-Match Voice</span>
@@ -2643,7 +2672,7 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated, init
 
             {/* Takes & Provenance Audition Reel */}
             {takes.length > 0 && (
-              <div className="rounded-xl bg-[#0D1219] border border-[#242E3D] overflow-hidden shadow-xl space-y-0 animate-in fade-in duration-150">
+              <div ref={takesReelRef} className="rounded-xl bg-[#0D1219] border border-[#242E3D] overflow-hidden shadow-xl space-y-0 animate-in fade-in duration-150 scroll-mt-6">
                 <div className="bg-[#121820] border-b border-[#242E3D] px-4 py-2.5 flex items-center justify-between">
                   <div className="flex items-center space-x-2">
                     <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
@@ -2665,7 +2694,7 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated, init
                   </button>
                 </div>
 
-                <div className="divide-y divide-[#242E3D] max-h-72 overflow-y-auto">
+                <div className="divide-y divide-[#242E3D] max-h-[520px] overflow-y-auto">
                   {takes.map((take) => {
                     const isActive = activeTakeId === take.id;
                     return (
@@ -2701,6 +2730,20 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated, init
                         </div>
 
                         <div className="flex items-center space-x-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              manualVoiceOverrideRef.current = true;
+                              setSelectedVoiceId(take.voiceId);
+                              setTransliterateToast(`Switched active voice to ${take.voiceName}!`);
+                              setTimeout(() => setTransliterateToast(null), 2500);
+                            }}
+                            className="px-2.5 py-1.5 rounded-lg text-xs font-mono font-medium bg-[#1A222D] hover:bg-amber-500/20 text-[#94A3B8] hover:text-amber-400 border border-[#242E3D] hover:border-amber-500/40 transition-colors"
+                            title="Select this take's voice as active voice"
+                          >
+                            Use Voice
+                          </button>
+
                           <button
                             type="button"
                             onClick={() => {
