@@ -134,7 +134,7 @@ export const ModelCatalog: React.FC = () => {
 
   return (
     <div className="flex-1 flex flex-col h-full bg-[#0B0E14] overflow-y-auto">
-      <div className="max-w-7xl w-full mx-auto p-6 space-y-6">
+      <div className="max-w-7xl w-full mx-auto p-6 pb-36 space-y-6">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#242E3D] pb-6">
           <div>

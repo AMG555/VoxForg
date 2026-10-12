@@ -185,12 +185,31 @@ export const App: React.FC = () => {
       });
   }, []);
 
+  const isCustomVoice = (v: Voice) =>
+    v.tags?.some((t) => ['cloned', 'designed', 'imported', 'custom'].includes(t)) ||
+    v.id.startsWith('cloned-') ||
+    v.id.startsWith('qwen3-cloned-') ||
+    v.id.startsWith('designed-') ||
+    v.id.startsWith('persona-') ||
+    v.id.startsWith('custom-');
+
   const handleVoiceCreated = (newVoice: Voice) => {
     setVoices((prev) => {
       const updated = [newVoice, ...prev.filter((v) => v.id !== newVoice.id)];
       try {
-        const cloned = updated.filter((v) => v.tags?.includes('cloned'));
-        localStorage.setItem('voxforg_custom_voices', JSON.stringify(cloned));
+        const customVoices = updated.filter(isCustomVoice);
+        localStorage.setItem('voxforg_custom_voices', JSON.stringify(customVoices));
+      } catch {}
+      return updated;
+    });
+  };
+
+  const handleVoiceDeleted = (voiceId: string) => {
+    setVoices((prev) => {
+      const updated = prev.filter((v) => v.id !== voiceId);
+      try {
+        const customVoices = updated.filter(isCustomVoice);
+        localStorage.setItem('voxforg_custom_voices', JSON.stringify(customVoices));
       } catch {}
       return updated;
     });
@@ -237,6 +256,7 @@ export const App: React.FC = () => {
           <VoiceLab
             voices={voices}
             onVoiceCreated={handleVoiceCreated}
+            onVoiceDeleted={handleVoiceDeleted}
             initialText={voiceLabInitialText}
           />
         )}

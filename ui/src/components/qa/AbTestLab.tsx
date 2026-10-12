@@ -117,7 +117,7 @@ export const AbTestLab: React.FC<AbTestLabProps> = ({ voices }) => {
   };
 
   return (
-    <div className="flex-1 p-6 lg:p-8 overflow-y-auto bg-[#0B0E14] space-y-6">
+    <div className="flex-1 p-6 lg:p-8 pb-36 overflow-y-auto bg-[#0B0E14] space-y-6">
       <div className="w-full max-w-6xl mx-auto space-y-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>

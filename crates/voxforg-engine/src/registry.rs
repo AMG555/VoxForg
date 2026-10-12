@@ -77,6 +77,27 @@ impl EngineRegistry {
                 return Ok((engine.clone(), voice));
             }
         }
+        // If voice_id is explicitly a custom, zero-shot, or cloned voice profile, resolve to default engine
+        if voice_id.starts_with("cloned-")
+            || voice_id.starts_with("qwen3-cloned-")
+            || voice_id.starts_with("designed-")
+            || voice_id.starts_with("persona-")
+            || voice_id.starts_with("custom-")
+        {
+            if let Some(engine) = lock.get("edge-tts").or_else(|| lock.values().next()).cloned() {
+                let fallback_voice = Voice {
+                    id: voice_id.to_string(),
+                    name: format!("{} (Custom)", voice_id),
+                    engine_id: engine.id().to_string(),
+                    language: "en-US".to_string(),
+                    gender: voxforg_core::models::Gender::Neutral,
+                    sample_rate_hz: 24000,
+                    tags: vec!["cloned".to_string(), "custom".to_string()],
+                    description: Some("Custom zero-shot voice profile".to_string()),
+                };
+                return Ok((engine, fallback_voice));
+            }
+        }
         Err(VoxForgError::VoiceNotFound(format!(
             "Voice '{}' not found in any registered engine",
             voice_id

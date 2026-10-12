@@ -76,14 +76,33 @@ export interface VoiceTake {
 interface VoiceLabProps {
   voices: Voice[];
   onVoiceCreated?: (voice: Voice) => void;
+  onVoiceDeleted?: (voiceId: string) => void;
   initialText?: string;
 }
 
-export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated, initialText }) => {
+export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated, onVoiceDeleted, initialText }) => {
   const [localVoices, setLocalVoices] = useState<Voice[]>(voices);
   useEffect(() => {
     setLocalVoices(voices);
   }, [voices]);
+
+  const isCustomVoice = (v: Voice) =>
+    v.tags?.some((t) => ['cloned', 'designed', 'imported', 'custom'].includes(t)) ||
+    v.id.startsWith('cloned-') ||
+    v.id.startsWith('qwen3-cloned-') ||
+    v.id.startsWith('designed-') ||
+    v.id.startsWith('persona-') ||
+    v.id.startsWith('custom-');
+
+  const handleDeleteCustomVoice = (voiceId: string, voiceName: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!window.confirm(`Delete custom voice profile "${voiceName}"?`)) return;
+    setLocalVoices((prev) => prev.filter((v) => v.id !== voiceId));
+    if (selectedVoiceId === voiceId) {
+      setSelectedVoiceId('en-US-AriaNeural');
+    }
+    onVoiceDeleted?.(voiceId);
+  };
   const [selectedVoiceId, setSelectedVoiceId] = useState<string>('en-US-AriaNeural');
   const [text, setText] = useState<string>(
     initialText ||
@@ -1248,7 +1267,7 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated, init
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto divide-y divide-[#242E3D]">
+        <div className="flex-1 overflow-y-auto divide-y divide-[#242E3D] pb-16">
           {filteredVoices.map((voice) => (
             <div
               key={voice.id}
@@ -1256,17 +1275,29 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated, init
                 manualVoiceOverrideRef.current = true;
                 setSelectedVoiceId(voice.id);
               }}
-              className={`p-3 cursor-pointer transition-colors ${
+              className={`p-3 cursor-pointer transition-colors relative group ${
                 selectedVoiceId === voice.id
                   ? 'bg-amber-500/10 border-l-2 border-amber-500'
                   : 'hover:bg-[#1A222D]/60'
               }`}
             >
-              <div className="flex items-center justify-between">
-                <h4 className="text-xs font-semibold text-white">{voice.name}</h4>
-                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#1A222D] text-[#94A3B8] border border-[#242E3D]">
-                  {voice.language}
-                </span>
+              <div className="flex items-center justify-between gap-1.5">
+                <h4 className="text-xs font-semibold text-white truncate flex-1">{voice.name}</h4>
+                <div className="flex items-center space-x-1 shrink-0">
+                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#1A222D] text-[#94A3B8] border border-[#242E3D]">
+                    {voice.language}
+                  </span>
+                  {isCustomVoice(voice) && (
+                    <button
+                      type="button"
+                      onClick={(e) => handleDeleteCustomVoice(voice.id, voice.name, e)}
+                      className="p-1 rounded text-[#64748B] hover:text-rose-400 hover:bg-rose-500/15 transition-colors opacity-60 group-hover:opacity-100"
+                      title="Delete custom voice profile"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="flex items-center justify-between mt-1.5 text-[11px] font-mono text-[#64748B]">
                 <span>{voice.sample_rate_hz} Hz</span>

@@ -56,7 +56,7 @@ const MANGLISH_KEYWORDS = new Set([
   'enthokke', 'vishesham', 'njan', 'njangal', 'ninte', 'ningal', 'ivide', 'avide', 'evide', 'evideya',
   'poda', 'mone', 'chetta', 'chechi', 'aano', 'undu', 'illa', 'raksha', 'poli', 'valare',
   'nannayi', 'manassilayi', 'engane', 'ippo', 'ippol', 'kollam', 'thanne', 'sathyam', 'pinne',
-  'nokku', 'parayu', 'parayam', 'enthaanu', 'entha', 'kidu', 'mass', 'chumma', 'parayamo',
+  'nokku', 'parayu', 'parayam', 'enthaanu', 'entha', 'kidu', 'chumma', 'parayamo',
   'ariyilla', 'sheriyaanu', 'sheriyaa', 'veruthe', 'thante', 'cheyyanam', 'enthoru', 'nalla',
   'kollaam', 'thannathaane', 'kaaryam', 'sukhamano', 'namaskaram', 'oru', 'ithu', 'athu', 'nammude',
   'naale', 'innu', 'innale', 'varumo', 'poyalo', 'kelkkamo', 'setaayi', 'set aayi', 'aliya', 'aliyan',
@@ -78,7 +78,7 @@ const TANGLISH_KEYWORDS = new Set([
   'machi', 'vanakkam', 'epdi', 'irukka', 'semma', 'vera', 'veralevel', 'nandri',
   'theriyum', 'solla', 'vaanga', 'ponga', 'thalaiva', 'romba', 'illai', 'podu',
   'paravala', 'solunga', 'kudunga', 'nanba', 'nanbi', 'ennada', 'enna', 'inga', 'anga',
-  'seri', 'amma', 'appa', 'anna', 'machan', 'kandippa', 'apdiya', 'kelunga'
+  'seri', 'amma', 'appa', 'machan', 'kandippa', 'apdiya', 'kelunga'
 ]);
 
 // Lexicon for European common words
@@ -321,7 +321,13 @@ export function detectLanguage(text: string): DetectedLanguage {
     'than', 'then', 'now', 'look', 'only', 'come', 'its', 'over', 'think', 'also', 'back', 'after', 'use',
     'two', 'how', 'our', 'work', 'first', 'well', 'way', 'even', 'new', 'want', 'because', 'any', 'these',
     'give', 'day', 'most', 'us', 'room', 'morning', 'sun', 'transforms', 'golden', 'paradise', 'whispered',
-    'wonder', 'voice', 'eyes', 'watched', 'play', 'light', 'old', 'wooden', 'floorboards'
+    'wonder', 'voice', 'eyes', 'watched', 'play', 'light', 'old', 'wooden', 'floorboards', 'sound', 'acoustic',
+    'waves', 'travel', 'earth', 'density', 'normal', 'audio', 'test', 'sample', 'speech', 'speech-to-speech',
+    'human', 'neural', 'quality', 'system', 'check', 'model', 'file', 'read', 'write', 'fast', 'faster',
+    'rate', 'between', 'through', 'where', 'each', 'does', 'such', 'much', 'before', 'must', 'both', 'still',
+    'here', 'there', 'why', 'should', 'again', 'off', 'went', 'never', 'found', 'thought', 'might', 'under',
+    'always', 'something', 'without', 'place', 'different', 'around', 'small', 'every', 'great', 'tell', 'large',
+    'water', 'long', 'very', 'another', 'world', 'high', 'last', 'start', 'run', 'number', 'part', 'little'
   ]);
 
   const matchedManglish: string[] = [];
@@ -342,12 +348,15 @@ export function detectLanguage(text: string): DetectedLanguage {
     if (GERMAN_KEYWORDS.has(word)) matchedGerman.push(word);
   }
 
-  // If text is predominantly English, do not falsely flag as Romanized Indic dialect
-  const isPredominantlyEnglish = matchedEnglishCount >= 2 && matchedEnglishCount > (matchedHinglish.length + matchedManglish.length + matchedTanglish.length);
+  // If text has English words and English count is higher or equal to dialect hits, retain English
+  const totalDialectMatches = matchedHinglish.length + matchedManglish.length + matchedTanglish.length;
+  const isPredominantlyEnglish = matchedEnglishCount > 0 && matchedEnglishCount >= totalDialectMatches;
 
-  // Manglish Detection: requires at least 2 distinct keywords if sentence has 4+ words, or single keyword only if not English
-  const manglishThreshold = words.length >= 4 ? 2 : 1;
-  if (!isPredominantlyEnglish && matchedManglish.length >= manglishThreshold && matchedManglish.length >= matchedHinglish.length && matchedManglish.length >= matchedTanglish.length) {
+  // Dialect detection requires at least 2 distinct keywords for 3+ word text, or >= 50% dialect ratio
+  const minDialectThreshold = words.length >= 3 ? 2 : 1;
+
+  // Manglish Detection
+  if (!isPredominantlyEnglish && matchedManglish.length >= minDialectThreshold && matchedManglish.length >= matchedHinglish.length && matchedManglish.length >= matchedTanglish.length) {
     const confidence = Math.min(0.98, 0.65 + matchedManglish.length * 0.12);
     return {
       code: 'ml-Latn',
@@ -362,8 +371,7 @@ export function detectLanguage(text: string): DetectedLanguage {
   }
 
   // Hinglish Detection
-  const hinglishThreshold = words.length >= 4 ? 2 : 1;
-  if (!isPredominantlyEnglish && matchedHinglish.length >= hinglishThreshold && matchedHinglish.length >= matchedTanglish.length) {
+  if (!isPredominantlyEnglish && matchedHinglish.length >= minDialectThreshold && matchedHinglish.length >= matchedTanglish.length) {
     const confidence = Math.min(0.98, 0.65 + matchedHinglish.length * 0.12);
     return {
       code: 'hi-Latn',
@@ -378,8 +386,7 @@ export function detectLanguage(text: string): DetectedLanguage {
   }
 
   // Tanglish Detection
-  const tanglishThreshold = words.length >= 4 ? 2 : 1;
-  if (!isPredominantlyEnglish && matchedTanglish.length >= tanglishThreshold) {
+  if (!isPredominantlyEnglish && matchedTanglish.length >= minDialectThreshold) {
     const confidence = Math.min(0.98, 0.65 + matchedTanglish.length * 0.12);
     return {
       code: 'ta-Latn',
