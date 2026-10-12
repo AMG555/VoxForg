@@ -153,7 +153,7 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="bg-[#121820] border border-[#242E3D] rounded-2xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-[#242E3D] bg-[#0B0E14]/70 flex items-center justify-between">
+        <div className="px-6 py-4 border-b border-[#242E3D] bg-[#0B0E14]/70 flex items-center justify-between shrink-0">
           <div className="flex items-center space-x-3">
             <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400">
               <FolderOpen className="w-5 h-5" />
@@ -192,13 +192,13 @@ export const WorkflowManagerModal: React.FC<WorkflowManagerModalProps> = ({
               onClick={onClose}
               className="p-1.5 rounded-lg text-[#64748B] hover:text-white hover:bg-[#1A222D] transition-colors"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4" />
             </button>
           </div>
         </div>
 
         {/* Toolbar Filter */}
-        <div className="px-6 py-3 border-b border-[#242E3D] bg-[#121820] flex items-center justify-between gap-4">
+        <div className="px-6 py-3 border-b border-[#242E3D] bg-[#121820] flex items-center justify-between gap-4 shrink-0">
           <div className="relative flex-1 max-w-sm">
             <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[#64748B]" />
             <input

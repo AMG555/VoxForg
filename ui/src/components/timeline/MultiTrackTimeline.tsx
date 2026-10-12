@@ -100,9 +100,11 @@ export const MultiTrackTimeline: React.FC<MultiTrackTimelineProps> = ({ voices }
   const [zoomPxPerSec, setZoomPxPerSec] = useState<number>(45);
   const [isRenderingMaster, setIsRenderingMaster] = useState<boolean>(false);
   const [masterAudioUrl, setMasterAudioUrl] = useState<string | null>(null);
+  const [isAuditioningMaster, setIsAuditioningMaster] = useState<boolean>(false);
   const [newClipText, setNewClipText] = useState<string>('');
   const [activeTrackIdForAdd, setActiveTrackIdForAdd] = useState<string>(tracks[0]?.id || '');
   const playheadIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const masterAudioRef = useRef<HTMLAudioElement | null>(null);
 
   const totalDurationSec = Math.max(
     20,
@@ -112,6 +114,10 @@ export const MultiTrackTimeline: React.FC<MultiTrackTimelineProps> = ({ voices }
   // Playhead scrubber simulation
   useEffect(() => {
     if (isPlaying) {
+      if (masterAudioRef.current && !masterAudioRef.current.paused) {
+        masterAudioRef.current.pause();
+        setIsAuditioningMaster(false);
+      }
       playheadIntervalRef.current = setInterval(() => {
         setCurrentTimeSec((prev) => {
           if (prev >= totalDurationSec) {
@@ -131,9 +137,30 @@ export const MultiTrackTimeline: React.FC<MultiTrackTimelineProps> = ({ voices }
 
   useEffect(() => {
     return () => {
+      if (masterAudioRef.current) {
+        masterAudioRef.current.pause();
+        masterAudioRef.current = null;
+      }
       if (masterAudioUrl) URL.revokeObjectURL(masterAudioUrl);
     };
   }, [masterAudioUrl]);
+
+  const toggleAuditionMaster = () => {
+    if (!masterAudioUrl) return;
+    if (!masterAudioRef.current) {
+      masterAudioRef.current = new Audio(masterAudioUrl);
+      masterAudioRef.current.onended = () => setIsAuditioningMaster(false);
+      masterAudioRef.current.onpause = () => setIsAuditioningMaster(false);
+    }
+    if (isAuditioningMaster) {
+      masterAudioRef.current.pause();
+      setIsAuditioningMaster(false);
+    } else {
+      if (isPlaying) setIsPlaying(false);
+      masterAudioRef.current.play().catch(console.error);
+      setIsAuditioningMaster(true);
+    }
+  };
 
   const handleAddTrack = () => {
     const newIdx = tracks.length + 1;
@@ -311,14 +338,25 @@ export const MultiTrackTimeline: React.FC<MultiTrackTimelineProps> = ({ voices }
           </button>
 
           {masterAudioUrl && (
-            <a
-              href={masterAudioUrl}
-              download="voxforg_stories_master_mix.wav"
-              className="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/30 transition-colors"
-              title="Download Master Mix"
-            >
-              <Download className="w-4 h-4" />
-            </a>
+            <div className="flex items-center space-x-1.5">
+              <button
+                type="button"
+                onClick={toggleAuditionMaster}
+                className="flex items-center space-x-1 px-2.5 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/30 text-xs font-mono transition-colors"
+                title={isAuditioningMaster ? 'Pause Master Audition' : 'Audition Master Mix'}
+              >
+                {isAuditioningMaster ? <Pause className="w-3.5 h-3.5 fill-current" /> : <Play className="w-3.5 h-3.5 fill-current" />}
+                <span>{isAuditioningMaster ? 'Pause' : 'Audition'}</span>
+              </button>
+              <a
+                href={masterAudioUrl}
+                download="voxforg_stories_master_mix.wav"
+                className="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/30 transition-colors"
+                title="Download Master Mix"
+              >
+                <Download className="w-4 h-4" />
+              </a>
+            </div>
           )}
         </div>
       </div>

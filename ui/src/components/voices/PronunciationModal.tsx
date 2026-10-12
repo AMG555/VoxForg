@@ -94,7 +94,7 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({ isOpen, 
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="bg-[#121820] border border-[#242E3D] rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col font-mono text-xs overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-[#242E3D] bg-[#0E131A] flex items-center justify-between">
+        <div className="px-6 py-4 border-b border-[#242E3D] bg-[#0E131A] flex items-center justify-between shrink-0">
           <div className="flex items-center space-x-3">
             <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400">
               <BookA className="w-5 h-5" />
@@ -241,7 +241,7 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({ isOpen, 
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-3 border-t border-[#242E3D] bg-[#0E131A] flex items-center justify-end">
+        <div className="px-6 py-3 border-t border-[#242E3D] bg-[#0E131A] flex items-center justify-end shrink-0">
           <button
             onClick={onClose}
             className="px-4 py-1.5 rounded-lg bg-[#1A222D] hover:bg-[#242E3D] text-white transition-colors"

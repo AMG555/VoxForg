@@ -437,8 +437,8 @@ export const WorkflowsDashboard: React.FC<WorkflowsDashboardProps> = ({
       {/* Import JSON Modal */}
       {showImportModal && (
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#121820] border border-[#242E3D] rounded-xl shadow-2xl w-full max-w-lg p-5 font-mono text-xs flex flex-col space-y-4 animate-in fade-in zoom-in duration-150">
-            <div className="flex items-center justify-between border-b border-[#242E3D] pb-3">
+          <div className="bg-[#121820] border border-[#242E3D] rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col font-mono text-xs overflow-hidden animate-in fade-in zoom-in duration-150">
+            <div className="flex items-center justify-between border-b border-[#242E3D] p-5 pb-4 shrink-0 bg-[#0E131A]">
               <div className="flex items-center space-x-2 text-amber-400 font-semibold text-sm">
                 <Upload className="w-4 h-4" />
                 <span>Import Workflow JSON</span>
@@ -451,25 +451,30 @@ export const WorkflowsDashboard: React.FC<WorkflowsDashboardProps> = ({
               </button>
             </div>
 
-            <textarea
-              rows={9}
-              value={importJsonInput}
-              onChange={(e) => setImportJsonInput(e.target.value)}
-              placeholder="Paste exported workflow JSON here..."
-              className="w-full bg-[#0B0E14] border border-[#242E3D] rounded-lg p-3 text-white font-mono text-xs focus:border-amber-500 focus:outline-none resize-none leading-relaxed"
-              autoFocus
-            />
+            <div className="p-5 flex-1 overflow-y-auto space-y-3">
+              <p className="text-[11px] text-[#94A3B8]">
+                Paste exported workflow DAG JSON with node configurations and connections:
+              </p>
+              <textarea
+                rows={9}
+                value={importJsonInput}
+                onChange={(e) => setImportJsonInput(e.target.value)}
+                placeholder="Paste exported workflow JSON here..."
+                className="w-full bg-[#0B0E14] border border-[#242E3D] rounded-lg p-3 text-white font-mono text-xs focus:border-amber-500 focus:outline-none resize-none leading-relaxed"
+                autoFocus
+              />
+            </div>
 
-            <div className="flex items-center justify-end space-x-2 pt-2 border-t border-[#242E3D]">
+            <div className="flex items-center justify-end space-x-2 p-4 border-t border-[#242E3D] shrink-0 bg-[#0E131A]">
               <button
                 onClick={() => setShowImportModal(false)}
-                className="px-3 py-1.5 rounded bg-[#1A222D] text-[#94A3B8] hover:text-white"
+                className="px-3 py-1.5 rounded bg-[#1A222D] text-[#94A3B8] hover:text-white transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleImportJson}
-                className="px-4 py-1.5 rounded bg-amber-500 hover:bg-amber-400 text-black font-semibold"
+                className="px-4 py-1.5 rounded bg-amber-500 hover:bg-amber-400 text-black font-semibold transition-colors"
               >
                 Import & Open
               </button>

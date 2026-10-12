@@ -36,7 +36,7 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
     return (
       <div className="w-80 border-l border-[#242E3D] bg-[#121820]/95 backdrop-blur flex flex-col h-full text-[#F0F4F8] select-none z-30 shadow-2xl">
         {/* Header */}
-        <div className="p-4 border-b border-[#242E3D] flex items-center justify-between">
+        <div className="p-4 border-b border-[#242E3D] flex items-center justify-between shrink-0">
           <div className="flex items-center space-x-2">
             <Sliders className="w-4 h-4 text-amber-500" />
             <span className="font-semibold text-sm">Selection ({selectedNodes.length} nodes)</span>
@@ -172,7 +172,7 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
 
   return (
     <aside className="w-80 border-l border-[#242E3D] bg-[#121820] flex flex-col h-full z-10 select-none shadow-xl">
-      <div className="h-12 px-4 border-b border-[#242E3D] flex items-center justify-between bg-[#0B0E14]/40">
+      <div className="h-12 px-4 border-b border-[#242E3D] flex items-center justify-between bg-[#0B0E14]/40 shrink-0">
         <div className="flex items-center space-x-2">
           <Sliders className="w-4 h-4 text-amber-500" />
           <span className="text-xs font-semibold uppercase tracking-wider text-white">

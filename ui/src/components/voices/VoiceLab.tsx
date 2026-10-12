@@ -3244,7 +3244,7 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated, init
       {showDesignModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
           <div className="bg-[#121820] border border-[#242E3D] rounded-xl w-full max-w-xl overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-150 max-h-[90vh] flex flex-col">
-            <div className="p-4 border-b border-[#242E3D] flex items-center justify-between">
+            <div className="p-4 border-b border-[#242E3D] flex items-center justify-between shrink-0 bg-[#0E131A]">
               <div className="flex items-center space-x-2">
                 <div className="p-1.5 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-400">
                   <Wand2 className="w-4 h-4" />
@@ -3262,7 +3262,7 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated, init
               </button>
             </div>
 
-            <form onSubmit={handleDesignSubmit} className="p-5 space-y-4 overflow-y-auto flex-1">
+            <form id="voice-design-form" onSubmit={handleDesignSubmit} className="p-5 space-y-4 overflow-y-auto flex-1">
               <div>
                 <label className="block text-xs font-semibold text-[#CBD5E1] mb-1.5">
                   Natural Language Voice Description <span className="text-purple-400">*</span>
@@ -3430,34 +3430,36 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated, init
                   {designStatus}
                 </div>
               )}
-
-              <div className="pt-3 flex items-center justify-end space-x-3 border-t border-[#242E3D]">
-                <button
-                  type="button"
-                  onClick={() => setShowDesignModal(false)}
-                  className="px-4 py-2 rounded-lg bg-[#1A222D] hover:bg-[#242E3D] text-[#94A3B8] hover:text-white text-xs font-semibold transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isDesigning || !designPrompt.trim()}
-                  className="flex items-center space-x-2 px-5 py-2 rounded-lg bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-400 hover:to-indigo-500 text-white text-xs font-semibold transition-colors shadow-lg shadow-purple-500/20 disabled:opacity-50"
-                >
-                  {isDesigning ? (
-                    <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      <span>Synthesizing Archetypes...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Wand2 className="w-3.5 h-3.5" />
-                      <span>Synthesize Voice</span>
-                    </>
-                  )}
-                </button>
-              </div>
             </form>
+
+            {/* Sticky Action Footer */}
+            <div className="p-4 border-t border-[#242E3D] bg-[#0E131A] shrink-0 flex items-center justify-end space-x-3">
+              <button
+                type="button"
+                onClick={() => setShowDesignModal(false)}
+                className="px-4 py-2 rounded-lg bg-[#1A222D] hover:bg-[#242E3D] text-[#94A3B8] hover:text-white text-xs font-semibold transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                form="voice-design-form"
+                disabled={isDesigning || !designPrompt.trim()}
+                className="flex items-center space-x-2 px-5 py-2 rounded-lg bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-400 hover:to-indigo-500 text-white text-xs font-semibold transition-colors shadow-lg shadow-purple-500/20 disabled:opacity-50"
+              >
+                {isDesigning ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Synthesizing Archetypes...</span>
+                  </>
+                ) : (
+                  <>
+                    <Wand2 className="w-3.5 h-3.5" />
+                    <span>Synthesize Voice</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

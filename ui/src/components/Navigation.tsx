@@ -20,7 +20,7 @@ export const Navigation: React.FC<NavigationProps> = ({
   isDictationOpen,
 }) => {
   return (
-    <header className="h-14 border-b border-[#242E3D] bg-[#121820] flex items-center justify-between px-4 select-none">
+    <header className="h-14 border-b border-[#242E3D] bg-[#121820] flex items-center justify-between px-4 select-none shrink-0">
       <div className="flex items-center space-x-6">
         <Logo size={32} />
 

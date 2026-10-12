@@ -2224,8 +2224,8 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
         {/* Paste JSON Modal */}
         {showPasteModal && (
           <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-[#121820] border border-[#242E3D] rounded-xl shadow-2xl w-full max-w-lg p-5 font-mono text-xs flex flex-col space-y-4">
-              <div className="flex items-center justify-between border-b border-[#242E3D] pb-3">
+            <div className="bg-[#121820] border border-[#242E3D] rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col font-mono text-xs overflow-hidden animate-in fade-in zoom-in duration-150">
+              <div className="flex items-center justify-between border-b border-[#242E3D] p-5 pb-4 shrink-0 bg-[#0E131A]">
                 <div className="flex items-center space-x-2 text-amber-400 font-semibold text-sm">
                   <Clipboard className="w-4 h-4" />
                   <span>Paste Workflow or Node JSON</span>
@@ -2238,19 +2238,24 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
                 </button>
               </div>
 
-              <textarea
-                rows={8}
-                value={pasteJsonInput}
-                onChange={(e) => setPasteJsonInput(e.target.value)}
-                placeholder="Paste JSON here..."
-                className="w-full bg-[#0B0E14] border border-[#242E3D] rounded-lg p-3 text-white font-mono text-xs focus:border-amber-500 focus:outline-none resize-none leading-relaxed"
-                autoFocus
-              />
+              <div className="p-5 flex-1 overflow-y-auto space-y-3">
+                <p className="text-[11px] text-[#94A3B8]">
+                  Paste serialized workflow or node JSON directly to instantiate into active canvas:
+                </p>
+                <textarea
+                  rows={8}
+                  value={pasteJsonInput}
+                  onChange={(e) => setPasteJsonInput(e.target.value)}
+                  placeholder="Paste JSON here..."
+                  className="w-full bg-[#0B0E14] border border-[#242E3D] rounded-lg p-3 text-white font-mono text-xs focus:border-amber-500 focus:outline-none resize-none leading-relaxed"
+                  autoFocus
+                />
+              </div>
 
-              <div className="flex items-center justify-end space-x-2 pt-2 border-t border-[#242E3D]">
+              <div className="flex items-center justify-end space-x-2 p-4 border-t border-[#242E3D] shrink-0 bg-[#0E131A]">
                 <button
                   onClick={() => setShowPasteModal(false)}
-                  className="px-3 py-1.5 rounded bg-[#1A222D] text-[#94A3B8] hover:text-white"
+                  className="px-3 py-1.5 rounded bg-[#1A222D] text-[#94A3B8] hover:text-white transition-colors"
                 >
                   Cancel
                 </button>
@@ -2268,7 +2273,7 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
                       showToast(`Invalid JSON: ${e.message}`, 'error');
                     }
                   }}
-                  className="px-4 py-1.5 rounded bg-amber-500 hover:bg-amber-400 text-black font-semibold"
+                  className="px-4 py-1.5 rounded bg-amber-500 hover:bg-amber-400 text-black font-semibold transition-colors"
                 >
                   Import to Canvas
                 </button>
@@ -2280,8 +2285,8 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
         {/* Keyboard Shortcuts & Gestures Guide Modal */}
         {showShortcutsModal && (
           <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-[#121820] border border-[#242E3D] rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden animate-in fade-in zoom-in duration-150 text-xs font-mono">
-              <div className="p-4 border-b border-[#242E3D] flex items-center justify-between bg-[#0B0E14]/60">
+            <div className="bg-[#121820] border border-[#242E3D] rounded-2xl shadow-2xl w-full max-w-xl max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-150 text-xs font-mono">
+              <div className="p-4 border-b border-[#242E3D] flex items-center justify-between bg-[#0B0E14] shrink-0">
                 <div className="flex items-center space-x-2">
                   <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20">
                     <HelpCircle className="w-4 h-4" />
@@ -2293,13 +2298,13 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
                 </div>
                 <button
                   onClick={() => setShowShortcutsModal(false)}
-                  className="p-1.5 rounded-lg text-[#94A3B8] hover:text-white hover:bg-[#1A222D]"
+                  className="p-1.5 rounded-lg text-[#94A3B8] hover:text-white hover:bg-[#1A222D] transition-colors"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
-              <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
+              <div className="p-5 space-y-4 flex-1 overflow-y-auto">
                 <div>
                   <div className="text-[11px] uppercase font-semibold text-amber-400 tracking-wider mb-2">
                     Canvas Navigation & Viewport
@@ -2389,10 +2394,10 @@ export const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
                 </div>
               </div>
 
-              <div className="p-3 border-t border-[#242E3D] bg-[#0B0E14]/40 flex justify-end">
+              <div className="p-3 border-t border-[#242E3D] bg-[#0E131A] shrink-0 flex justify-end">
                 <button
                   onClick={() => setShowShortcutsModal(false)}
-                  className="px-4 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-semibold"
+                  className="px-4 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-semibold transition-colors"
                 >
                   Got It
                 </button>
