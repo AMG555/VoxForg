@@ -99,8 +99,8 @@ export const HardwareInspector: React.FC<HardwareInspectorProps> = ({ hardware, 
   ];
 
   return (
-    <div className="flex-1 p-8 overflow-y-auto bg-[#0B0E14] space-y-6">
-      <div className="max-w-4xl space-y-6">
+    <div className="flex-1 p-6 lg:p-8 overflow-y-auto bg-[#0B0E14] space-y-6">
+      <div className="w-full max-w-6xl mx-auto space-y-6">
         <div>
           <span className="text-[11px] font-mono uppercase text-amber-500 tracking-wider">
             System Telemetry & Engines

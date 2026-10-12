@@ -493,6 +493,8 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated, init
   const [recordingSeconds, setRecordingSeconds] = useState<number>(0);
   const [recordedAudioUrl, setRecordedAudioUrl] = useState<string | null>(null);
   const [isPreviewPlaying, setIsPreviewPlaying] = useState<boolean>(false);
+  const [previewCurrentTime, setPreviewCurrentTime] = useState<number>(0);
+  const [previewDuration, setPreviewDuration] = useState<number>(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const speechRecognitionRef = useRef<any>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -930,6 +932,9 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated, init
       URL.revokeObjectURL(recordedAudioUrl);
     }
     setRecordedAudioUrl(null);
+    setPreviewCurrentTime(0);
+    setPreviewDuration(0);
+    setIsPreviewPlaying(false);
     setCloneAudioBase64('');
     setCloneAssessment(null);
     setCloneFileName('');
@@ -1261,8 +1266,8 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated, init
       </div>
 
       {/* Synthesis Playground */}
-      <div className="flex-1 p-8 overflow-y-auto space-y-6">
-        <div className="max-w-3xl space-y-6">
+      <div className="flex-1 p-6 lg:p-8 overflow-y-auto space-y-6">
+        <div className="w-full max-w-6xl mx-auto space-y-6">
           <div className="flex items-start justify-between gap-4">
             <div>
               <span className="text-[11px] font-mono uppercase text-amber-500 tracking-wider">
@@ -2755,11 +2760,12 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated, init
 
       {/* Voice Cloning Studio Modal */}
       {showCloneModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
-          <div className="bg-[#121820] border border-[#242E3D] rounded-xl w-full max-w-lg overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-150">
-            <div className="p-4 border-b border-[#242E3D] flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <div className="p-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 sm:p-6 overflow-y-auto">
+          <div className="bg-[#121820] border border-[#242E3D] rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl animate-in fade-in zoom-in-95 duration-150 overflow-hidden">
+            {/* Header: shrink-0 */}
+            <div className="p-4 border-b border-[#242E3D] flex items-center justify-between shrink-0 bg-[#0E131A]">
+              <div className="flex items-center space-x-2.5">
+                <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400">
                   <Sparkles className="w-4 h-4" />
                 </div>
                 <div>
@@ -2768,397 +2774,439 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated, init
                 </div>
               </div>
               <button
+                type="button"
                 onClick={() => {
                   if (isRecording) stopRecording();
                   setShowCloneModal(false);
                 }}
-                className="p-1 rounded-lg text-[#64748B] hover:text-white hover:bg-[#1A222D] transition-colors"
+                className="p-1.5 rounded-lg text-[#64748B] hover:text-white hover:bg-[#1A222D] transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleCloneSubmit} className="p-5 space-y-4">
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-[#94A3B8] mb-1">
-                  Voice Name *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={cloneName}
-                  onChange={(e) => setCloneName(e.target.value)}
-                  placeholder="e.g. Rachel Nova (Podcaster)"
-                  className="w-full bg-[#0B0E14] border border-[#242E3D] rounded-lg px-3 py-2 text-white text-xs focus:border-amber-500 focus:outline-none"
-                />
-              </div>
-
-              {/* Input Mode Selector: Instant Microphone vs File Upload */}
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-[#94A3B8] mb-1.5">
-                  Reference Audio Source *
-                </label>
-                <div className="grid grid-cols-2 gap-2 mb-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setCloneMode('record');
-                      resetRecording();
-                    }}
-                    className={`py-2 px-3 rounded-lg text-xs font-medium border flex items-center justify-center space-x-2 transition-all ${
-                      cloneMode === 'record'
-                        ? 'bg-amber-500/10 border-amber-500 text-amber-400 font-semibold'
-                        : 'bg-[#0B0E14] border-[#242E3D] text-[#94A3B8] hover:border-[#3B485C]'
-                    }`}
-                  >
-                    <Mic className="w-3.5 h-3.5" />
-                    <span>Instant Microphone</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setCloneMode('upload');
-                      resetRecording();
-                    }}
-                    className={`py-2 px-3 rounded-lg text-xs font-medium border flex items-center justify-center space-x-2 transition-all ${
-                      cloneMode === 'upload'
-                        ? 'bg-amber-500/10 border-amber-500 text-amber-400 font-semibold'
-                        : 'bg-[#0B0E14] border-[#242E3D] text-[#94A3B8] hover:border-[#3B485C]'
-                    }`}
-                  >
-                    <Upload className="w-3.5 h-3.5" />
-                    <span>Upload Audio File</span>
-                  </button>
-                </div>
-
-                <div className="flex items-center space-x-2 mb-3 px-1">
-                  <span className="text-[10px] font-mono text-[#64748B] uppercase">Quick Demo:</span>
-                  <button
-                    type="button"
-                    onClick={() => handleLoadDemoSample('broadcaster')}
-                    className="px-2.5 py-1 text-[11px] font-mono rounded-md bg-[#0B0E14] hover:bg-[#1A222D] text-[#94A3B8] hover:text-amber-400 border border-[#242E3D] hover:border-amber-500/40 transition-colors flex items-center space-x-1"
-                  >
-                    <Sparkles className="w-3 h-3 text-amber-400" />
-                    <span>Studio Host (5.5s)</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleLoadDemoSample('dispatcher')}
-                    className="px-2.5 py-1 text-[11px] font-mono rounded-md bg-[#0B0E14] hover:bg-[#1A222D] text-[#94A3B8] hover:text-sky-400 border border-[#242E3D] hover:border-sky-500/40 transition-colors flex items-center space-x-1"
-                  >
-                    <Sparkles className="w-3 h-3 text-sky-400" />
-                    <span>Orbital Dispatch (4.8s)</span>
-                  </button>
-                </div>
-
-                {cloneMode === 'record' ? (
-                  <div className="border border-[#242E3D] bg-[#0B0E14] rounded-lg p-4 flex flex-col items-center justify-center space-y-3">
-                    {recordedAudioUrl ? (
-                      <div className="w-full space-y-3">
-                        <div className="flex items-center justify-between text-xs text-[#94A3B8]">
-                          <span className="flex items-center space-x-1.5 text-emerald-400 font-mono">
-                            <CheckCircle2 className="w-4 h-4" />
-                            <span>Audio Sample Captured ({recordingSeconds}s)</span>
-                          </span>
-                          <button
-                            type="button"
-                            onClick={resetRecording}
-                            className="flex items-center space-x-1 text-xs text-[#64748B] hover:text-amber-400 transition-colors"
-                          >
-                            <RotateCcw className="w-3.5 h-3.5" />
-                            <span>Record Again</span>
-                          </button>
-                        </div>
-
-                        <div className="flex items-center space-x-2.5 bg-[#121820] p-2.5 rounded-lg border border-[#242E3D]">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (!previewAudioRef.current) return;
-                              if (isPreviewPlaying) {
-                                previewAudioRef.current.pause();
-                                setIsPreviewPlaying(false);
-                              } else {
-                                previewAudioRef.current.currentTime = 0;
-                                previewAudioRef.current.play().catch(console.error);
-                                setIsPreviewPlaying(true);
-                              }
-                            }}
-                            className="px-3.5 py-1.5 rounded-md bg-amber-500 hover:bg-amber-400 text-black font-semibold text-xs flex items-center space-x-1.5 transition-colors shadow-sm shrink-0"
-                          >
-                            {isPreviewPlaying ? (
-                              <>
-                                <Square className="w-3.5 h-3.5 fill-black" />
-                                <span>Stop</span>
-                              </>
-                            ) : (
-                              <>
-                                <Play className="w-3.5 h-3.5 fill-black" />
-                                <span>Play Preview</span>
-                              </>
-                            )}
-                          </button>
-
-                          <audio
-                            ref={previewAudioRef}
-                            controls
-                            src={recordedAudioUrl}
-                            onPlay={() => setIsPreviewPlaying(true)}
-                            onPause={() => setIsPreviewPlaying(false)}
-                            onEnded={() => setIsPreviewPlaying(false)}
-                            className="flex-1 h-8 rounded bg-[#0B0E14]"
-                          />
-                        </div>
-                      </div>
-                    ) : isRecording ? (
-                      <div className="flex flex-col items-center space-y-3 py-2">
-                        <div className="flex items-center space-x-2 text-rose-400 animate-pulse font-mono text-xs font-bold">
-                          <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
-                          <span>RECORDING: 00:{recordingSeconds.toString().padStart(2, '0')} / 00:20</span>
-                        </div>
-                        <div className="flex items-center space-x-1">
-                          <span className="w-1 h-4 bg-amber-500 animate-pulse" />
-                          <span className="w-1 h-7 bg-amber-400 animate-pulse delay-75" />
-                          <span className="w-1 h-5 bg-amber-500 animate-pulse delay-100" />
-                          <span className="w-1 h-8 bg-amber-400 animate-pulse delay-150" />
-                          <span className="w-1 h-4 bg-amber-500 animate-pulse delay-200" />
-                        </div>
-                        <button
-                          type="button"
-                          onClick={stopRecording}
-                          className="flex items-center space-x-2 px-4 py-1.5 rounded-lg bg-rose-500 hover:bg-rose-600 text-white text-xs font-semibold transition-colors"
-                        >
-                          <Square className="w-3.5 h-3.5 fill-white" />
-                          <span>Stop Recording</span>
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col items-center space-y-2 py-2">
-                        <button
-                          type="button"
-                          onClick={startRecording}
-                          className="w-12 h-12 rounded-full bg-amber-500/15 hover:bg-amber-500/25 border-2 border-amber-500 text-amber-400 flex items-center justify-center transition-transform hover:scale-105"
-                        >
-                          <Mic className="w-6 h-6" />
-                        </button>
-                        <div className="text-center">
-                          <p className="text-xs font-semibold text-white">Click to Start Recording</p>
-                          <p className="text-[10px] text-[#64748B] font-mono mt-0.5">
-                            Speak clearly for 5 to 15 seconds to capture vocal timbre
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <label className="flex flex-col items-center justify-center border border-dashed border-[#242E3D] hover:border-amber-500/50 bg-[#0B0E14] rounded-lg p-4 cursor-pointer transition-colors group">
-                    <Upload className="w-6 h-6 text-[#64748B] group-hover:text-amber-400 mb-2 transition-colors" />
-                    <span className="text-xs text-[#94A3B8] group-hover:text-white">
-                      {cloneFileName ? cloneFileName : 'Select WAV, MP3, or FLAC reference audio'}
-                    </span>
-                    <span className="text-[10px] text-[#64748B] font-mono mt-1">3 - 15 seconds clean speech recommended</span>
-                    <input
-                      type="file"
-                      accept="audio/*"
-                      onChange={handleFileChange}
-                      className="hidden"
-                    />
+            {/* Form: flex-1 flex flex-col min-h-0 */}
+            <form onSubmit={handleCloneSubmit} className="flex-1 flex flex-col min-h-0">
+              {/* Scrollable Body */}
+              <div className="p-5 space-y-4 overflow-y-auto flex-1">
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-[#94A3B8] mb-1">
+                    Voice Name *
                   </label>
-                )}
+                  <input
+                    type="text"
+                    required
+                    value={cloneName}
+                    onChange={(e) => setCloneName(e.target.value)}
+                    placeholder="e.g. Rachel Nova (Podcaster)"
+                    className="w-full bg-[#0B0E14] border border-[#242E3D] rounded-lg px-3 py-2 text-white text-xs focus:border-amber-500 focus:outline-none"
+                  />
+                </div>
 
-                {/* Real-Time Audio Quality Diagnostics */}
-                {audioQuality && (
-                  <div className="bg-[#0B0E14] border border-amber-500/30 rounded-xl p-3 space-y-2.5 font-mono text-xs shadow-inner">
-                    <div className="flex items-center justify-between border-b border-[#242E3D] pb-1.5">
-                      <div className="flex items-center space-x-1.5 text-amber-400 font-semibold text-[11px] uppercase tracking-wider">
-                        <Sparkles className="w-3.5 h-3.5" />
-                        <span>Acoustic Quality Diagnostics</span>
-                      </div>
-                      <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3" />
-                        <span>24kHz Studio WAV</span>
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-2 text-[11px]">
-                      <div className="bg-[#121820] p-2 rounded border border-[#242E3D]">
-                        <div className="text-[#64748B] text-[10px] uppercase">Duration</div>
-                        <div className={`font-semibold mt-0.5 ${audioQuality.durationQuality === 'optimal' ? 'text-emerald-400' : 'text-amber-400'}`}>
-                          {audioQuality.durationSeconds}s
-                        </div>
-                      </div>
-                      <div className="bg-[#121820] p-2 rounded border border-[#242E3D]">
-                        <div className="text-[#64748B] text-[10px] uppercase">Clarity SNR</div>
-                        <div className={`font-semibold mt-0.5 ${audioQuality.clarityRating === 'excellent' ? 'text-emerald-400' : 'text-amber-400'}`}>
-                          ~{audioQuality.snrEstimateDb} dB ({audioQuality.clarityRating})
-                        </div>
-                      </div>
-                      <div className="bg-[#121820] p-2 rounded border border-[#242E3D]">
-                        <div className="text-[#64748B] text-[10px] uppercase">Peak Level</div>
-                        <div className="font-semibold text-white mt-0.5">
-                          {audioQuality.peakDbfs} dBFS
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="text-[10px] text-[#94A3B8] flex items-center space-x-1.5 bg-[#121820] px-2.5 py-1.5 rounded border border-[#242E3D]">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-                      <span className="truncate">{audioQuality.clarityMessage} • 80Hz rumble filter & -1dBFS normalization applied</span>
-                    </div>
-                  </div>
-                )}
-
-                {/* Neural Acoustic Quality Grader from Server Assessment */}
-                {isAssessingQuality ? (
-                  <div className="flex items-center space-x-2 text-xs text-amber-400/80 bg-[#0B0E14] border border-amber-500/20 p-2.5 rounded-lg font-mono animate-pulse">
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>Analyzing neural SNR & acoustic clipping...</span>
-                  </div>
-                ) : cloneAssessment ? (
-                  <div className="bg-[#0B0E14] border border-emerald-500/30 rounded-xl p-3 space-y-2.5 font-mono text-xs shadow-inner">
-                    <div className="flex items-center justify-between border-b border-[#242E3D] pb-1.5">
-                      <div className="flex items-center space-x-1.5 text-emerald-400 font-semibold text-[11px] uppercase tracking-wider">
-                        <Activity className="w-3.5 h-3.5" />
-                        <span>Neural Acoustic Grader</span>
-                      </div>
-                      <span
-                        className={`text-[10px] px-2 py-0.5 rounded border font-semibold uppercase ${
-                          cloneAssessment.clarity_rating === 'excellent'
-                            ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
-                            : cloneAssessment.clarity_rating === 'good'
-                            ? 'text-sky-400 bg-sky-500/10 border-sky-500/20'
-                            : cloneAssessment.clarity_rating === 'fair'
-                            ? 'text-amber-400 bg-amber-500/10 border-amber-500/20'
-                            : 'text-rose-400 bg-rose-500/10 border-rose-500/20'
-                        }`}
-                      >
-                        {cloneAssessment.clarity_rating} Grade
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-2 text-[11px]">
-                      <div className="bg-[#121820] p-2 rounded border border-[#242E3D]">
-                        <div className="text-[#64748B] text-[10px] uppercase">Neural SNR</div>
-                        <div className="font-semibold text-emerald-400 mt-0.5">
-                          {cloneAssessment.snr_estimate_db.toFixed(1)} dB
-                        </div>
-                      </div>
-                      <div className="bg-[#121820] p-2 rounded border border-[#242E3D]">
-                        <div className="text-[#64748B] text-[10px] uppercase">Peak / RMS</div>
-                        <div className="font-semibold text-white mt-0.5">
-                          {cloneAssessment.peak_dbfs.toFixed(1)} / {cloneAssessment.rms_dbfs.toFixed(1)} dBFS
-                        </div>
-                      </div>
-                      <div className="bg-[#121820] p-2 rounded border border-[#242E3D]">
-                        <div className="text-[#64748B] text-[10px] uppercase">Headroom</div>
-                        <div
-                          className={`font-semibold mt-0.5 flex items-center space-x-1 ${
-                            cloneAssessment.clipping_detected ? 'text-rose-400' : 'text-emerald-400'
-                          }`}
-                        >
-                          {cloneAssessment.clipping_detected ? (
-                            <>
-                              <AlertTriangle className="w-3 h-3 text-rose-400" />
-                              <span>Clipped</span>
-                            </>
-                          ) : (
-                            <>
-                              <Check className="w-3 h-3 text-emerald-400" />
-                              <span>Clean</span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {cloneAssessment.recommendations && cloneAssessment.recommendations.length > 0 && (
-                      <div className="text-[10px] text-[#94A3B8] bg-[#121820] p-2 rounded border border-[#242E3D] space-y-1">
-                        <div className="text-[#64748B] font-semibold uppercase text-[9px]">Acoustic Tips:</div>
-                        <ul className="list-disc list-inside space-y-0.5 text-[10px]">
-                          {cloneAssessment.recommendations.map((rec, idx) => (
-                            <li key={idx} className="truncate">{rec}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </div>
-                ) : null}
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-[#94A3B8] mb-1">
-                  Reference Transcript{' '}
-                  {isAutoTranscribing ? (
-                    <span className="text-amber-400 font-mono text-[10px] animate-pulse">
-                      (Listening & Auto-Transcribing...)
-                    </span>
-                  ) : cloneTranscript ? (
-                    <span className="text-emerald-400 font-mono text-[10px]">
-                      (✓ Spoken Transcript Captured)
-                    </span>
-                  ) : (
-                    <span className="text-[#64748B] lowercase font-normal">(optional, auto-transcribes on microphone)</span>
-                  )}
-                </label>
-                <textarea
-                  rows={2}
-                  value={cloneTranscript}
-                  onChange={(e) => setCloneTranscript(e.target.value)}
-                  placeholder="What was spoken in the reference audio sample..."
-                  className="w-full bg-[#0B0E14] border border-[#242E3D] rounded-lg p-2 text-white text-xs focus:border-amber-500 focus:outline-none resize-none leading-relaxed"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-[#94A3B8] mb-1">
-                  Gender Target
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {(['neutral', 'female', 'male'] as const).map((g) => (
+                {/* Input Mode Selector: Instant Microphone vs File Upload */}
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-[#94A3B8] mb-1.5">
+                    Reference Audio Source *
+                  </label>
+                  <div className="grid grid-cols-2 gap-2 mb-3">
                     <button
-                      key={g}
                       type="button"
-                      onClick={() => setCloneGender(g)}
-                      className={`py-1.5 px-3 rounded-lg text-xs font-mono capitalize border transition-all ${
-                        cloneGender === g
-                          ? 'bg-amber-500/10 border-amber-500 text-amber-400'
+                      onClick={() => {
+                        setCloneMode('record');
+                        resetRecording();
+                      }}
+                      className={`py-2 px-3 rounded-lg text-xs font-medium border flex items-center justify-center space-x-2 transition-all ${
+                        cloneMode === 'record'
+                          ? 'bg-amber-500/15 border-amber-500 text-amber-400 font-semibold shadow-sm shadow-amber-500/10'
                           : 'bg-[#0B0E14] border-[#242E3D] text-[#94A3B8] hover:border-[#3B485C]'
                       }`}
                     >
-                      {g}
+                      <Mic className="w-3.5 h-3.5" />
+                      <span>Instant Microphone</span>
                     </button>
-                  ))}
-                </div>
-              </div>
 
-              {/* Speaker Primary Language / Dialect Selector */}
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-[#94A3B8]">
-                    Speaker Native Language / Dialect
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCloneMode('upload');
+                        resetRecording();
+                      }}
+                      className={`py-2 px-3 rounded-lg text-xs font-medium border flex items-center justify-center space-x-2 transition-all ${
+                        cloneMode === 'upload'
+                          ? 'bg-amber-500/15 border-amber-500 text-amber-400 font-semibold shadow-sm shadow-amber-500/10'
+                          : 'bg-[#0B0E14] border-[#242E3D] text-[#94A3B8] hover:border-[#3B485C]'
+                      }`}
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>Upload Audio File</span>
+                    </button>
+                  </div>
+
+                  <div className="flex items-center space-x-2 mb-3 px-1">
+                    <span className="text-[10px] font-mono text-[#64748B] uppercase">Quick Demo:</span>
+                    <button
+                      type="button"
+                      onClick={() => handleLoadDemoSample('broadcaster')}
+                      className="px-2.5 py-1 text-[11px] font-mono rounded-md bg-[#0B0E14] hover:bg-[#1A222D] text-[#94A3B8] hover:text-amber-400 border border-[#242E3D] hover:border-amber-500/40 transition-colors flex items-center space-x-1"
+                    >
+                      <Sparkles className="w-3 h-3 text-amber-400" />
+                      <span>Studio Host (5.5s)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleLoadDemoSample('dispatcher')}
+                      className="px-2.5 py-1 text-[11px] font-mono rounded-md bg-[#0B0E14] hover:bg-[#1A222D] text-[#94A3B8] hover:text-sky-400 border border-[#242E3D] hover:border-sky-500/40 transition-colors flex items-center space-x-1"
+                    >
+                      <Sparkles className="w-3 h-3 text-sky-400" />
+                      <span>Orbital Dispatch (4.8s)</span>
+                    </button>
+                  </div>
+
+                  {cloneMode === 'record' ? (
+                    <div className="border border-[#242E3D] bg-[#0B0E14] rounded-xl p-4 flex flex-col items-center justify-center space-y-3">
+                      {recordedAudioUrl ? (
+                        <div className="w-full space-y-3">
+                          <div className="flex items-center justify-between text-xs text-[#94A3B8]">
+                            <span className="flex items-center space-x-1.5 text-emerald-400 font-mono">
+                              <CheckCircle2 className="w-4 h-4" />
+                              <span>Audio Sample Captured ({recordingSeconds}s)</span>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={resetRecording}
+                              className="flex items-center space-x-1 text-xs text-[#64748B] hover:text-amber-400 transition-colors"
+                            >
+                              <RotateCcw className="w-3.5 h-3.5" />
+                              <span>Record Again</span>
+                            </button>
+                          </div>
+
+                          {/* Sleek Custom Audio Player Bar */}
+                          <div className="flex items-center space-x-3 bg-[#121820] p-3 rounded-xl border border-[#242E3D]">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (!previewAudioRef.current) return;
+                                if (isPreviewPlaying) {
+                                  previewAudioRef.current.pause();
+                                  setIsPreviewPlaying(false);
+                                } else {
+                                  previewAudioRef.current.currentTime = 0;
+                                  previewAudioRef.current.play().catch(console.error);
+                                  setIsPreviewPlaying(true);
+                                }
+                              }}
+                              className="w-9 h-9 rounded-lg bg-amber-500 hover:bg-amber-400 text-black flex items-center justify-center transition-all shadow-md shadow-amber-500/20 shrink-0"
+                              title={isPreviewPlaying ? 'Stop playback' : 'Play audio preview'}
+                            >
+                              {isPreviewPlaying ? (
+                                <Square className="w-4 h-4 fill-black" />
+                              ) : (
+                                <Play className="w-4 h-4 fill-black ml-0.5" />
+                              )}
+                            </button>
+
+                            <div className="flex-1 space-y-1">
+                              <div
+                                onClick={(e) => {
+                                  if (!previewAudioRef.current || !previewDuration) return;
+                                  const rect = e.currentTarget.getBoundingClientRect();
+                                  const clickPos = (e.clientX - rect.left) / rect.width;
+                                  previewAudioRef.current.currentTime = clickPos * previewDuration;
+                                }}
+                                className="h-2 w-full bg-[#0B0E14] hover:bg-[#1A222D] rounded-full overflow-hidden cursor-pointer relative transition-colors"
+                              >
+                                <div
+                                  className="h-full bg-gradient-to-r from-amber-500 to-amber-300 rounded-full transition-all"
+                                  style={{
+                                    width: `${previewDuration > 0 ? (previewCurrentTime / previewDuration) * 100 : 0}%`,
+                                  }}
+                                />
+                              </div>
+                              <div className="flex items-center justify-between text-[11px] font-mono text-[#94A3B8]">
+                                <span className="text-amber-400 font-medium">
+                                  {Math.floor(previewCurrentTime / 60)}:
+                                  {Math.floor(previewCurrentTime % 60)
+                                    .toString()
+                                    .padStart(2, '0')}
+                                </span>
+                                <span>
+                                  {previewDuration > 0
+                                    ? `${Math.floor(previewDuration / 60)}:${Math.floor(previewDuration % 60).toString().padStart(2, '0')}`
+                                    : `0:${recordingSeconds.toString().padStart(2, '0')}`}
+                                </span>
+                              </div>
+                            </div>
+
+                            <audio
+                              ref={previewAudioRef}
+                              src={recordedAudioUrl}
+                              onPlay={() => setIsPreviewPlaying(true)}
+                              onPause={() => setIsPreviewPlaying(false)}
+                              onEnded={() => {
+                                setIsPreviewPlaying(false);
+                                setPreviewCurrentTime(0);
+                              }}
+                              onTimeUpdate={(e) => {
+                                setPreviewCurrentTime(e.currentTarget.currentTime);
+                              }}
+                              onLoadedMetadata={(e) => {
+                                setPreviewDuration(e.currentTarget.duration);
+                              }}
+                              className="hidden"
+                            />
+                          </div>
+                        </div>
+                      ) : isRecording ? (
+                        <div className="flex flex-col items-center space-y-3 py-3">
+                          <div className="flex items-center space-x-2 text-rose-400 animate-pulse font-mono text-xs font-bold">
+                            <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
+                            <span>RECORDING: 00:{recordingSeconds.toString().padStart(2, '0')} / 00:20</span>
+                          </div>
+                          <div className="flex items-center space-x-1.5 h-8">
+                            <span className="w-1.5 h-4 bg-amber-500 animate-pulse rounded-full" />
+                            <span className="w-1.5 h-7 bg-amber-400 animate-pulse delay-75 rounded-full" />
+                            <span className="w-1.5 h-5 bg-amber-500 animate-pulse delay-100 rounded-full" />
+                            <span className="w-1.5 h-8 bg-amber-400 animate-pulse delay-150 rounded-full" />
+                            <span className="w-1.5 h-4 bg-amber-500 animate-pulse delay-200 rounded-full" />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={stopRecording}
+                            className="flex items-center space-x-2 px-5 py-2 rounded-xl bg-rose-500 hover:bg-rose-600 text-white text-xs font-semibold transition-all shadow-lg shadow-rose-500/25 active:scale-95"
+                          >
+                            <Square className="w-3.5 h-3.5 fill-white" />
+                            <span>Stop Recording</span>
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center space-y-2 py-3">
+                          <button
+                            type="button"
+                            onClick={startRecording}
+                            className="w-14 h-14 rounded-full bg-amber-500/15 hover:bg-amber-500/25 border-2 border-amber-500 text-amber-400 flex items-center justify-center transition-all hover:scale-105 shadow-lg shadow-amber-500/15"
+                          >
+                            <Mic className="w-7 h-7" />
+                          </button>
+                          <div className="text-center">
+                            <p className="text-xs font-semibold text-white">Click to Start Recording</p>
+                            <p className="text-[11px] text-[#64748B] font-mono mt-0.5">
+                              Speak clearly for 5 to 15 seconds to capture vocal timbre
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <label className="flex flex-col items-center justify-center border border-dashed border-[#242E3D] hover:border-amber-500/50 bg-[#0B0E14] rounded-xl p-5 cursor-pointer transition-colors group">
+                      <Upload className="w-6 h-6 text-[#64748B] group-hover:text-amber-400 mb-2 transition-colors" />
+                      <span className="text-xs text-[#94A3B8] group-hover:text-white font-medium">
+                        {cloneFileName ? cloneFileName : 'Select WAV, MP3, or FLAC reference audio'}
+                      </span>
+                      <span className="text-[10px] text-[#64748B] font-mono mt-1">3 - 15 seconds clean speech recommended</span>
+                      <input
+                        type="file"
+                        accept="audio/*"
+                        onChange={handleFileChange}
+                        className="hidden"
+                      />
+                    </label>
+                  )}
+
+                  {/* Real-Time Audio Quality Diagnostics */}
+                  {audioQuality && (
+                    <div className="bg-[#0B0E14] border border-amber-500/30 rounded-xl p-3.5 space-y-2.5 font-mono text-xs shadow-inner mt-3">
+                      <div className="flex items-center justify-between border-b border-[#242E3D] pb-1.5">
+                        <div className="flex items-center space-x-1.5 text-amber-400 font-semibold text-[11px] uppercase tracking-wider">
+                          <Sparkles className="w-3.5 h-3.5" />
+                          <span>Acoustic Quality Diagnostics</span>
+                        </div>
+                        <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 flex items-center gap-1 font-sans">
+                          <CheckCircle2 className="w-3 h-3" />
+                          <span>24kHz Studio WAV</span>
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2 text-[11px]">
+                        <div className="bg-[#121820] p-2.5 rounded-lg border border-[#242E3D]">
+                          <div className="text-[#64748B] text-[10px] uppercase font-sans">Duration</div>
+                          <div className={`font-semibold mt-0.5 ${audioQuality.durationQuality === 'optimal' ? 'text-emerald-400' : 'text-amber-400'}`}>
+                            {audioQuality.durationSeconds}s
+                          </div>
+                        </div>
+                        <div className="bg-[#121820] p-2.5 rounded-lg border border-[#242E3D]">
+                          <div className="text-[#64748B] text-[10px] uppercase font-sans">Clarity SNR</div>
+                          <div className={`font-semibold mt-0.5 truncate ${audioQuality.clarityRating === 'excellent' ? 'text-emerald-400' : 'text-amber-400'}`} title={`~${audioQuality.snrEstimateDb} dB (${audioQuality.clarityRating})`}>
+                            ~{audioQuality.snrEstimateDb} dB ({audioQuality.clarityRating})
+                          </div>
+                        </div>
+                        <div className="bg-[#121820] p-2.5 rounded-lg border border-[#242E3D]">
+                          <div className="text-[#64748B] text-[10px] uppercase font-sans">Peak Level</div>
+                          <div className="font-semibold text-white mt-0.5">
+                            {audioQuality.peakDbfs} dBFS
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="text-[10px] text-[#94A3B8] flex items-center space-x-1.5 bg-[#121820] px-2.5 py-1.5 rounded-lg border border-[#242E3D]">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                        <span className="truncate">{audioQuality.clarityMessage} • 80Hz rumble filter & -1dBFS normalization applied</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Neural Acoustic Quality Grader from Server Assessment */}
+                  {isAssessingQuality ? (
+                    <div className="flex items-center space-x-2 text-xs text-amber-400/80 bg-[#0B0E14] border border-amber-500/20 p-3 rounded-xl font-mono animate-pulse mt-3">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Analyzing neural SNR & acoustic clipping...</span>
+                    </div>
+                  ) : cloneAssessment ? (
+                    <div className="bg-[#0B0E14] border border-emerald-500/30 rounded-xl p-3.5 space-y-2.5 font-mono text-xs shadow-inner mt-3">
+                      <div className="flex items-center justify-between border-b border-[#242E3D] pb-1.5">
+                        <div className="flex items-center space-x-1.5 text-emerald-400 font-semibold text-[11px] uppercase tracking-wider">
+                          <Activity className="w-3.5 h-3.5" />
+                          <span>Neural Acoustic Grader</span>
+                        </div>
+                        <span
+                          className={`text-[10px] px-2 py-0.5 rounded border font-semibold uppercase font-sans ${
+                            cloneAssessment.clarity_rating === 'excellent'
+                              ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
+                              : cloneAssessment.clarity_rating === 'good'
+                              ? 'text-sky-400 bg-sky-500/10 border-sky-500/20'
+                              : cloneAssessment.clarity_rating === 'fair'
+                              ? 'text-amber-400 bg-amber-500/10 border-amber-500/20'
+                              : 'text-rose-400 bg-rose-500/10 border-rose-500/20'
+                          }`}
+                        >
+                          {cloneAssessment.clarity_rating} Grade
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2 text-[11px]">
+                        <div className="bg-[#121820] p-2.5 rounded-lg border border-[#242E3D]">
+                          <div className="text-[#64748B] text-[10px] uppercase font-sans">Neural SNR</div>
+                          <div className="font-semibold text-emerald-400 mt-0.5">
+                            {cloneAssessment.snr_estimate_db.toFixed(1)} dB
+                          </div>
+                        </div>
+                        <div className="bg-[#121820] p-2.5 rounded-lg border border-[#242E3D]">
+                          <div className="text-[#64748B] text-[10px] uppercase font-sans">Peak / RMS</div>
+                          <div className="font-semibold text-white mt-0.5 truncate" title={`${cloneAssessment.peak_dbfs.toFixed(1)} / ${cloneAssessment.rms_dbfs.toFixed(1)} dBFS`}>
+                            {cloneAssessment.peak_dbfs.toFixed(1)} / {cloneAssessment.rms_dbfs.toFixed(1)} dBFS
+                          </div>
+                        </div>
+                        <div className="bg-[#121820] p-2.5 rounded-lg border border-[#242E3D]">
+                          <div className="text-[#64748B] text-[10px] uppercase font-sans">Headroom</div>
+                          <div
+                            className={`font-semibold mt-0.5 flex items-center space-x-1 ${
+                              cloneAssessment.clipping_detected ? 'text-rose-400' : 'text-emerald-400'
+                            }`}
+                          >
+                            {cloneAssessment.clipping_detected ? (
+                              <>
+                                <AlertTriangle className="w-3 h-3 text-rose-400" />
+                                <span>Clipped</span>
+                              </>
+                            ) : (
+                              <>
+                                <Check className="w-3 h-3 text-emerald-400" />
+                                <span>Clean</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {cloneAssessment.recommendations && cloneAssessment.recommendations.length > 0 && (
+                        <div className="text-[10px] text-[#94A3B8] bg-[#121820] p-2 rounded-lg border border-[#242E3D] space-y-1">
+                          <div className="text-[#64748B] font-semibold uppercase text-[9px] font-sans">Acoustic Tips:</div>
+                          <ul className="list-disc list-inside space-y-0.5 text-[10px]">
+                            {cloneAssessment.recommendations.map((rec, idx) => (
+                              <li key={idx} className="truncate">{rec}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-[#94A3B8] mb-1">
+                    Reference Transcript{' '}
+                    {isAutoTranscribing ? (
+                      <span className="text-amber-400 font-mono text-[10px] animate-pulse">
+                        (Listening & Auto-Transcribing...)
+                      </span>
+                    ) : cloneTranscript ? (
+                      <span className="text-emerald-400 font-mono text-[10px]">
+                        (✓ Spoken Transcript Captured)
+                      </span>
+                    ) : (
+                      <span className="text-[#64748B] lowercase font-normal">(optional, auto-transcribes on microphone)</span>
+                    )}
                   </label>
-                  <span className="text-[10px] text-emerald-400 font-mono bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
-                    Cross-Lingual Ready
-                  </span>
+                  <textarea
+                    rows={2}
+                    value={cloneTranscript}
+                    onChange={(e) => setCloneTranscript(e.target.value)}
+                    placeholder="What was spoken in the reference audio sample..."
+                    className="w-full bg-[#0B0E14] border border-[#242E3D] rounded-lg p-2.5 text-white text-xs focus:border-amber-500 focus:outline-none resize-none leading-relaxed"
+                  />
                 </div>
-                <select
-                  value={cloneLanguage}
-                  onChange={(e) => setCloneLanguage(e.target.value)}
-                  className="w-full bg-[#0B0E14] border border-[#242E3D] rounded-lg px-3 py-2 text-white text-xs focus:border-amber-500 focus:outline-none font-mono"
-                >
-                  {SUPPORTED_LANGUAGES.map((lang) => (
-                    <option key={lang.code} value={lang.code}>
-                      {lang.flag} {lang.name}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-[10px] text-[#64748B] font-mono mt-1">
-                  Your cloned voice timbre can speak across <span className="text-amber-400 font-semibold">ALL supported languages</span> (Malayalam, Hindi, Tamil, Telugu, English, German, French, etc.) via neural cross-lingual synthesis.
-                </p>
+
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-[#94A3B8] mb-1.5">
+                    Gender Target
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(['neutral', 'female', 'male'] as const).map((g) => (
+                      <button
+                        key={g}
+                        type="button"
+                        onClick={() => setCloneGender(g)}
+                        className={`py-2 px-3 rounded-lg text-xs font-semibold uppercase tracking-wider border transition-all ${
+                          cloneGender === g
+                            ? 'bg-amber-500/15 border-amber-500 text-amber-400 shadow-sm shadow-amber-500/10'
+                            : 'bg-[#0B0E14] border-[#242E3D] text-[#94A3B8] hover:border-[#3B485C] hover:text-white'
+                        }`}
+                      >
+                        {g}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Speaker Primary Language / Dialect Selector */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-[#94A3B8]">
+                      Speaker Native Language / Dialect
+                    </label>
+                    <span className="text-[10px] text-emerald-400 font-mono bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                      Cross-Lingual Ready
+                    </span>
+                  </div>
+                  <select
+                    value={cloneLanguage}
+                    onChange={(e) => setCloneLanguage(e.target.value)}
+                    className="w-full bg-[#0B0E14] border border-[#242E3D] rounded-lg px-3 py-2 text-white text-xs focus:border-amber-500 focus:outline-none font-mono"
+                  >
+                    {SUPPORTED_LANGUAGES.map((lang) => (
+                      <option key={lang.code} value={lang.code}>
+                        {lang.flag} {lang.name}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[11px] text-[#64748B] font-mono mt-1.5 leading-relaxed">
+                    Your cloned voice timbre can speak across <span className="text-amber-400 font-semibold">ALL supported languages</span> (Malayalam, Hindi, Tamil, Telugu, English, German, French, etc.) via neural cross-lingual synthesis.
+                  </p>
+                </div>
               </div>
 
-              <div className="pt-2 flex items-center justify-end space-x-3 border-t border-[#242E3D]">
+              {/* Sticky Modal Footer */}
+              <div className="p-4 border-t border-[#242E3D] bg-[#0E131A] flex items-center justify-end space-x-3 shrink-0">
                 <button
                   type="button"
                   onClick={() => {
@@ -3172,7 +3220,7 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated, init
                 <button
                   type="submit"
                   disabled={isCloning || !cloneName || !cloneAudioBase64}
-                  className="flex items-center space-x-2 px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-black text-xs font-semibold transition-colors disabled:opacity-50"
+                  className="flex items-center space-x-2 px-5 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-black text-xs font-semibold transition-all shadow-md shadow-amber-500/20 disabled:opacity-50 active:scale-95"
                 >
                   {isCloning ? (
                     <>
