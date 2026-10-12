@@ -471,4 +471,16 @@ mod tests {
         let err_msg = res.unwrap_err().to_string();
         assert!(err_msg.contains("not installed locally"));
     }
+
+    #[test]
+    fn test_piper_builder_methods() {
+        let engine = PiperTtsEngine::new()
+            .with_sidecar_url("http://127.0.0.1:8888")
+            .with_piper_path("/usr/local/bin/piper")
+            .with_models_dir(PathBuf::from("/opt/piper/models"));
+
+        assert_eq!(engine.sidecar_url.as_deref(), Some("http://127.0.0.1:8888"));
+        assert_eq!(engine.piper_path.as_deref(), Some("/usr/local/bin/piper"));
+        assert_eq!(engine.models_dir, PathBuf::from("/opt/piper/models"));
+    }
 }

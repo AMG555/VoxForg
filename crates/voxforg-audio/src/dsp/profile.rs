@@ -95,4 +95,19 @@ mod tests {
             assert!(buf.iter().all(|&s| s < 32760 && s > -32760));
         }
     }
+
+    #[test]
+    fn test_mastering_profile_empty_samples() {
+        let mut empty = vec![];
+        MasteringProfile::Broadcast.apply(&mut empty, 24000);
+        assert!(empty.is_empty());
+    }
+
+    #[test]
+    fn test_mastering_profile_serde() {
+        assert_eq!(serde_json::to_string(&MasteringProfile::Broadcast).unwrap(), "\"broadcast\"");
+        assert_eq!(serde_json::to_string(&MasteringProfile::Podcast).unwrap(), "\"podcast\"");
+        assert_eq!(serde_json::to_string(&MasteringProfile::Warmth).unwrap(), "\"warmth\"");
+        assert_eq!(serde_json::to_string(&MasteringProfile::StudioClean).unwrap(), "\"studio_clean\"");
+    }
 }
