@@ -1138,4 +1138,53 @@ mod tests {
         let ct = res.headers().get("content-type").unwrap().to_str().unwrap();
         assert!(ct.contains("application/json"));
     }
+
+    #[tokio::test]
+    async fn test_favicon_ico_endpoint() {
+        let state = setup_test_state(None).await;
+        let app = create_app(state);
+
+        let req = Request::builder().uri("/favicon.ico").body(Body::empty()).unwrap();
+        let res = app.oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+        let ct = res.headers().get("content-type").unwrap().to_str().unwrap();
+        assert_eq!(ct, "image/x-icon");
+    }
+
+    #[tokio::test]
+    async fn test_mcp_http_endpoints() {
+        let state = setup_test_state(None).await;
+        let app = create_app(state);
+
+        // 1. GET /mcp returns SSE stream
+        let req = Request::builder().method("GET").uri("/mcp").body(Body::empty()).unwrap();
+        let res = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+        let ct = res.headers().get("content-type").unwrap().to_str().unwrap();
+        assert!(ct.contains("text/event-stream"));
+
+        // 2. POST /mcp with JSON-RPC tools/list returns JSON response
+        let mcp_req = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/list",
+            "params": {}
+        });
+        let req = Request::builder()
+            .method("POST")
+            .uri("/mcp")
+            .header("content-type", "application/json")
+            .header("x-voxforg-client-id", "test-agent")
+            .body(Body::from(mcp_req.to_string()))
+            .unwrap();
+        let res = app.oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+        let ct = res.headers().get("content-type").unwrap().to_str().unwrap();
+        assert_eq!(ct, "application/json");
+        let body = res.into_body().collect().await.unwrap().to_bytes();
+        let json_resp: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json_resp["jsonrpc"], "2.0");
+        assert_eq!(json_resp["id"], 1);
+        assert!(json_resp["result"]["tools"].is_array());
+    }
 }

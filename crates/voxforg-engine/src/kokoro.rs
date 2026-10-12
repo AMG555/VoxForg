@@ -396,3 +396,53 @@ impl TtsEngine for KokoroTtsEngine {
         Ok(true)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_kokoro_voices_catalog_integrity() {
+        assert!(!KOKORO_VOICES.is_empty());
+        for voice in KOKORO_VOICES {
+            assert!(!voice.id.is_empty(), "Voice ID cannot be empty");
+            assert!(!voice.name.is_empty(), "Voice name cannot be empty");
+            assert!(!voice.language.is_empty(), "Voice language cannot be empty");
+            assert!(!voice.accent.is_empty(), "Voice accent cannot be empty");
+        }
+    }
+
+    #[test]
+    fn test_kokoro_builder_endpoint() {
+        let engine = KokoroTtsEngine::new().with_endpoint("http://127.0.0.1:8880");
+        assert_eq!(
+            engine.endpoint_url.as_deref(),
+            Some("http://127.0.0.1:8880")
+        );
+    }
+
+    #[tokio::test]
+    async fn test_kokoro_streaming_synthesis() {
+        let engine = KokoroTtsEngine::new();
+        let req = SynthesisRequest {
+            text: "Testing stream delivery from Kokoro.".to_string(),
+            voice_id: "af_heart".to_string(),
+            speed: 1.0,
+            pitch: 0.0,
+            format: voxforg_core::models::AudioContainerFormat::Wav,
+        };
+
+        let mut rx = engine.synthesize_stream(&req).await.expect("Stream receiver must open");
+        let first_chunk = rx.recv().await.expect("Must yield at least one chunk").unwrap();
+        assert_eq!(first_chunk.sample_rate, 24000);
+        assert!(!first_chunk.pcm_data.is_empty());
+        assert!(first_chunk.is_final);
+    }
+
+    #[tokio::test]
+    async fn test_kokoro_health_check_local() {
+        let engine = KokoroTtsEngine::new();
+        let healthy = engine.health_check().await.unwrap();
+        assert!(healthy);
+    }
+}
