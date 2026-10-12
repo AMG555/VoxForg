@@ -55,6 +55,28 @@ pub struct AcousticFeatures {
     pub loudness_z_score: f32,
     /// Relative z-score of speech tempo.
     pub pace_z_score: f32,
+    /// Measured vocal fold pitch micro-jitter percentage (cycle-to-cycle instability).
+    #[serde(default = "default_jitter")]
+    pub f0_jitter_percent: f32,
+    /// Spectral tilt / slope balance in dB.
+    #[serde(default)]
+    pub spectral_tilt_db: f32,
+    /// Estimated throat/chest formant frequency F1 in Hz.
+    #[serde(default = "default_f1")]
+    pub formant_f1_hz: f32,
+    /// Estimated oral formant frequency F2 in Hz.
+    #[serde(default = "default_f2")]
+    pub formant_f2_hz: f32,
+}
+
+fn default_jitter() -> f32 {
+    0.6
+}
+fn default_f1() -> f32 {
+    500.0
+}
+fn default_f2() -> f32 {
+    1500.0
 }
 
 pub struct ProsodyMirror;
@@ -71,6 +93,10 @@ impl ProsodyMirror {
                 voicing_ratio: 0.0,
                 loudness_z_score: 0.0,
                 pace_z_score: 0.0,
+                f0_jitter_percent: 0.6,
+                spectral_tilt_db: 0.0,
+                formant_f1_hz: 500.0,
+                formant_f2_hz: 1500.0,
             };
         }
 
@@ -167,6 +193,58 @@ impl ProsodyMirror {
         // Mean conversational syllable rate: 4.2 syll/sec, std: 0.8 syll/sec
         let pace_z_score = ((syllable_rate - 4.2) / 0.8).clamp(-3.0, 3.0);
 
+        // Vocal fold micro-jitter calculation (cycle-to-cycle F0 perturbation)
+        let f0_jitter_percent = if f0_estimates.len() > 2 {
+            let mut diff_sum = 0.0f32;
+            for i in 1..f0_estimates.len() {
+                diff_sum += (f0_estimates[i] - f0_estimates[i - 1]).abs();
+            }
+            let mean_diff = diff_sum / (f0_estimates.len() - 1) as f32;
+            ((mean_diff / f0_mean_hz.max(50.0)) * 100.0).clamp(0.1, 4.0)
+        } else {
+            0.6
+        };
+
+        // Formant resonance & spectral tilt estimation
+        let (formant_f1_hz, formant_f2_hz, spectral_tilt_db) = if samples.len() >= 256 {
+            let mut low_energy = 0.0f64;
+            let mut mid_energy = 0.0f64;
+            let mut high_energy = 0.0f64;
+
+            let n = samples.len().min(48000);
+            for i in 2..n {
+                let s = samples[i] as f64;
+                let s_prev = samples[i - 1] as f64;
+                let s_prev2 = samples[i - 2] as f64;
+
+                let low = (s + 2.0 * s_prev + s_prev2) * 0.25;
+                let high = s - s_prev;
+                let mid = s - low;
+
+                low_energy += low * low;
+                mid_energy += mid * mid;
+                high_energy += high * high;
+            }
+
+            let tilt = (10.0 * (low_energy / high_energy.max(1.0)).log10()).clamp(-12.0, 12.0) as f32;
+
+            let f1 = if f0_mean_hz < 165.0 {
+                (380.0 + (mid_energy / low_energy.max(1.0) * 150.0).min(200.0)) as f32
+            } else {
+                (520.0 + (mid_energy / low_energy.max(1.0) * 180.0).min(250.0)) as f32
+            };
+
+            let f2 = if f0_mean_hz < 165.0 {
+                (1400.0 + (high_energy / mid_energy.max(1.0) * 300.0).min(500.0)) as f32
+            } else {
+                (1750.0 + (high_energy / mid_energy.max(1.0) * 350.0).min(600.0)) as f32
+            };
+
+            (f1, f2, tilt)
+        } else {
+            (500.0, 1500.0, 0.0)
+        };
+
         AcousticFeatures {
             f0_mean_hz,
             f0_std_semitones,
@@ -175,6 +253,10 @@ impl ProsodyMirror {
             voicing_ratio,
             loudness_z_score,
             pace_z_score,
+            f0_jitter_percent,
+            spectral_tilt_db,
+            formant_f1_hz,
+            formant_f2_hz,
         }
     }
 

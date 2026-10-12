@@ -8,6 +8,7 @@ pub mod fit_planner;
 pub mod limiter;
 pub mod profile;
 pub mod prosody;
+pub mod realism;
 pub mod reverb;
 pub mod silence;
 pub mod time_stretch;
@@ -24,6 +25,7 @@ pub use fit_planner::{DubbingFitPlan, FitStrategy, SegmentTiming, SegmentType, S
 pub use limiter::BrickwallLimiter;
 pub use profile::MasteringProfile;
 pub use prosody::{AcousticFeatures, DirectorTaxonomy, ProsodyMirror};
+pub use realism::{HumanMicroTremor, NaturalBreath, SoftEnvelope, VocalTractResonator};
 pub use reverb::AlgorithmicReverb;
 pub use silence::SilenceTrimmer;
 pub use time_stretch::WsolaTimeStretch;

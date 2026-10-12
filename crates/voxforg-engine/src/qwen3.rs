@@ -636,6 +636,20 @@ impl TtsEngine for Qwen3TtsEngine {
             );
 
             if let Some(ref f) = ref_features_opt {
+                // Vocal tract anatomical formant resonance match
+                let f1_gain = (low_gain * 0.6).clamp(-4.0, 4.0);
+                let f2_gain = (mid_gain * 0.6).clamp(-4.0, 4.0);
+                let presence_gain = (high_gain * 0.5).clamp(-3.0, 3.0);
+                voxforg_audio::VocalTractResonator::process(
+                    &mut chunk.pcm_data,
+                    chunk.sample_rate,
+                    f.formant_f1_hz,
+                    f1_gain,
+                    f.formant_f2_hz,
+                    f2_gain,
+                    presence_gain,
+                );
+
                 if f.voicing_ratio > 0.40 {
                     voxforg_audio::HarmonicWarmth::process(
                         &mut chunk.pcm_data,
@@ -658,10 +672,23 @@ impl TtsEngine for Qwen3TtsEngine {
             );
         }
 
-        // 9. Soft de-essing to tame harsh sibilance
+        // 9. Physiological vocal fold micro-tremor (jitter & shimmer)
+        let jitter_depth = if let Some(ref f) = ref_features_opt {
+            (f.f0_jitter_percent / 2.0).clamp(0.20, 0.55)
+        } else {
+            0.35
+        };
+        voxforg_audio::HumanMicroTremor::process(
+            &mut chunk.pcm_data,
+            chunk.sample_rate,
+            jitter_depth,
+            0.28,
+        );
+
+        // 10. Soft de-essing to tame harsh sibilance
         voxforg_audio::DeEsser::process(&mut chunk.pcm_data, chunk.sample_rate, 6500.0, -22.0, 5.0);
 
-        // 10. Studio peak normalization & brickwall limiting
+        // 11. Studio peak normalization & brickwall limiting
         let max_amp = chunk.pcm_data.iter().map(|&s| s.abs()).max().unwrap_or(0) as f32;
         if max_amp > 100.0 && max_amp < 28000.0 {
             let gain = (28000.0 / max_amp).min(1.6);
@@ -670,6 +697,25 @@ impl TtsEngine for Qwen3TtsEngine {
             }
         }
         voxforg_audio::BrickwallLimiter::process(&mut chunk.pcm_data, -0.5);
+
+        // 12. Soft anti-click envelope on speech core
+        voxforg_audio::SoftEnvelope::process(&mut chunk.pcm_data, chunk.sample_rate, 6.0, 24.0);
+
+        // 13. Organic Pre-Speech Inhalation Aspiration
+        if chunk.pcm_data.len() > (chunk.sample_rate as usize) {
+            let breath_center = ref_features_opt.as_ref().map(|f| f.formant_f2_hz).unwrap_or(1750.0);
+            let mut breath = voxforg_audio::NaturalBreath::generate(
+                chunk.sample_rate,
+                140.0,
+                -34.0,
+                breath_center,
+            );
+            voxforg_audio::SoftEnvelope::process(&mut breath, chunk.sample_rate, 8.0, 8.0);
+            let pause_samples = (chunk.sample_rate as f32 * 0.030).round() as usize;
+            breath.extend(vec![0i16; pause_samples]);
+            breath.extend(chunk.pcm_data);
+            chunk.pcm_data = breath;
+        }
 
         Ok(chunk)
     }

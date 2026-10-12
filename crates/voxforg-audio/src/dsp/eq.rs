@@ -1,20 +1,20 @@
 use std::f32::consts::PI;
 
 #[derive(Debug, Clone)]
-struct Biquad {
-    b0: f32,
-    b1: f32,
-    b2: f32,
-    a1: f32,
-    a2: f32,
-    x1: f32,
-    x2: f32,
-    y1: f32,
-    y2: f32,
+pub(crate) struct Biquad {
+    pub(crate) b0: f32,
+    pub(crate) b1: f32,
+    pub(crate) b2: f32,
+    pub(crate) a1: f32,
+    pub(crate) a2: f32,
+    pub(crate) x1: f32,
+    pub(crate) x2: f32,
+    pub(crate) y1: f32,
+    pub(crate) y2: f32,
 }
 
 impl Biquad {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             b0: 1.0,
             b1: 0.0,
@@ -49,7 +49,7 @@ impl Biquad {
         b
     }
 
-    fn peaking(sample_rate: f32, center_hz: f32, gain_db: f32, q: f32) -> Self {
+    pub(crate) fn peaking(sample_rate: f32, center_hz: f32, gain_db: f32, q: f32) -> Self {
         let mut b = Self::new();
         if gain_db.abs() < 0.01 {
             return b;
@@ -67,6 +67,26 @@ impl Biquad {
         b.b2 = (1.0 - alpha * a) / a0;
         b.a1 = (-2.0 * cos_w0) / a0;
         b.a2 = (1.0 - alpha / a) / a0;
+        b
+    }
+
+    pub(crate) fn band_pass(sample_rate: f32, center_hz: f32, q: f32) -> Self {
+        let mut b = Self::new();
+        if !center_hz.is_finite() || center_hz <= 0.0 || center_hz >= sample_rate * 0.49 {
+            return b;
+        }
+
+        let w0 = 2.0 * PI * (center_hz / sample_rate);
+        let cos_w0 = w0.cos();
+        let sin_w0 = w0.sin();
+        let alpha = sin_w0 / (2.0 * q.max(0.1));
+
+        let a0 = 1.0 + alpha;
+        b.b0 = alpha / a0;
+        b.b1 = 0.0;
+        b.b2 = -alpha / a0;
+        b.a1 = (-2.0 * cos_w0) / a0;
+        b.a2 = (1.0 - alpha) / a0;
         b
     }
 
@@ -91,7 +111,7 @@ impl Biquad {
         b
     }
 
-    fn high_pass(sample_rate: f32, cutoff_hz: f32) -> Self {
+    pub(crate) fn high_pass(sample_rate: f32, cutoff_hz: f32) -> Self {
         let mut b = Self::new();
         if !cutoff_hz.is_finite() || cutoff_hz <= 0.0 || cutoff_hz >= sample_rate * 0.49 {
             return b;
@@ -115,7 +135,7 @@ impl Biquad {
         b
     }
 
-    fn process(&mut self, input: f32) -> f32 {
+    pub(crate) fn process(&mut self, input: f32) -> f32 {
         let output = self.b0 * input + self.b1 * self.x1 + self.b2 * self.x2
             - self.a1 * self.y1
             - self.a2 * self.y2;
