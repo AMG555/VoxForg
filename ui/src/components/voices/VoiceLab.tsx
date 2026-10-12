@@ -106,7 +106,7 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated, onVo
   const [selectedVoiceId, setSelectedVoiceId] = useState<string>('en-US-AriaNeural');
   const [text, setText] = useState<string>(
     initialText ||
-      'The atmospheric density on Kepler-452b allows acoustic waves to travel 1.4 times faster than standard Earth normal.'
+      '"Do you see how the morning sun transforms the room into a golden paradise?" he whispered with wonder in his voice as his eyes watched the play of light on the old wooden floorboards.'
   );
 
   useEffect(() => {
@@ -133,7 +133,7 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated, onVo
   const [teleprompterCurrentTime, setTeleprompterCurrentTime] = useState<number>(0);
   const [teleprompterDuration, setTeleprompterDuration] = useState<number>(0);
   const [spokenPrompt, setSpokenPrompt] = useState<string>(
-    'The atmospheric density on Kepler-452b allows acoustic waves to travel 1.4 times faster than standard Earth normal.'
+    '"Do you see how the morning sun transforms the room into a golden paradise?" he whispered with wonder in his voice as his eyes watched the play of light on the old wooden floorboards.'
   );
 
   // Speech-to-Speech Voice Conversion Studio State

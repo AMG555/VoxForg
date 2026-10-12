@@ -9,7 +9,7 @@ interface AbTestLabProps {
 
 export const AbTestLab: React.FC<AbTestLabProps> = ({ voices }) => {
   const [text, setText] = useState<string>(
-    'The atmospheric density on Kepler-452b allows acoustic waves to travel 1.4 times faster than standard Earth normal.'
+    '"Do you see how the morning sun transforms the room into a golden paradise?" he whispered with wonder in his voice as his eyes watched the play of light on the old wooden floorboards.'
   );
 
   const [voiceA, setVoiceA] = useState<string>(voices[0]?.id || 'en-US-AriaNeural');
