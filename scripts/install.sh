@@ -65,7 +65,7 @@ TARGET_FILE="$INSTALL_DIR/voxforg"
 # 3. Fetch latest release version
 LATEST_TAG=$(curl -s "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/' || true)
 if [ -z "$LATEST_TAG" ]; then
-    LATEST_TAG="v0.1.2"
+    LATEST_TAG="v0.2.0"
 fi
 
 # 4. Resolve candidate asset filenames for platform
