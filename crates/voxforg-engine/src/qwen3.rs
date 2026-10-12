@@ -184,6 +184,46 @@ impl Qwen3TtsEngine {
     }
 }
 
+/// Measures the low, mid, and high frequency balance of speech to match vocal timbre.
+fn compute_spectral_timbre_deltas(ref_pcm: &[i16], synth_pcm: &[i16]) -> (f32, f32, f32) {
+    if ref_pcm.len() < 100 || synth_pcm.len() < 100 {
+        return (0.0, 0.0, 0.0);
+    }
+
+    let band_energies = |samples: &[i16]| -> (f64, f64, f64) {
+        let mut low_e = 0.0f64;
+        let mut mid_e = 0.0f64;
+        let mut high_e = 0.0f64;
+
+        let n = samples.len().min(48000);
+        for i in 2..n {
+            let s = samples[i] as f64;
+            let s_prev = samples[i - 1] as f64;
+            let s_prev2 = samples[i - 2] as f64;
+
+            let low = (s + 2.0 * s_prev + s_prev2) * 0.25;
+            let high = s - s_prev;
+            let mid = s - low;
+
+            low_e += low * low;
+            mid_e += mid * mid;
+            high_e += high * high;
+        }
+
+        let total = (low_e + mid_e + high_e).max(1e-6);
+        (low_e / total, mid_e / total, high_e / total)
+    };
+
+    let (ref_low, ref_mid, ref_high) = band_energies(ref_pcm);
+    let (syn_low, syn_mid, syn_high) = band_energies(synth_pcm);
+
+    let delta_low = (10.0 * (ref_low / syn_low.max(1e-4)).log10()).clamp(-6.0, 6.0) as f32;
+    let delta_mid = (10.0 * (ref_mid / syn_mid.max(1e-4)).log10()).clamp(-4.0, 4.0) as f32;
+    let delta_high = (10.0 * (ref_high / syn_high.max(1e-4)).log10()).clamp(-6.0, 6.0) as f32;
+
+    (delta_low, delta_mid, delta_high)
+}
+
 #[async_trait]
 impl TtsEngine for Qwen3TtsEngine {
     fn id(&self) -> &'static str {
@@ -430,9 +470,22 @@ impl TtsEngine for Qwen3TtsEngine {
         Ok(profile)
     }
 
+    #[allow(clippy::chunks_exact_to_as_chunks)]
     async fn synthesize_cloned(&self, request: &ClonedSynthesisRequest) -> Result<AudioChunk> {
-        // If upstream microservice is configured, dispatch real cloning request
-        if let Some(ref url) = self.endpoint_url {
+        // 1. Dynamic sidecar resolution: check configured URL or standard ports (9000, 8880, 5000)
+        let sidecar_url = self.endpoint_url.clone().or_else(|| {
+            if auto_detect_local_port(9000) {
+                Some("http://127.0.0.1:9000".to_string())
+            } else if auto_detect_local_port(8880) {
+                Some("http://127.0.0.1:8880".to_string())
+            } else if auto_detect_local_port(5000) {
+                Some("http://127.0.0.1:5000".to_string())
+            } else {
+                None
+            }
+        });
+
+        if let Some(ref url) = sidecar_url {
             let payload = serde_json::json!({
                 "text": request.text,
                 "voice_profile_id": request.profile.id,
@@ -459,9 +512,7 @@ impl TtsEngine for Qwen3TtsEngine {
                             }
                         } else if !bytes.is_empty() {
                             let pcm: Vec<i16> = bytes
-                                .as_chunks::<2>()
-                                .0
-                                .iter()
+                                .chunks_exact(2)
                                 .map(|c| i16::from_le_bytes([c[0], c[1]]))
                                 .collect();
                             return Ok(AudioChunk {
@@ -476,28 +527,141 @@ impl TtsEngine for Qwen3TtsEngine {
             }
         }
 
-        let mut pitch_offset = request.pitch;
-        if let Some(ref emb) = request.profile.embedding {
-            let avg_centroid = emb.iter().take(16).sum::<f32>() / 16.0;
-            pitch_offset += (avg_centroid * 2.0).clamp(-4.0, 4.0);
-        }
+        // 2. Decode reference audio PCM if present
+        let ref_audio_opt = if let Some(ref b64) = request.profile.reference_audio_base64 {
+            let bytes = decode_audio_payload(b64);
+            if bytes.starts_with(b"RIFF") {
+                voxforg_audio::WavEncoder::decode_wav_to_pcm16(&bytes)
+                    .ok()
+                    .map(|(pcm, sr, _)| (pcm, sr))
+            } else {
+                let pcm: Vec<i16> = bytes
+                    .chunks_exact(2)
+                    .map(|c| i16::from_le_bytes([c[0], c[1]]))
+                    .collect();
+                Some((pcm, 24000))
+            }
+        } else if let Some(ref path_str) = request.profile.reference_audio_path {
+            if let Ok(bytes) = std::fs::read(path_str) {
+                if bytes.starts_with(b"RIFF") {
+                    voxforg_audio::WavEncoder::decode_wav_to_pcm16(&bytes)
+                        .ok()
+                        .map(|(pcm, sr, _)| (pcm, sr))
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        // 3. Acoustic prosody & timbre analysis
+        let (ref_pcm, ref_features_opt) = match ref_audio_opt {
+            Some((pcm, sr)) if !pcm.is_empty() => {
+                let features = voxforg_audio::ProsodyMirror::analyze(&pcm, sr);
+                (Some(pcm), Some(features))
+            }
+            _ => (None, None),
+        };
+
+        // 4. Determine acoustic gender & base voice
+        let acoustic_gender = if let Some(ref f) = ref_features_opt {
+            if f.f0_mean_hz < 165.0 {
+                Gender::Male
+            } else {
+                Gender::Female
+            }
+        } else if let Some(ref gender) = request.profile.gender {
+            gender.clone()
+        } else {
+            Gender::Female
+        };
 
         let fallback_voice = resolve_cross_lingual_base_voice(
-            request.profile.gender.as_ref(),
+            Some(&acoustic_gender),
             &request.text,
             &request.profile.language,
         );
+
+        // 5. Calculate pitch delta matching the cloned speaker's exact fundamental pitch
+        let mut pitch_offset = request.pitch;
+        if let Some(ref f) = ref_features_opt {
+            let nominal_base_f0 = if matches!(acoustic_gender, Gender::Male) {
+                118.0
+            } else {
+                208.0
+            };
+            let f0_pitch_delta = (12.0 * (f.f0_mean_hz.clamp(60.0, 450.0) / nominal_base_f0).log2())
+                .clamp(-14.0, 14.0);
+            pitch_offset += f0_pitch_delta;
+        } else if let Some(ref emb) = request.profile.embedding {
+            let avg_centroid = emb.iter().take(32).sum::<f32>() / 32.0;
+            pitch_offset += (avg_centroid * 4.0).clamp(-6.0, 6.0);
+        }
+
+        // 6. Natural speech cadence / tempo alignment
+        let speed = if (request.speed - 1.0).abs() < 0.05 {
+            if let Some(ref f) = ref_features_opt {
+                (f.syllable_rate / 4.2).clamp(0.85, 1.25)
+            } else {
+                request.speed
+            }
+        } else {
+            request.speed
+        };
+
+        // 7. Base voice synthesis pass
         let edge = crate::edge_tts::EdgeTtsEngine::new();
         let synth_req = SynthesisRequest {
             text: request.text.clone(),
             voice_id: fallback_voice.to_string(),
-            speed: request.speed,
+            speed,
             pitch: pitch_offset,
             format: request.format,
         };
         let mut chunk = edge.synthesize(&synth_req).await?;
 
-        // Studio peak normalization to ensure crisp loudness and clarity
+        // 8. Formant & Spectral Timbre Morphing (match cloned speaker's frequency envelope)
+        if let Some(ref ref_samples) = ref_pcm {
+            let (low_gain, mid_gain, high_gain) =
+                compute_spectral_timbre_deltas(ref_samples, &chunk.pcm_data);
+            voxforg_audio::ParametricEq::process_3band(
+                &mut chunk.pcm_data,
+                chunk.sample_rate,
+                low_gain,
+                mid_gain,
+                high_gain,
+            );
+
+            if let Some(ref f) = ref_features_opt {
+                if f.voicing_ratio > 0.40 {
+                    voxforg_audio::HarmonicWarmth::process(
+                        &mut chunk.pcm_data,
+                        0.25 + (f.voicing_ratio * 0.15).clamp(0.0, 0.25),
+                        0.30,
+                    );
+                }
+            }
+        } else if let Some(ref emb) = request.profile.embedding {
+            // Modulate timbre from 512-dim embedding slots
+            let low_bias = (emb.iter().skip(32).take(64).sum::<f32>() / 64.0 * 6.0).clamp(-4.0, 4.0);
+            let mid_bias = (emb.iter().skip(96).take(96).sum::<f32>() / 96.0 * 4.0).clamp(-3.0, 3.0);
+            let high_bias = (emb.iter().skip(192).take(128).sum::<f32>() / 128.0 * 6.0).clamp(-4.0, 4.0);
+            voxforg_audio::ParametricEq::process_3band(
+                &mut chunk.pcm_data,
+                chunk.sample_rate,
+                low_bias,
+                mid_bias,
+                high_bias,
+            );
+        }
+
+        // 9. Soft de-essing to tame harsh sibilance
+        voxforg_audio::DeEsser::process(&mut chunk.pcm_data, chunk.sample_rate, 6500.0, -22.0, 5.0);
+
+        // 10. Studio peak normalization & brickwall limiting
         let max_amp = chunk.pcm_data.iter().map(|&s| s.abs()).max().unwrap_or(0) as f32;
         if max_amp > 100.0 && max_amp < 28000.0 {
             let gain = (28000.0 / max_amp).min(1.6);
@@ -505,6 +669,8 @@ impl TtsEngine for Qwen3TtsEngine {
                 *s = ((*s as f32 * gain).clamp(-32767.0, 32767.0)) as i16;
             }
         }
+        voxforg_audio::BrickwallLimiter::process(&mut chunk.pcm_data, -0.5);
+
         Ok(chunk)
     }
 }
@@ -806,4 +972,18 @@ mod tests {
         }
         out
     }
+
+    #[test]
+    fn test_compute_spectral_timbre_deltas() {
+        let empty_deltas = compute_spectral_timbre_deltas(&[], &[]);
+        assert_eq!(empty_deltas, (0.0, 0.0, 0.0));
+
+        let ref_pcm: Vec<i16> = (0..2400).map(|i| (i % 50 * 200) as i16).collect();
+        let syn_pcm: Vec<i16> = (0..2400).map(|i| (i % 20 * 400) as i16).collect();
+        let (low, mid, high) = compute_spectral_timbre_deltas(&ref_pcm, &syn_pcm);
+        assert!(low.is_finite());
+        assert!(mid.is_finite());
+        assert!(high.is_finite());
+    }
 }
+
