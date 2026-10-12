@@ -269,7 +269,8 @@ pub async fn speech_to_speech(
 
     response.headers_mut().insert(
         header::HeaderName::from_static("x-voxforg-source-duration-sec"),
-        HeaderValue::from_str(&format!("{:.2}", transcription.duration_seconds)).unwrap(),
+        HeaderValue::from_str(&format!("{:.2}", transcription.duration_seconds))
+            .unwrap_or_else(|_| HeaderValue::from_static("0.00")),
     );
     response.headers_mut().insert(
         header::HeaderName::from_static("x-voxforg-target-voice"),

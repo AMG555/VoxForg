@@ -278,7 +278,19 @@ pub async fn synthesize_speech(
                 return Err((StatusCode::TOO_MANY_REQUESTS, Json(err)));
             }
 
-            let mut worker_payload = serde_json::to_value(&payload).unwrap();
+            let mut worker_payload = match serde_json::to_value(&payload) {
+                Ok(val) => val,
+                Err(e) => {
+                    let err = ProblemDetails {
+                        problem_type: "https://voxforg.org/errors/internal".to_string(),
+                        title: "Payload Serialization Error".to_string(),
+                        status: StatusCode::INTERNAL_SERVER_ERROR.as_u16(),
+                        detail: e.to_string(),
+                        instance: "/v1/audio/speech".to_string(),
+                    };
+                    return Err((StatusCode::INTERNAL_SERVER_ERROR, Json(err)));
+                }
+            };
             if let Some(obj) = worker_payload.as_object_mut() {
                 obj.insert(
                     "model".to_string(),
@@ -596,7 +608,7 @@ pub async fn synthesize_speech_stream(
     let (engine, voice) = resolve_engine_and_voice(&state, &payload).await?;
 
     let synth_req = SynthesisRequest {
-        text: payload.input,
+        text: state.pronunciation.process(&payload.input),
         voice_id: voice.id,
         speed: payload.speed,
         pitch: payload.pitch.unwrap_or(0.0),
@@ -689,13 +701,12 @@ async fn handle_speech_socket(mut socket: WebSocket, state: AppState) {
                     continue;
                 }
 
-                let (engine, voice) = match state.engine_registry.resolve_voice(&req.voice).await {
+                let (engine, voice) = match resolve_engine_and_voice(&state, &req).await {
                     Ok(res) => res,
-                    Err(_) => {
+                    Err((_status, err_json)) => {
                         let _ = socket
                             .send(Message::Text(
-                                json!({ "error": format!("Voice '{}' not found", req.voice) })
-                                    .to_string(),
+                                json!({ "error": err_json.detail }).to_string(),
                             ))
                             .await;
                         continue;
@@ -703,7 +714,7 @@ async fn handle_speech_socket(mut socket: WebSocket, state: AppState) {
                 };
 
                 let synth_req = SynthesisRequest {
-                    text: req.input,
+                    text: state.pronunciation.process(&req.input),
                     voice_id: voice.id,
                     speed: req.speed.clamp(0.25, 4.0),
                     pitch: req.pitch.unwrap_or(0.0).clamp(-50.0, 50.0),
