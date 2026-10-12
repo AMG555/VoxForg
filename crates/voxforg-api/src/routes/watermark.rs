@@ -214,3 +214,50 @@ fn simple_base64_decode(s: &str) -> Option<Vec<u8>> {
     }
     Some(out)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_base64_encode_decode_roundtrip() {
+        let test_cases: Vec<&[u8]> = vec![
+            b"",
+            b"f",
+            b"fo",
+            b"foo",
+            b"foob",
+            b"fooba",
+            b"foobar",
+            b"VoxForg Neural TTS and Watermark Security Test",
+        ];
+
+        for original in test_cases {
+            let encoded = base64_encode(original);
+            let decoded = simple_base64_decode(&encoded).expect("Decode should succeed");
+            assert_eq!(decoded, original);
+        }
+    }
+
+    #[test]
+    fn test_hex_or_base64_decode_with_data_uri() {
+        let raw = b"RIFF1234WAVE";
+        let encoded = format!("data:audio/wav;base64,{}", base64_encode(raw));
+        let decoded = hex_or_base64_decode(&encoded).expect("Should strip data URI prefix");
+        assert_eq!(decoded, raw);
+    }
+
+    #[test]
+    fn test_simple_base64_decode_invalid_char() {
+        assert!(simple_base64_decode("invalid!base64").is_none());
+        assert!(simple_base64_decode("@#$%").is_none());
+    }
+
+    #[test]
+    fn test_simple_base64_decode_whitespace_ignored() {
+        let original = b"hello world";
+        let encoded = format!("  {}  \n\r ", base64_encode(original));
+        let decoded = simple_base64_decode(&encoded).expect("Whitespace should be ignored");
+        assert_eq!(decoded, original);
+    }
+}

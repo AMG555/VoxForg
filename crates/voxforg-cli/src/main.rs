@@ -115,7 +115,7 @@ struct SynthArgs {
     speed: f32,
 
     /// Pitch adjustment in semitones (-12.0 to 12.0)
-    #[arg(short, long, default_value_t = 0.0)]
+    #[arg(short, long, default_value_t = 0.0, allow_hyphen_values = true)]
     pitch: f32,
 
     /// Optional upstream model router endpoint URL
@@ -169,11 +169,11 @@ struct AbTestArgs {
     speed_b: f32,
 
     /// Pitch for Variant A
-    #[arg(long, default_value_t = 0.0)]
+    #[arg(long, default_value_t = 0.0, allow_hyphen_values = true)]
     pitch_a: f32,
 
     /// Pitch for Variant B
-    #[arg(long, default_value_t = 0.0)]
+    #[arg(long, default_value_t = 0.0, allow_hyphen_values = true)]
     pitch_b: f32,
 
     /// Number of evaluation iterations
@@ -928,4 +928,106 @@ async fn run_models(args: ModelsArgs) -> Result<()> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_cli_parse_serve_defaults() {
+        let cli = Cli::try_parse_from(["voxforg", "serve"]).expect("Failed to parse serve command");
+        match cli.command {
+            Some(Commands::Serve(args)) => {
+                assert_eq!(args.port, 8080);
+                assert_eq!(args.host, "0.0.0.0");
+                assert!(!args.open);
+            }
+            _ => panic!("Expected Serve command"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parse_serve_custom_flags() {
+        let cli = Cli::try_parse_from([
+            "voxforg", "serve",
+            "--port", "3333",
+            "--host", "127.0.0.1",
+            "--open",
+            "--api-key", "secret123",
+        ])
+        .expect("Failed to parse custom serve flags");
+
+        match cli.command {
+            Some(Commands::Serve(args)) => {
+                assert_eq!(args.port, 3333);
+                assert_eq!(args.host, "127.0.0.1");
+                assert!(args.open);
+                assert_eq!(args.api_key, Some("secret123".to_string()));
+            }
+            _ => panic!("Expected Serve command"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parse_synth_command() {
+        let cli = Cli::try_parse_from([
+            "voxforg", "synth",
+            "Greetings from test suite",
+            "-v", "mock-voice",
+            "-o", "custom.wav",
+            "--speed", "1.25",
+            "--pitch", "-2.0",
+        ])
+        .expect("Failed to parse synth command");
+
+        match cli.command {
+            Some(Commands::Synth(args)) => {
+                assert_eq!(args.input, "Greetings from test suite");
+                assert_eq!(args.voice, "mock-voice");
+                assert_eq!(args.out.to_str().unwrap(), "custom.wav");
+                assert_eq!(args.speed, 1.25);
+                assert_eq!(args.pitch, -2.0);
+            }
+            _ => panic!("Expected Synth command"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parse_hardware_and_mcp_commands() {
+        let hw = Cli::try_parse_from(["voxforg", "hardware"]).unwrap();
+        assert!(matches!(hw.command, Some(Commands::Hardware)));
+
+        let mcp = Cli::try_parse_from(["voxforg", "mcp"]).unwrap();
+        assert!(matches!(mcp.command, Some(Commands::Mcp)));
+
+        let engines = Cli::try_parse_from(["voxforg", "engines"]).unwrap();
+        assert!(matches!(engines.command, Some(Commands::Engines)));
+    }
+
+    #[test]
+    fn test_cli_parse_ab_test_command() {
+        let cli = Cli::try_parse_from([
+            "voxforg", "ab-test",
+            "--voice-a", "v1",
+            "--voice-b", "v2",
+            "-i", "3",
+        ])
+        .expect("Failed to parse ab-test");
+
+        match cli.command {
+            Some(Commands::AbTest(args)) => {
+                assert_eq!(args.voice_a, "v1");
+                assert_eq!(args.voice_b, "v2");
+                assert_eq!(args.iterations, 3);
+            }
+            _ => panic!("Expected AbTest command"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parse_invalid_flag_fails() {
+        let res = Cli::try_parse_from(["voxforg", "--non-existent-flag"]);
+        assert!(res.is_err());
+    }
 }

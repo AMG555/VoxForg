@@ -85,3 +85,92 @@ impl AssSubtitleExporter {
         text.trim_end().to_string()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::TranscriptionSegment;
+
+    #[test]
+    fn test_format_ass_time() {
+        assert_eq!(AssSubtitleExporter::format_ass_time(0), "0:00:00.00");
+        assert_eq!(AssSubtitleExporter::format_ass_time(1250), "0:00:01.25");
+        assert_eq!(AssSubtitleExporter::format_ass_time(65430), "0:01:05.43");
+        assert_eq!(AssSubtitleExporter::format_ass_time(3661500), "1:01:01.50");
+    }
+
+    #[test]
+    fn test_export_karaoke_ass_with_words() {
+        let result = TranscriptionResult {
+            text: "Hello world".to_string(),
+            task: "transcribe".to_string(),
+            language: "en".to_string(),
+            duration_seconds: 2.0,
+            segments: vec![TranscriptionSegment {
+                id: 0,
+                seek: 0,
+                start_ms: 200,
+                end_ms: 1800,
+                text: "Hello world".to_string(),
+                tokens: vec![1, 2],
+                temperature: 0.0,
+                avg_logprob: -0.1,
+                compression_ratio: 1.0,
+                no_speech_prob: 0.0,
+                speaker: None,
+                words: vec![
+                    WordTimestamp {
+                        word: "Hello".to_string(),
+                        start_ms: 200,
+                        end_ms: 700,
+                        probability: 0.95,
+                    },
+                    WordTimestamp {
+                        word: "world".to_string(),
+                        start_ms: 800,
+                        end_ms: 1800,
+                        probability: 0.98,
+                    },
+                ],
+            }],
+            words: vec![],
+        };
+
+        let ass = AssSubtitleExporter::export_karaoke_ass(&result, "Test Title");
+        assert!(ass.contains("[Script Info]"));
+        assert!(ass.contains("Title: Test Title"));
+        assert!(ass.contains("Style: Karaoke"));
+        assert!(ass.contains("Dialogue: 0,0:00:00.20,0:00:01.80,Karaoke,,0,0,0,,"));
+        assert!(ass.contains("{\\k50}Hello"));
+        assert!(ass.contains("{\\k10}")); // gap between hello (700) and world (800)
+        assert!(ass.contains("{\\k100}world"));
+    }
+
+    #[test]
+    fn test_export_karaoke_ass_empty_words_fallback() {
+        let result = TranscriptionResult {
+            text: "Raw segment text".to_string(),
+            task: "transcribe".to_string(),
+            language: "en".to_string(),
+            duration_seconds: 1.5,
+            segments: vec![TranscriptionSegment {
+                id: 0,
+                seek: 0,
+                start_ms: 100,
+                end_ms: 1500,
+                text: "Raw segment text".to_string(),
+                tokens: vec![],
+                temperature: 0.0,
+                avg_logprob: 0.0,
+                compression_ratio: 1.0,
+                no_speech_prob: 0.0,
+                speaker: None,
+                words: vec![],
+            }],
+            words: vec![],
+        };
+
+        let ass = AssSubtitleExporter::export_karaoke_ass(&result, "Fallback");
+        assert!(ass.contains("Dialogue: 0,0:00:00.10,0:00:01.50,Karaoke,,0,0,0,,Raw segment text"));
+    }
+}

@@ -122,3 +122,74 @@ async fn handle_twilio_socket(mut socket: WebSocket, _state: AppState) {
 
     info!("Twilio media stream session ended (sid={})", current_stream_sid);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_twilio_inbound_connected_deserialization() {
+        let json = r#"{"event":"connected","protocol":"Call","version":"1.0.0"}"#;
+        let msg: TwilioInboundMessage = serde_json::from_str(json).unwrap();
+        match msg {
+            TwilioInboundMessage::Connected { protocol, version } => {
+                assert_eq!(protocol, Some("Call".to_string()));
+                assert_eq!(version, Some("1.0.0".to_string()));
+            }
+            _ => panic!("Expected Connected variant"),
+        }
+    }
+
+    #[test]
+    fn test_twilio_inbound_start_deserialization() {
+        let json = r#"{"event":"start","streamSid":"MZ123","accountSid":"AC456","callSid":"CA789"}"#;
+        let msg: TwilioInboundMessage = serde_json::from_str(json).unwrap();
+        match msg {
+            TwilioInboundMessage::Start { stream_sid, account_sid, call_sid } => {
+                assert_eq!(stream_sid, "MZ123");
+                assert_eq!(account_sid, Some("AC456".to_string()));
+                assert_eq!(call_sid, Some("CA789".to_string()));
+            }
+            _ => panic!("Expected Start variant"),
+        }
+    }
+
+    #[test]
+    fn test_twilio_inbound_media_deserialization() {
+        let json = r#"{"event":"media","streamSid":"MZ123","media":{"payload":"AQIDBA==","track":"inbound","chunk":"1"}}"#;
+        let msg: TwilioInboundMessage = serde_json::from_str(json).unwrap();
+        match msg {
+            TwilioInboundMessage::Media { stream_sid, media } => {
+                assert_eq!(stream_sid, "MZ123");
+                assert_eq!(media.payload, "AQIDBA==");
+                assert_eq!(media.track, Some("inbound".to_string()));
+            }
+            _ => panic!("Expected Media variant"),
+        }
+    }
+
+    #[test]
+    fn test_twilio_inbound_unknown_fallback() {
+        let json = r#"{"event":"mark","streamSid":"MZ123"}"#;
+        let msg: TwilioInboundMessage = serde_json::from_str(json).unwrap();
+        match msg {
+            TwilioInboundMessage::Unknown => {}
+            _ => panic!("Expected Unknown variant for mark event"),
+        }
+    }
+
+    #[test]
+    fn test_twilio_outbound_media_serialization() {
+        let outbound = TwilioOutboundMedia {
+            event: "media".to_string(),
+            stream_sid: "MZ123".to_string(),
+            media: TwilioOutboundPayload {
+                payload: "AQIDBA==".to_string(),
+            },
+        };
+        let serialized = serde_json::to_string(&outbound).unwrap();
+        assert!(serialized.contains(r#""event":"media""#));
+        assert!(serialized.contains(r#""streamSid":"MZ123""#));
+        assert!(serialized.contains(r#""payload":"AQIDBA==""#));
+    }
+}

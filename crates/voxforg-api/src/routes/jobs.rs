@@ -134,3 +134,38 @@ pub async fn resume_job_handler(
         is_finished,
     }))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_work_dir_sanitizes_path_traversal() {
+        let dir = get_work_dir("../../../etc/passwd");
+        let dir_str = dir.to_str().unwrap();
+        assert!(!dir_str.contains(".."));
+        assert!(dir_str.ends_with("etcpasswd"));
+    }
+
+    #[test]
+    fn test_create_job_request_deserialization() {
+        let json = r#"{
+            "job_id": "job-101",
+            "job_type": "audiobook",
+            "title": "Moby Dick",
+            "chapters": [
+                {
+                    "title": "Chapter 1",
+                    "text": "Call me Ishmael.",
+                    "voice_id": "en-us-male-1",
+                    "speed": 1.1
+                }
+            ]
+        }"#;
+
+        let req: CreateJobRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(req.job_id, "job-101");
+        assert_eq!(req.chapters.len(), 1);
+        assert_eq!(req.chapters[0].speed, Some(1.1));
+    }
+}

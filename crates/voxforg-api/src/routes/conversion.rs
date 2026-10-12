@@ -278,3 +278,83 @@ pub async fn speech_to_speech(
 
     Ok(response)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_decode_b64_standard() {
+        let res = decode_b64("SGVsbG8gV29ybGQ=");
+        assert_eq!(res, Some(b"Hello World".to_vec()));
+    }
+
+    #[test]
+    fn test_decode_b64_url_safe() {
+        // - and _ in place of + and /
+        let res = decode_b64("-_==");
+        assert!(res.is_some());
+    }
+
+    #[test]
+    fn test_decode_b64_whitespace_and_padding() {
+        let res = decode_b64("  SGVsbG8g\nV29ybGQ= \n");
+        assert_eq!(res, Some(b"Hello World".to_vec()));
+    }
+
+    #[test]
+    fn test_decode_b64_empty_and_invalid() {
+        assert_eq!(decode_b64(""), None);
+        assert_eq!(decode_b64("   "), None);
+    }
+
+    #[test]
+    fn test_decode_audio_wav_payload() {
+        let wav_bytes = WavEncoder::encode_pcm16_to_wav(&[100, 200, -200, -100], 16000, 1).unwrap();
+        let b64 = format!("data:audio/wav;base64,{}", hex_sim_or_b64(&wav_bytes));
+        let (samples, sr) = decode_audio(&b64).unwrap();
+        assert_eq!(sr, 16000);
+        assert_eq!(samples.len(), 4);
+        assert_eq!(samples, vec![100, 200, -200, -100]);
+    }
+
+    #[test]
+    fn test_decode_audio_raw_pcm_fallback() {
+        // 2 raw 16-bit samples: 512, 1024
+        let pcm_bytes = vec![0x00, 0x02, 0x00, 0x04];
+        let b64 = hex_sim_or_b64(&pcm_bytes);
+        let (samples, sr) = decode_audio(&b64).unwrap();
+        assert_eq!(sr, 16000);
+        assert_eq!(samples, vec![512, 1024]);
+    }
+
+    #[test]
+    fn test_decode_audio_empty_err() {
+        assert!(decode_audio("").is_err());
+        assert!(decode_audio("   ").is_err());
+    }
+
+    fn hex_sim_or_b64(bytes: &[u8]) -> String {
+        const CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        let mut out = String::new();
+        for chunk in bytes.chunks(3) {
+            let b0 = chunk[0] as u32;
+            let b1 = if chunk.len() > 1 { chunk[1] as u32 } else { 0 };
+            let b2 = if chunk.len() > 2 { chunk[2] as u32 } else { 0 };
+            let n = (b0 << 16) | (b1 << 8) | b2;
+            out.push(CHARS[((n >> 18) & 63) as usize] as char);
+            out.push(CHARS[((n >> 12) & 63) as usize] as char);
+            if chunk.len() > 1 {
+                out.push(CHARS[((n >> 6) & 63) as usize] as char);
+            } else {
+                out.push('=');
+            }
+            if chunk.len() > 2 {
+                out.push(CHARS[(n & 63) as usize] as char);
+            } else {
+                out.push('=');
+            }
+        }
+        out
+    }
+}
