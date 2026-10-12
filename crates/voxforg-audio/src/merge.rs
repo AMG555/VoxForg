@@ -130,3 +130,61 @@ impl AudioMerger {
         accumulated
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_equal_power_crossfade_seam() {
+        let sample_rate = 24000;
+        let seg_a = vec![10000; 2400]; // 100ms
+        let seg_b = vec![20000; 2400]; // 100ms
+        let out = AudioMerger::equal_power_crossfade(&seg_a, &seg_b, sample_rate, 20);
+        // Fade length = 24000 * 0.02 = 480 samples
+        // Out length = 2400 + 2400 - 480 = 4320
+        assert_eq!(out.len(), 4320);
+
+        // Beginning of blend seam must be close to seg_a (10000)
+        let seam_start = 2400 - 480;
+        assert!(out[seam_start] > 9000);
+
+        // Center of equal-power blend (t = 0.5):
+        // gain_a = cos(pi/4) = ~0.707, gain_b = sin(pi/4) = ~0.707
+        // blended = 10000 * 0.707 + 20000 * 0.707 = ~21210
+        let seam_mid = seam_start + 240;
+        assert!(out[seam_mid] > 18000 && out[seam_mid] < 23000);
+    }
+
+    #[test]
+    fn test_equal_power_crossfade_short_fallback() {
+        let seg_a = vec![100; 10];
+        let seg_b = vec![200; 10];
+        // 50ms at 24000 is 1200 samples, much longer than segments
+        let out = AudioMerger::equal_power_crossfade(&seg_a, &seg_b, 24000, 50);
+        assert_eq!(out.len(), 20);
+        assert_eq!(&out[..10], &seg_a[..]);
+        assert_eq!(&out[10..], &seg_b[..]);
+    }
+
+    #[test]
+    fn test_concatenate_with_equal_power_crossfade_empty_and_single() {
+        assert!(AudioMerger::concatenate_with_equal_power_crossfade(&[], 24000, 20).is_empty());
+        let single = vec![500; 100];
+        assert_eq!(
+            AudioMerger::concatenate_with_equal_power_crossfade(&[&single], 24000, 20),
+            single
+        );
+    }
+
+    #[test]
+    fn test_concatenate_with_equal_power_crossfade_multiple() {
+        let c1 = vec![1000; 1000];
+        let c2 = vec![2000; 1000];
+        let c3 = vec![3000; 1000];
+        let out = AudioMerger::concatenate_with_equal_power_crossfade(&[&c1, &c2, &c3], 24000, 10);
+        // 10ms = 240 samples. Seams = 2.
+        // Total = 3000 - 2 * 240 = 2520 samples
+        assert_eq!(out.len(), 2520);
+    }
+}

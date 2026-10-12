@@ -90,3 +90,65 @@ pub async fn refine_text(
         hallucination_loops_removed: loop_count,
     }))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_state() -> AppState {
+        let registry = std::sync::Arc::new(voxforg_engine::EngineRegistry::new());
+        let store = std::sync::Arc::new(voxforg_core::store::memory::MemoryStore::new());
+        let hardware = voxforg_hardware::HardwareProbe::probe();
+        AppState::new(registry, store, hardware, None)
+    }
+
+    #[tokio::test]
+    async fn test_refine_text_strips_fillers() {
+        let state = test_state();
+        let req = RefineTextRequest {
+            text: "Um, so basically, we need to, like, ship the neural audio model.".to_string(),
+            strip_fillers: true,
+            fix_punctuation: true,
+            strip_hallucinations: true,
+            persona_prompt: None,
+        };
+
+        let Json(res) = refine_text(State(state), Json(req)).await.unwrap();
+        assert!(res.fillers_removed >= 3);
+        assert!(!res.refined_text.contains("basically"));
+        assert!(!res.refined_text.to_lowercase().starts_with("um"));
+    }
+
+    #[tokio::test]
+    async fn test_refine_text_strips_hallucination_loops() {
+        let state = test_state();
+        let req = RefineTextRequest {
+            text: "The audio graph model model model model was executing properly.".to_string(),
+            strip_fillers: false,
+            fix_punctuation: true,
+            strip_hallucinations: true,
+            persona_prompt: None,
+        };
+
+        let Json(res) = refine_text(State(state), Json(req)).await.unwrap();
+        assert!(res.hallucination_loops_removed >= 1);
+        assert!(!res.refined_text.contains("model model"));
+    }
+
+    #[tokio::test]
+    async fn test_refine_text_clean_noop() {
+        let state = test_state();
+        let req = RefineTextRequest {
+            text: "Neural synthesis operates with high precision.".to_string(),
+            strip_fillers: true,
+            fix_punctuation: true,
+            strip_hallucinations: true,
+            persona_prompt: None,
+        };
+
+        let Json(res) = refine_text(State(state), Json(req)).await.unwrap();
+        assert_eq!(res.fillers_removed, 0);
+        assert_eq!(res.hallucination_loops_removed, 0);
+        assert_eq!(res.refined_text, res.original_text);
+    }
+}

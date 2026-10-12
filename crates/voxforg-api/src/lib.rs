@@ -1187,4 +1187,31 @@ mod tests {
         assert_eq!(json_resp["id"], 1);
         assert!(json_resp["result"]["tools"].is_array());
     }
+
+    #[tokio::test]
+    async fn test_refine_endpoint() {
+        let state = setup_test_state(None).await;
+        let app = create_app(state);
+
+        let refine_body = serde_json::json!({
+            "text": "Um, like, basically testing neural refinement.",
+            "strip_fillers": true,
+            "fix_punctuation": true,
+            "strip_hallucinations": true
+        });
+
+        let req = Request::builder()
+            .method("POST")
+            .uri("/v1/audio/refine")
+            .header("content-type", "application/json")
+            .body(Body::from(refine_body.to_string()))
+            .unwrap();
+
+        let res = app.oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+        let body = res.into_body().collect().await.unwrap().to_bytes();
+        let json_resp: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert!(json_resp["fillers_removed"].as_u64().unwrap() >= 2);
+        assert!(!json_resp["refined_text"].as_str().unwrap().contains("basically"));
+    }
 }
