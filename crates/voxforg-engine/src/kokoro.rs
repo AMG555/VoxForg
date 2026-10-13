@@ -432,8 +432,15 @@ mod tests {
             format: voxforg_core::models::AudioContainerFormat::Wav,
         };
 
-        let mut rx = engine.synthesize_stream(&req).await.expect("Stream receiver must open");
-        let first_chunk = rx.recv().await.expect("Must yield at least one chunk").unwrap();
+        let mut rx = engine
+            .synthesize_stream(&req)
+            .await
+            .expect("Stream receiver must open");
+        let first_chunk = rx
+            .recv()
+            .await
+            .expect("Must yield at least one chunk")
+            .unwrap();
         assert_eq!(first_chunk.sample_rate, 24000);
         assert!(!first_chunk.pcm_data.is_empty());
         assert!(first_chunk.is_final);

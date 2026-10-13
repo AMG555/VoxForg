@@ -55,7 +55,11 @@ impl AcousticEchoCanceller {
     /// Process a single scalar sample pair.
     pub fn process_sample(&mut self, mic: f32, speaker_ref: f32) -> f32 {
         let mic = if mic.is_finite() { mic } else { 0.0 };
-        let speaker_ref = if speaker_ref.is_finite() { speaker_ref } else { 0.0 };
+        let speaker_ref = if speaker_ref.is_finite() {
+            speaker_ref
+        } else {
+            0.0
+        };
 
         // 1. Update circular buffer with new reference sample
         self.x_history[self.history_idx] = speaker_ref;
@@ -132,7 +136,11 @@ mod tests {
             let s = ((2.0 * std::f32::consts::PI * 440.0 * t).sin() * 10000.0) as i16;
             spk.push(s);
             // Mic picks up delayed and scaled echo
-            let delayed_s = if i >= 10 { (spk[i - 10] as f32 * 0.5) as i16 } else { 0 };
+            let delayed_s = if i >= 10 {
+                (spk[i - 10] as f32 * 0.5) as i16
+            } else {
+                0
+            };
             mic.push(delayed_s);
         }
 
@@ -140,8 +148,16 @@ mod tests {
         assert_eq!(out.len(), n);
 
         // After initial convergence, residual error should decrease
-        let mic_rms: f32 = mic[1200..1500].iter().map(|&x| (x as f32).powi(2)).sum::<f32>() / 300.0;
-        let residual_rms: f32 = out[1200..1500].iter().map(|&x| (x as f32).powi(2)).sum::<f32>() / 300.0;
+        let mic_rms: f32 = mic[1200..1500]
+            .iter()
+            .map(|&x| (x as f32).powi(2))
+            .sum::<f32>()
+            / 300.0;
+        let residual_rms: f32 = out[1200..1500]
+            .iter()
+            .map(|&x| (x as f32).powi(2))
+            .sum::<f32>()
+            / 300.0;
         assert!(
             residual_rms < mic_rms * 0.001,
             "AEC must dramatically attenuate echo energy"

@@ -178,7 +178,9 @@ pub async fn apply_pronunciation(
         let pattern = format!(r"(?i)\b{}\b", escaped);
         if let Ok(re) = regex::Regex::new(&pattern) {
             if re.is_match(&processed) {
-                processed = re.replace_all(&processed, entry.replacement.as_str()).to_string();
+                processed = re
+                    .replace_all(&processed, entry.replacement.as_str())
+                    .to_string();
                 replacements_count += 1;
             }
         }

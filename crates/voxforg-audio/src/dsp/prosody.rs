@@ -102,7 +102,7 @@ impl ProsodyMirror {
 
         let sr = sample_rate as f32;
         let frame_size = (sr * 0.030) as usize; // 30ms window
-        let hop_size = (sr * 0.015) as usize;   // 15ms hop
+        let hop_size = (sr * 0.015) as usize; // 15ms hop
 
         let mut rms_sum = 0.0f64;
         for &s in samples {
@@ -114,7 +114,7 @@ impl ProsodyMirror {
 
         // Autocorrelation pitch extraction (F0) across frames
         let min_lag = (sr / 450.0).round() as usize; // Max F0 ~ 450Hz
-        let max_lag = (sr / 65.0).round() as usize;  // Min F0 ~ 65Hz
+        let max_lag = (sr / 65.0).round() as usize; // Min F0 ~ 65Hz
 
         let mut f0_estimates = Vec::new();
         let mut voiced_frames = 0;
@@ -132,7 +132,8 @@ impl ProsodyMirror {
                 frame_energy += v * v;
             }
 
-            if frame_energy > 1e7 { // Speech threshold
+            if frame_energy > 1e7 {
+                // Speech threshold
                 // Normalized autocorrelation
                 let mut best_lag = 0;
                 let mut best_r = 0.0f64;
@@ -173,10 +174,14 @@ impl ProsodyMirror {
 
         let f0_std_semitones = if f0_estimates.len() > 1 {
             let mean = f0_mean_hz;
-            let variance = f0_estimates.iter().map(|&f| {
-                let semitones = 12.0 * (f / mean.max(1.0)).log2();
-                semitones * semitones
-            }).sum::<f32>() / f0_estimates.len() as f32;
+            let variance = f0_estimates
+                .iter()
+                .map(|&f| {
+                    let semitones = 12.0 * (f / mean.max(1.0)).log2();
+                    semitones * semitones
+                })
+                .sum::<f32>()
+                / f0_estimates.len() as f32;
             variance.sqrt()
         } else {
             1.5
@@ -226,7 +231,8 @@ impl ProsodyMirror {
                 high_energy += high * high;
             }
 
-            let tilt = (10.0 * (low_energy / high_energy.max(1.0)).log10()).clamp(-12.0, 12.0) as f32;
+            let tilt =
+                (10.0 * (low_energy / high_energy.max(1.0)).log10()).clamp(-12.0, 12.0) as f32;
 
             let f1 = if f0_mean_hz < 165.0 {
                 (380.0 + (mid_energy / low_energy.max(1.0) * 150.0).min(200.0)) as f32
@@ -262,9 +268,11 @@ impl ProsodyMirror {
 
     /// Derives 5-axis Director AI taxonomy from observed acoustic features.
     pub fn features_to_director(features: &AcousticFeatures) -> DirectorTaxonomy {
-        let energy = (features.loudness_z_score * 0.4 + (features.f0_std_semitones - 2.0) * 0.3).clamp(-1.0, 1.0);
+        let energy = (features.loudness_z_score * 0.4 + (features.f0_std_semitones - 2.0) * 0.3)
+            .clamp(-1.0, 1.0);
         let pace = (features.pace_z_score * 0.5).clamp(-1.0, 1.0);
-        let intimacy = (-features.loudness_z_score * 0.5 + (1.0 - features.voicing_ratio) * 0.3).clamp(-1.0, 1.0);
+        let intimacy = (-features.loudness_z_score * 0.5 + (1.0 - features.voicing_ratio) * 0.3)
+            .clamp(-1.0, 1.0);
         let emotion = (features.f0_std_semitones * 0.3 - 0.5).clamp(-1.0, 1.0);
         let formality = (features.voicing_ratio * 0.5 - 0.2).clamp(-1.0, 1.0);
 

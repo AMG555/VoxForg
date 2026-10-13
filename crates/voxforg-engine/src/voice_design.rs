@@ -60,7 +60,8 @@ impl ArchetypeBank {
             state ^= state >> 12;
             state ^= state << 25;
             state ^= state >> 27;
-            let val = ((state.wrapping_mul(0x2545F4914F6CDD1D) >> 32) as i32) as f32 / (i32::MAX as f32);
+            let val =
+                ((state.wrapping_mul(0x2545F4914F6CDD1D) >> 32) as i32) as f32 / (i32::MAX as f32);
             *item = val;
             sum_sq += val * val;
         }
@@ -75,26 +76,222 @@ impl ArchetypeBank {
 
     fn seed_archetypes(&mut self) {
         let definitions: &[(&str, &[&str], Gender, u64)] = &[
-            ("warm_baritone", &["warm", "deep", "baritone", "chest", "rich", "soothing", "resonant"], Gender::Male, 101),
-            ("crisp_broadcast_male", &["broadcast", "news", "clear", "authoritative", "professional", "presenter", "formal"], Gender::Male, 102),
-            ("raspy_detective", &["raspy", "gravel", "noir", "gritty", "smoky", "whiskey", "cynical"], Gender::Male, 103),
-            ("gentle_storyteller", &["storyteller", "gentle", "fairytale", "calm", "soft", "hypnotic", "soothing"], Gender::Neutral, 104),
-            ("intimate_whisper", &["whisper", "intimate", "in-ear", "asmr", "close", "quiet", "breathy"], Gender::Neutral, 105),
-            ("energetic_host", &["energetic", "upbeat", "podcast", "excited", "fast", "lively", "vibrant"], Gender::Neutral, 106),
-            ("authoritative_female", &["authoritative", "executive", "firm", "leader", "sharp", "commanding"], Gender::Female, 107),
-            ("silky_narrator_female", &["silky", "smooth", "elegant", "velvet", "documentary", "audiobook"], Gender::Female, 108),
-            ("cheerful_young_female", &["cheerful", "bright", "young", "friendly", "playful", "bubbly", "sweet"], Gender::Female, 109),
-            ("wise_elder_male", &["old", "elder", "grandfather", "aged", "vintage", "weathered", "wise"], Gender::Male, 110),
-            ("wise_elder_female", &["grandmother", "matriarch", "warm_old", "aged", "elderly"], Gender::Female, 111),
-            ("cyberpunk_synthetic", &["robotic", "synthetic", "ai", "monotone", "metallic", "android", "cyber"], Gender::Neutral, 112),
-            ("heroic_cinematic", &["epic", "cinematic", "trailer", "powerful", "intense", "dramatic"], Gender::Male, 113),
-            ("melancholic_poet", &["sad", "somber", "melancholy", "sorrowful", "emotional", "fragile"], Gender::Neutral, 114),
-            ("urgent_tech", &["urgent", "rapid", "fast", "hasty", "alert", "dispatch"], Gender::Neutral, 115),
-            ("meditation_guide", &["meditation", "zen", "peaceful", "serene", "ambient", "mindful"], Gender::Female, 116),
-            ("bold_announcer", &["stadium", "hypeman", "loud", "shouting", "thunderous"], Gender::Male, 117),
-            ("playful_childlike", &["cartoon", "playful", "high_pitch", "squeaky", "animated"], Gender::Neutral, 118),
-            ("academic_scholar", &["professor", "scholarly", "intellectual", "pedantic", "articulate"], Gender::Male, 119),
-            ("mystic_oracle", &["ethereal", "mystic", "oracle", "shadowy", "reverberant", "spectral"], Gender::Female, 120),
+            (
+                "warm_baritone",
+                &[
+                    "warm", "deep", "baritone", "chest", "rich", "soothing", "resonant",
+                ],
+                Gender::Male,
+                101,
+            ),
+            (
+                "crisp_broadcast_male",
+                &[
+                    "broadcast",
+                    "news",
+                    "clear",
+                    "authoritative",
+                    "professional",
+                    "presenter",
+                    "formal",
+                ],
+                Gender::Male,
+                102,
+            ),
+            (
+                "raspy_detective",
+                &[
+                    "raspy", "gravel", "noir", "gritty", "smoky", "whiskey", "cynical",
+                ],
+                Gender::Male,
+                103,
+            ),
+            (
+                "gentle_storyteller",
+                &[
+                    "storyteller",
+                    "gentle",
+                    "fairytale",
+                    "calm",
+                    "soft",
+                    "hypnotic",
+                    "soothing",
+                ],
+                Gender::Neutral,
+                104,
+            ),
+            (
+                "intimate_whisper",
+                &[
+                    "whisper", "intimate", "in-ear", "asmr", "close", "quiet", "breathy",
+                ],
+                Gender::Neutral,
+                105,
+            ),
+            (
+                "energetic_host",
+                &[
+                    "energetic",
+                    "upbeat",
+                    "podcast",
+                    "excited",
+                    "fast",
+                    "lively",
+                    "vibrant",
+                ],
+                Gender::Neutral,
+                106,
+            ),
+            (
+                "authoritative_female",
+                &[
+                    "authoritative",
+                    "executive",
+                    "firm",
+                    "leader",
+                    "sharp",
+                    "commanding",
+                ],
+                Gender::Female,
+                107,
+            ),
+            (
+                "silky_narrator_female",
+                &[
+                    "silky",
+                    "smooth",
+                    "elegant",
+                    "velvet",
+                    "documentary",
+                    "audiobook",
+                ],
+                Gender::Female,
+                108,
+            ),
+            (
+                "cheerful_young_female",
+                &[
+                    "cheerful", "bright", "young", "friendly", "playful", "bubbly", "sweet",
+                ],
+                Gender::Female,
+                109,
+            ),
+            (
+                "wise_elder_male",
+                &[
+                    "old",
+                    "elder",
+                    "grandfather",
+                    "aged",
+                    "vintage",
+                    "weathered",
+                    "wise",
+                ],
+                Gender::Male,
+                110,
+            ),
+            (
+                "wise_elder_female",
+                &["grandmother", "matriarch", "warm_old", "aged", "elderly"],
+                Gender::Female,
+                111,
+            ),
+            (
+                "cyberpunk_synthetic",
+                &[
+                    "robotic",
+                    "synthetic",
+                    "ai",
+                    "monotone",
+                    "metallic",
+                    "android",
+                    "cyber",
+                ],
+                Gender::Neutral,
+                112,
+            ),
+            (
+                "heroic_cinematic",
+                &[
+                    "epic",
+                    "cinematic",
+                    "trailer",
+                    "powerful",
+                    "intense",
+                    "dramatic",
+                ],
+                Gender::Male,
+                113,
+            ),
+            (
+                "melancholic_poet",
+                &[
+                    "sad",
+                    "somber",
+                    "melancholy",
+                    "sorrowful",
+                    "emotional",
+                    "fragile",
+                ],
+                Gender::Neutral,
+                114,
+            ),
+            (
+                "urgent_tech",
+                &["urgent", "rapid", "fast", "hasty", "alert", "dispatch"],
+                Gender::Neutral,
+                115,
+            ),
+            (
+                "meditation_guide",
+                &[
+                    "meditation",
+                    "zen",
+                    "peaceful",
+                    "serene",
+                    "ambient",
+                    "mindful",
+                ],
+                Gender::Female,
+                116,
+            ),
+            (
+                "bold_announcer",
+                &["stadium", "hypeman", "loud", "shouting", "thunderous"],
+                Gender::Male,
+                117,
+            ),
+            (
+                "playful_childlike",
+                &["cartoon", "playful", "high_pitch", "squeaky", "animated"],
+                Gender::Neutral,
+                118,
+            ),
+            (
+                "academic_scholar",
+                &[
+                    "professor",
+                    "scholarly",
+                    "intellectual",
+                    "pedantic",
+                    "articulate",
+                ],
+                Gender::Male,
+                119,
+            ),
+            (
+                "mystic_oracle",
+                &[
+                    "ethereal",
+                    "mystic",
+                    "oracle",
+                    "shadowy",
+                    "reverberant",
+                    "spectral",
+                ],
+                Gender::Female,
+                120,
+            ),
         ];
 
         for (name, keywords, gender, seed) in definitions {
@@ -284,7 +481,11 @@ mod tests {
         for arc in &bank.archetypes {
             let sum_sq: f32 = arc.base_vector.iter().map(|&x| x * x).sum();
             let norm = sum_sq.sqrt();
-            assert!((norm - 1.0).abs() < 1e-4, "Archetype {} vector must be unit length", arc.name);
+            assert!(
+                (norm - 1.0).abs() < 1e-4,
+                "Archetype {} vector must be unit length",
+                arc.name
+            );
         }
     }
 
@@ -310,7 +511,10 @@ mod tests {
         // Check unit length
         let sum_sq: f32 = embedding.iter().map(|&x| x * x).sum();
         let norm = sum_sq.sqrt();
-        assert!((norm - 1.0).abs() < 1e-4, "Generated embedding must be unit length");
+        assert!(
+            (norm - 1.0).abs() < 1e-4,
+            "Generated embedding must be unit length"
+        );
     }
 
     #[test]

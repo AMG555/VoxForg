@@ -62,16 +62,28 @@ pub fn build_api_router() -> Router<AppState> {
             "/v1/pronunciation/dictionary/:term",
             delete(pronunciation::delete_entry),
         )
-        .route("/v1/pronunciation/apply", post(pronunciation::apply_pronunciation))
+        .route(
+            "/v1/pronunciation/apply",
+            post(pronunciation::apply_pronunciation),
+        )
         // Audio Provenance Watermarking
-        .route("/v1/audio/watermark", post(watermark::embed_watermark_handler))
-        .route("/v1/audio/verify-watermark", post(watermark::verify_watermark_handler))
+        .route(
+            "/v1/audio/watermark",
+            post(watermark::embed_watermark_handler),
+        )
+        .route(
+            "/v1/audio/verify-watermark",
+            post(watermark::verify_watermark_handler),
+        )
         // Longform & Audiobook Checkpointing & Resumption
         .route("/v1/jobs/checkpoints", get(jobs::list_checkpoints_handler))
         .route("/v1/jobs/checkpoint", post(jobs::create_checkpoint_handler))
         .route("/v1/jobs/:id/resume", post(jobs::resume_job_handler))
         // Telephony Twilio Media Streams Gateway
-        .route("/v1/telephony/twilio/stream", get(telephony::twilio_media_stream_handler))
+        .route(
+            "/v1/telephony/twilio/stream",
+            get(telephony::twilio_media_stream_handler),
+        )
         // Voice identities (portable voice abstraction)
         .route(
             "/v1/voice-identities",

@@ -35,10 +35,10 @@ impl AudioWatermark {
     pub fn new(sample_rate: u32) -> Self {
         Self {
             sample_rate,
-            chip_rate: 128,               // Samples per bit chip
+            chip_rate: 128,                   // Samples per bit chip
             carrier_seed: 0x9E3779B97F4A7C15, // Golden ratio constant
-            embedding_strength: 0.0035,   // ~ -49 dBFS, imperceptible to human ear
-            detection_threshold: 0.45,    // Minimum normalized correlation for detection
+            embedding_strength: 0.0035,       // ~ -49 dBFS, imperceptible to human ear
+            detection_threshold: 0.45,        // Minimum normalized correlation for detection
         }
     }
 

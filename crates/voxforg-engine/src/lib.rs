@@ -351,12 +351,16 @@ mod tests {
             }
             Err(e) => {
                 let err_str = e.to_string();
+                let lower = err_str.to_lowercase();
                 assert!(
-                    err_str.contains("No such host is known")
-                        || err_str.contains("failed to lookup address")
-                        || err_str.contains("Connect")
-                        || err_str.contains("timeout")
-                        || err_str.contains("Edge TTS WebSocket error"),
+                    lower.contains("no such host")
+                        || lower.contains("failed to lookup address")
+                        || lower.contains("connect")
+                        || lower.contains("connection")
+                        || lower.contains("timeout")
+                        || lower.contains("timed out")
+                        || lower.contains("websocket")
+                        || lower.contains("edge-tts neural synthesis failed"),
                     "Unexpected synthesis error: {err_str}"
                 );
             }

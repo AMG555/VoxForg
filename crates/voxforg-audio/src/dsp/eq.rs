@@ -246,7 +246,13 @@ mod tests {
     fn test_parametric_eq_nan_and_inf_handled_safely() {
         let mut samples = vec![500, 1000, -1500];
         let original = samples.clone();
-        ParametricEq::process_3band(&mut samples, 24000, f32::NAN, f32::INFINITY, f32::NEG_INFINITY);
+        ParametricEq::process_3band(
+            &mut samples,
+            24000,
+            f32::NAN,
+            f32::INFINITY,
+            f32::NEG_INFINITY,
+        );
         assert_eq!(samples, original);
 
         ParametricEq::high_pass(&mut samples, 24000, f32::NAN);
@@ -266,8 +272,11 @@ mod tests {
         let initial_peak = samples.iter().map(|&s| (s as i32).abs()).max().unwrap();
         ParametricEq::high_pass(&mut samples, sample_rate, 80.0);
         // After settling, tail should be heavily attenuated
-        let tail_peak = samples[1200..].iter().map(|&s| (s as i32).abs()).max().unwrap();
+        let tail_peak = samples[1200..]
+            .iter()
+            .map(|&s| (s as i32).abs())
+            .max()
+            .unwrap();
         assert!(tail_peak < initial_peak / 3);
     }
 }
-

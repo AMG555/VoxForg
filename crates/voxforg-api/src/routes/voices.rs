@@ -119,11 +119,10 @@ pub async fn export_persona(
     State(state): State<AppState>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> Result<Json<voxforg_engine::PersonaBundle>, (axum::http::StatusCode, String)> {
-    let profile = state
-        .voice_profiles
-        .get(&id)
-        .await
-        .ok_or((axum::http::StatusCode::NOT_FOUND, "Voice profile not found".to_string()))?;
+    let profile = state.voice_profiles.get(&id).await.ok_or((
+        axum::http::StatusCode::NOT_FOUND,
+        "Voice profile not found".to_string(),
+    ))?;
 
     let bundle = voxforg_engine::PersonaBundle::from_profile(profile);
     Ok(Json(bundle))
@@ -139,4 +138,3 @@ pub async fn import_persona(
 
     Ok(Json(profile))
 }
-

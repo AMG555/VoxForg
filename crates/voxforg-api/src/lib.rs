@@ -1144,7 +1144,10 @@ mod tests {
         let state = setup_test_state(None).await;
         let app = create_app(state);
 
-        let req = Request::builder().uri("/favicon.ico").body(Body::empty()).unwrap();
+        let req = Request::builder()
+            .uri("/favicon.ico")
+            .body(Body::empty())
+            .unwrap();
         let res = app.oneshot(req).await.unwrap();
         assert_eq!(res.status(), StatusCode::OK);
         let ct = res.headers().get("content-type").unwrap().to_str().unwrap();
@@ -1157,7 +1160,11 @@ mod tests {
         let app = create_app(state);
 
         // 1. GET /mcp returns SSE stream
-        let req = Request::builder().method("GET").uri("/mcp").body(Body::empty()).unwrap();
+        let req = Request::builder()
+            .method("GET")
+            .uri("/mcp")
+            .body(Body::empty())
+            .unwrap();
         let res = app.clone().oneshot(req).await.unwrap();
         assert_eq!(res.status(), StatusCode::OK);
         let ct = res.headers().get("content-type").unwrap().to_str().unwrap();
@@ -1212,6 +1219,9 @@ mod tests {
         let body = res.into_body().collect().await.unwrap().to_bytes();
         let json_resp: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert!(json_resp["fillers_removed"].as_u64().unwrap() >= 2);
-        assert!(!json_resp["refined_text"].as_str().unwrap().contains("basically"));
+        assert!(!json_resp["refined_text"]
+            .as_str()
+            .unwrap()
+            .contains("basically"));
     }
 }

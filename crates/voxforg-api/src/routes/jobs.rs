@@ -45,9 +45,7 @@ fn get_work_dir(job_id: &str) -> PathBuf {
 }
 
 /// `GET /v1/jobs/checkpoints` — list recent job checkpoints
-pub async fn list_checkpoints_handler(
-    State(_state): State<AppState>,
-) -> Json<ListJobsResponse> {
+pub async fn list_checkpoints_handler(State(_state): State<AppState>) -> Json<ListJobsResponse> {
     let base_dir = std::env::temp_dir().join("voxforg_jobs");
     let mut jobs = Vec::new();
 

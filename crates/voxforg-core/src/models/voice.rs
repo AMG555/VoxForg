@@ -72,20 +72,44 @@ mod tests {
     #[test]
     fn test_gender_serde_roundtrip() {
         assert_eq!(serde_json::to_string(&Gender::Male).unwrap(), "\"male\"");
-        assert_eq!(serde_json::to_string(&Gender::Female).unwrap(), "\"female\"");
-        assert_eq!(serde_json::to_string(&Gender::Neutral).unwrap(), "\"neutral\"");
+        assert_eq!(
+            serde_json::to_string(&Gender::Female).unwrap(),
+            "\"female\""
+        );
+        assert_eq!(
+            serde_json::to_string(&Gender::Neutral).unwrap(),
+            "\"neutral\""
+        );
 
-        assert_eq!(serde_json::from_str::<Gender>("\"male\"").unwrap(), Gender::Male);
-        assert_eq!(serde_json::from_str::<Gender>("\"female\"").unwrap(), Gender::Female);
-        assert_eq!(serde_json::from_str::<Gender>("\"neutral\"").unwrap(), Gender::Neutral);
+        assert_eq!(
+            serde_json::from_str::<Gender>("\"male\"").unwrap(),
+            Gender::Male
+        );
+        assert_eq!(
+            serde_json::from_str::<Gender>("\"female\"").unwrap(),
+            Gender::Female
+        );
+        assert_eq!(
+            serde_json::from_str::<Gender>("\"neutral\"").unwrap(),
+            Gender::Neutral
+        );
     }
 
     #[test]
     fn test_voice_quality_default_and_serde() {
         assert_eq!(VoiceQuality::default(), VoiceQuality::High);
-        assert_eq!(serde_json::to_string(&VoiceQuality::High).unwrap(), "\"high\"");
-        assert_eq!(serde_json::to_string(&VoiceQuality::Medium).unwrap(), "\"medium\"");
-        assert_eq!(serde_json::to_string(&VoiceQuality::Low).unwrap(), "\"low\"");
+        assert_eq!(
+            serde_json::to_string(&VoiceQuality::High).unwrap(),
+            "\"high\""
+        );
+        assert_eq!(
+            serde_json::to_string(&VoiceQuality::Medium).unwrap(),
+            "\"medium\""
+        );
+        assert_eq!(
+            serde_json::to_string(&VoiceQuality::Low).unwrap(),
+            "\"low\""
+        );
     }
 
     #[test]

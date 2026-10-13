@@ -4,8 +4,8 @@
 //! organic inhalation aspiration breath synthesis, and anti-click soft enveloping
 //! to eliminate synthetic TTS artifacts.
 
-use std::f32::consts::PI;
 use super::eq::Biquad;
+use std::f32::consts::PI;
 
 /// Lightweight deterministic xorshift PRNG for zero-allocation audio DSP loops.
 struct FastRng(u64);
@@ -93,7 +93,8 @@ impl HumanMicroTremor {
             // 2. Jitter (pitch timing micro-modulation)
             delay_buf[write_idx] = in_val * amp_gain;
 
-            let jitter_samples = 4.0 + (lfo * 0.8 + rng.next_bipolar() * 0.4) * jitter * voicing_gate;
+            let jitter_samples =
+                4.0 + (lfo * 0.8 + rng.next_bipolar() * 0.4) * jitter * voicing_gate;
             let delay_clamped = jitter_samples.clamp(1.0, (DELAY_BUF_SIZE - 2) as f32);
 
             let int_delay = delay_clamped.floor() as usize;
@@ -141,9 +142,21 @@ impl VocalTractResonator {
         }
 
         let sr = sample_rate as f32;
-        let g1 = if f1_gain_db.is_finite() { f1_gain_db.clamp(-8.0, 8.0) } else { 0.0 };
-        let g2 = if f2_gain_db.is_finite() { f2_gain_db.clamp(-8.0, 8.0) } else { 0.0 };
-        let gp = if presence_gain_db.is_finite() { presence_gain_db.clamp(-6.0, 6.0) } else { 0.0 };
+        let g1 = if f1_gain_db.is_finite() {
+            f1_gain_db.clamp(-8.0, 8.0)
+        } else {
+            0.0
+        };
+        let g2 = if f2_gain_db.is_finite() {
+            f2_gain_db.clamp(-8.0, 8.0)
+        } else {
+            0.0
+        };
+        let gp = if presence_gain_db.is_finite() {
+            presence_gain_db.clamp(-6.0, 6.0)
+        } else {
+            0.0
+        };
 
         if g1.abs() < 0.05 && g2.abs() < 0.05 && gp.abs() < 0.05 {
             return;
@@ -252,7 +265,9 @@ impl NaturalBreath {
                 0.5 * (1.0 + (PI * decay_idx as f32 / decay_len as f32).cos())
             };
 
-            let pcm = (filtered * env * target_peak_lin).round().clamp(-32768.0, 32767.0) as i16;
+            let pcm = (filtered * env * target_peak_lin)
+                .round()
+                .clamp(-32768.0, 32767.0) as i16;
             breath_samples.push(pcm);
         }
 
@@ -306,6 +321,9 @@ mod tests {
         let breath = NaturalBreath::generate(24000, 150.0, -38.0, 1800.0);
         assert!(!breath.is_empty());
         let peak = breath.iter().map(|&s| s.abs()).max().unwrap_or(0);
-        assert!(peak > 0 && peak < 2000, "Breath peak must be soft and within acoustic bounds");
+        assert!(
+            peak > 0 && peak < 2000,
+            "Breath peak must be soft and within acoustic bounds"
+        );
     }
 }

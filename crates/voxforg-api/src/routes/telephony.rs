@@ -93,8 +93,14 @@ async fn handle_twilio_socket(mut socket: WebSocket, _state: AppState) {
                     TwilioInboundMessage::Connected { protocol, version } => {
                         debug!("Twilio connected: protocol={protocol:?}, version={version:?}");
                     }
-                    TwilioInboundMessage::Start { stream_sid, call_sid, .. } => {
-                        info!("Twilio stream started: streamSid={stream_sid}, callSid={call_sid:?}");
+                    TwilioInboundMessage::Start {
+                        stream_sid,
+                        call_sid,
+                        ..
+                    } => {
+                        info!(
+                            "Twilio stream started: streamSid={stream_sid}, callSid={call_sid:?}"
+                        );
                         current_stream_sid = stream_sid;
                     }
                     TwilioInboundMessage::Media { stream_sid, media } => {
@@ -120,7 +126,10 @@ async fn handle_twilio_socket(mut socket: WebSocket, _state: AppState) {
         }
     }
 
-    info!("Twilio media stream session ended (sid={})", current_stream_sid);
+    info!(
+        "Twilio media stream session ended (sid={})",
+        current_stream_sid
+    );
 }
 
 #[cfg(test)]
@@ -142,10 +151,15 @@ mod tests {
 
     #[test]
     fn test_twilio_inbound_start_deserialization() {
-        let json = r#"{"event":"start","streamSid":"MZ123","accountSid":"AC456","callSid":"CA789"}"#;
+        let json =
+            r#"{"event":"start","streamSid":"MZ123","accountSid":"AC456","callSid":"CA789"}"#;
         let msg: TwilioInboundMessage = serde_json::from_str(json).unwrap();
         match msg {
-            TwilioInboundMessage::Start { stream_sid, account_sid, call_sid } => {
+            TwilioInboundMessage::Start {
+                stream_sid,
+                account_sid,
+                call_sid,
+            } => {
                 assert_eq!(stream_sid, "MZ123");
                 assert_eq!(account_sid, Some("AC456".to_string()));
                 assert_eq!(call_sid, Some("CA789".to_string()));

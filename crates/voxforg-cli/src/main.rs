@@ -950,11 +950,15 @@ mod tests {
     #[test]
     fn test_cli_parse_serve_custom_flags() {
         let cli = Cli::try_parse_from([
-            "voxforg", "serve",
-            "--port", "3333",
-            "--host", "127.0.0.1",
+            "voxforg",
+            "serve",
+            "--port",
+            "3333",
+            "--host",
+            "127.0.0.1",
             "--open",
-            "--api-key", "secret123",
+            "--api-key",
+            "secret123",
         ])
         .expect("Failed to parse custom serve flags");
 
@@ -972,12 +976,17 @@ mod tests {
     #[test]
     fn test_cli_parse_synth_command() {
         let cli = Cli::try_parse_from([
-            "voxforg", "synth",
+            "voxforg",
+            "synth",
             "Greetings from test suite",
-            "-v", "mock-voice",
-            "-o", "custom.wav",
-            "--speed", "1.25",
-            "--pitch", "-2.0",
+            "-v",
+            "mock-voice",
+            "-o",
+            "custom.wav",
+            "--speed",
+            "1.25",
+            "--pitch",
+            "-2.0",
         ])
         .expect("Failed to parse synth command");
 
@@ -1008,10 +1017,14 @@ mod tests {
     #[test]
     fn test_cli_parse_ab_test_command() {
         let cli = Cli::try_parse_from([
-            "voxforg", "ab-test",
-            "--voice-a", "v1",
-            "--voice-b", "v2",
-            "-i", "3",
+            "voxforg",
+            "ab-test",
+            "--voice-a",
+            "v1",
+            "--voice-b",
+            "v2",
+            "-i",
+            "3",
         ])
         .expect("Failed to parse ab-test");
 

@@ -120,4 +120,3 @@ mod tests {
         assert!(samples[0].abs() <= 1);
     }
 }
-

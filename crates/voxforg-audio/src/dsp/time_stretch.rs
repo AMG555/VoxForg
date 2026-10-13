@@ -253,4 +253,3 @@ mod tests {
         assert!(sped_up.len() < input.len());
     }
 }
-

@@ -6,8 +6,8 @@
 //! 2. Pitch-preserving WSOLA audio time-stretching within the safety floor (0.85x - 1.30x).
 //! 3. Geometric 50/50 audio rate / video slow-motion split for severe timing constraints.
 
-use serde::{Deserialize, Serialize};
 use crate::dsp::time_stretch::WsolaTimeStretch;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -172,7 +172,10 @@ impl SmartFitPlanner {
         let total_absorbable_silence: u32 = segments
             .iter()
             .filter(|s| s.segment_type == SegmentType::SilenceGap)
-            .map(|s| s.original_duration_ms.saturating_sub(self.min_silence_floor_ms))
+            .map(|s| {
+                s.original_duration_ms
+                    .saturating_sub(self.min_silence_floor_ms)
+            })
             .sum();
 
         if total_absorbable_silence >= overrun_ms {
@@ -184,7 +187,9 @@ impl SmartFitPlanner {
             for seg in &mut adjusted {
                 seg.start_ms = cur_ms;
                 if seg.segment_type == SegmentType::SilenceGap {
-                    let absorbable = seg.original_duration_ms.saturating_sub(self.min_silence_floor_ms);
+                    let absorbable = seg
+                        .original_duration_ms
+                        .saturating_sub(self.min_silence_floor_ms);
                     let reduction = (absorbable as f64 * ratio).round() as u32;
                     seg.adjusted_duration_ms = seg.original_duration_ms.saturating_sub(reduction);
                 } else {
@@ -239,9 +244,11 @@ impl SmartFitPlanner {
             for seg in &mut adjusted {
                 seg.start_ms = cur_ms;
                 if seg.segment_type == SegmentType::SilenceGap {
-                    seg.adjusted_duration_ms = self.min_silence_floor_ms.min(seg.original_duration_ms);
+                    seg.adjusted_duration_ms =
+                        self.min_silence_floor_ms.min(seg.original_duration_ms);
                 } else {
-                    seg.adjusted_duration_ms = ((seg.original_duration_ms as f32) / required_speedup).round() as u32;
+                    seg.adjusted_duration_ms =
+                        ((seg.original_duration_ms as f32) / required_speedup).round() as u32;
                 }
                 cur_ms += seg.adjusted_duration_ms;
             }
@@ -280,7 +287,8 @@ impl SmartFitPlanner {
             if seg.segment_type == SegmentType::SilenceGap {
                 seg.adjusted_duration_ms = self.min_silence_floor_ms.min(seg.original_duration_ms);
             } else {
-                seg.adjusted_duration_ms = ((seg.original_duration_ms as f32) / audio_speedup).round() as u32;
+                seg.adjusted_duration_ms =
+                    ((seg.original_duration_ms as f32) / audio_speedup).round() as u32;
             }
             cur_ms += seg.adjusted_duration_ms;
         }
@@ -308,12 +316,16 @@ impl SmartFitPlanner {
             return samples.to_vec();
         }
 
-        let current_duration_ms = ((samples.len() as f64 / sample_rate as f64) * 1000.0).round() as u32;
-        if current_duration_ms == 0 || (current_duration_ms as i64 - target_duration_ms as i64).abs() <= 20 {
+        let current_duration_ms =
+            ((samples.len() as f64 / sample_rate as f64) * 1000.0).round() as u32;
+        if current_duration_ms == 0
+            || (current_duration_ms as i64 - target_duration_ms as i64).abs() <= 20
+        {
             return samples.to_vec();
         }
 
-        let target_len = ((target_duration_ms as f64 / 1000.0) * sample_rate as f64).round() as usize;
+        let target_len =
+            ((target_duration_ms as f64 / 1000.0) * sample_rate as f64).round() as usize;
         let wsola = WsolaTimeStretch::new(sample_rate);
         wsola.stretch_to_len(samples, target_len)
     }

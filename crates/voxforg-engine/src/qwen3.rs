@@ -386,12 +386,8 @@ impl TtsEngine for Qwen3TtsEngine {
         voxforg_audio::SoftEnvelope::process(&mut chunk.pcm_data, chunk.sample_rate, 6.0, 24.0);
 
         if chunk.pcm_data.len() > (chunk.sample_rate as usize) {
-            let mut breath = voxforg_audio::NaturalBreath::generate(
-                chunk.sample_rate,
-                120.0,
-                -36.0,
-                1750.0,
-            );
+            let mut breath =
+                voxforg_audio::NaturalBreath::generate(chunk.sample_rate, 120.0, -36.0, 1750.0);
             voxforg_audio::SoftEnvelope::process(&mut breath, chunk.sample_rate, 8.0, 8.0);
             let pause_samples = (chunk.sample_rate as f32 * 0.025).round() as usize;
             breath.extend(vec![0i16; pause_samples]);
@@ -647,8 +643,9 @@ impl TtsEngine for Qwen3TtsEngine {
             } else {
                 208.0
             };
-            let f0_pitch_delta = (12.0 * (f.f0_mean_hz.clamp(60.0, 450.0) / nominal_base_f0).log2())
-                .clamp(-14.0, 14.0);
+            let f0_pitch_delta = (12.0
+                * (f.f0_mean_hz.clamp(60.0, 450.0) / nominal_base_f0).log2())
+            .clamp(-14.0, 14.0);
             pitch_offset += f0_pitch_delta;
         } else if let Some(ref emb) = request.profile.embedding {
             let avg_centroid = emb.iter().take(32).sum::<f32>() / 32.0;
@@ -714,9 +711,12 @@ impl TtsEngine for Qwen3TtsEngine {
             }
         } else if let Some(ref emb) = request.profile.embedding {
             // Modulate timbre from 512-dim embedding slots
-            let low_bias = (emb.iter().skip(32).take(64).sum::<f32>() / 64.0 * 6.0).clamp(-4.0, 4.0);
-            let mid_bias = (emb.iter().skip(96).take(96).sum::<f32>() / 96.0 * 4.0).clamp(-3.0, 3.0);
-            let high_bias = (emb.iter().skip(192).take(128).sum::<f32>() / 128.0 * 6.0).clamp(-4.0, 4.0);
+            let low_bias =
+                (emb.iter().skip(32).take(64).sum::<f32>() / 64.0 * 6.0).clamp(-4.0, 4.0);
+            let mid_bias =
+                (emb.iter().skip(96).take(96).sum::<f32>() / 96.0 * 4.0).clamp(-3.0, 3.0);
+            let high_bias =
+                (emb.iter().skip(192).take(128).sum::<f32>() / 128.0 * 6.0).clamp(-4.0, 4.0);
             voxforg_audio::ParametricEq::process_3band(
                 &mut chunk.pcm_data,
                 chunk.sample_rate,
@@ -757,7 +757,10 @@ impl TtsEngine for Qwen3TtsEngine {
 
         // 13. Organic Pre-Speech Inhalation Aspiration
         if chunk.pcm_data.len() > (chunk.sample_rate as usize) {
-            let breath_center = ref_features_opt.as_ref().map(|f| f.formant_f2_hz).unwrap_or(1750.0);
+            let breath_center = ref_features_opt
+                .as_ref()
+                .map(|f| f.formant_f2_hz)
+                .unwrap_or(1750.0);
             let mut breath = voxforg_audio::NaturalBreath::generate(
                 chunk.sample_rate,
                 140.0,
@@ -1086,4 +1089,3 @@ mod tests {
         assert!(high.is_finite());
     }
 }
-

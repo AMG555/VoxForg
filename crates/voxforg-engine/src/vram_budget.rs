@@ -29,7 +29,7 @@ pub struct VramBudgetConfig {
 impl Default for VramBudgetConfig {
     fn default() -> Self {
         Self {
-            max_vram_mb: 6144, // 6 GB default budget ceiling
+            max_vram_mb: 6144,     // 6 GB default budget ceiling
             idle_ttl_seconds: 300, // 5 minutes idle TTL
             auto_evict_enabled: true,
         }

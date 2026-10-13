@@ -30,7 +30,9 @@ impl AssSubtitleExporter {
 
         // Events
         out.push_str("[Events]\n");
-        out.push_str("Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n");
+        out.push_str(
+            "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n",
+        );
 
         for seg in &result.segments {
             let start_ts = Self::format_ass_time(seg.start_ms);

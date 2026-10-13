@@ -105,9 +105,21 @@ mod tests {
 
     #[test]
     fn test_mastering_profile_serde() {
-        assert_eq!(serde_json::to_string(&MasteringProfile::Broadcast).unwrap(), "\"broadcast\"");
-        assert_eq!(serde_json::to_string(&MasteringProfile::Podcast).unwrap(), "\"podcast\"");
-        assert_eq!(serde_json::to_string(&MasteringProfile::Warmth).unwrap(), "\"warmth\"");
-        assert_eq!(serde_json::to_string(&MasteringProfile::StudioClean).unwrap(), "\"studio_clean\"");
+        assert_eq!(
+            serde_json::to_string(&MasteringProfile::Broadcast).unwrap(),
+            "\"broadcast\""
+        );
+        assert_eq!(
+            serde_json::to_string(&MasteringProfile::Podcast).unwrap(),
+            "\"podcast\""
+        );
+        assert_eq!(
+            serde_json::to_string(&MasteringProfile::Warmth).unwrap(),
+            "\"warmth\""
+        );
+        assert_eq!(
+            serde_json::to_string(&MasteringProfile::StudioClean).unwrap(),
+            "\"studio_clean\""
+        );
     }
 }

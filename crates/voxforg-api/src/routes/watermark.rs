@@ -1,8 +1,4 @@
-use axum::{
-    extract::State,
-    http::StatusCode,
-    Json,
-};
+use axum::{extract::State, http::StatusCode, Json};
 use serde::{Deserialize, Serialize};
 use voxforg_audio::dsp::{AudioWatermark, WatermarkDetectionResult, DEFAULT_SIGNATURE_PAYLOAD};
 use voxforg_audio::WavEncoder;
@@ -126,8 +122,8 @@ pub async fn verify_watermark_handler(
         }
     };
 
-    let (pcm16, sample_rate, _channels) = WavEncoder::decode_wav_to_pcm16(&wav_bytes)
-        .map_err(|e| {
+    let (pcm16, sample_rate, _channels) =
+        WavEncoder::decode_wav_to_pcm16(&wav_bytes).map_err(|e| {
             (
                 StatusCode::BAD_REQUEST,
                 Json(ProblemDetails {
