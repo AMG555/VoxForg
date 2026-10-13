@@ -326,7 +326,23 @@ impl TtsEngine for Qwen3TtsEngine {
         // If this is a cloned voice request, dispatch to synthesize_cloned
         let profile_opt = {
             let profiles = self.cloned_profiles.read().await;
-            profiles.get(&request.voice_id).cloned()
+            if let Some(p) = profiles.get(&request.voice_id) {
+                Some(p.clone())
+            } else {
+                let clean_name = request
+                    .voice_id
+                    .trim_end_matches(" (Cloned)")
+                    .trim()
+                    .to_lowercase();
+                profiles
+                    .values()
+                    .find(|p| {
+                        p.name.trim().to_lowercase() == clean_name
+                            || p.id.to_lowercase() == clean_name
+                            || request.voice_id.contains(&p.id)
+                    })
+                    .cloned()
+            }
         };
 
         if let Some(profile) = profile_opt {
@@ -355,7 +371,35 @@ impl TtsEngine for Qwen3TtsEngine {
             pitch: request.pitch,
             format: request.format,
         };
-        edge.synthesize(&synth_req).await
+        let mut chunk = edge.synthesize(&synth_req).await?;
+
+        // Apply full biometric realism chain: micro-tremor, warmth, soft envelope, breath
+        voxforg_audio::HumanMicroTremor::process(
+            &mut chunk.pcm_data,
+            chunk.sample_rate,
+            0.35,
+            0.28,
+        );
+        voxforg_audio::HarmonicWarmth::process(&mut chunk.pcm_data, 0.25, 0.28);
+        voxforg_audio::DeEsser::process(&mut chunk.pcm_data, chunk.sample_rate, 6500.0, -22.0, 4.5);
+        voxforg_audio::BrickwallLimiter::process(&mut chunk.pcm_data, -0.5);
+        voxforg_audio::SoftEnvelope::process(&mut chunk.pcm_data, chunk.sample_rate, 6.0, 24.0);
+
+        if chunk.pcm_data.len() > (chunk.sample_rate as usize) {
+            let mut breath = voxforg_audio::NaturalBreath::generate(
+                chunk.sample_rate,
+                120.0,
+                -36.0,
+                1750.0,
+            );
+            voxforg_audio::SoftEnvelope::process(&mut breath, chunk.sample_rate, 8.0, 8.0);
+            let pause_samples = (chunk.sample_rate as f32 * 0.025).round() as usize;
+            breath.extend(vec![0i16; pause_samples]);
+            breath.extend(chunk.pcm_data);
+            chunk.pcm_data = breath;
+        }
+
+        Ok(chunk)
     }
 
     async fn synthesize_stream(
@@ -465,7 +509,17 @@ impl TtsEngine for Qwen3TtsEngine {
         self.cloned_profiles
             .write()
             .await
-            .insert(profile_id, profile.clone());
+            .insert(profile_id.clone(), profile.clone());
+
+        // Atomically persist to data/voice_profiles on disk so it survives restarts
+        let profiles_dir = std::env::var("VOXFORG_PROFILES_DIR")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|_| std::path::PathBuf::from("data/voice_profiles"));
+        let _ = std::fs::create_dir_all(&profiles_dir);
+        let file_path = profiles_dir.join(format!("{}.json", profile_id));
+        if let Ok(json_str) = serde_json::to_string_pretty(&profile) {
+            let _ = std::fs::write(file_path, json_str);
+        }
 
         Ok(profile)
     }

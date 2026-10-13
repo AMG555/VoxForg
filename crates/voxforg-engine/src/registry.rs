@@ -77,14 +77,20 @@ impl EngineRegistry {
                 return Ok((engine.clone(), voice));
             }
         }
-        // If voice_id is explicitly a custom, zero-shot, or cloned voice profile, resolve to default engine
+        // If voice_id is explicitly a custom, zero-shot, or cloned voice profile, resolve to qwen3-tts first
         if voice_id.starts_with("cloned-")
             || voice_id.starts_with("qwen3-cloned-")
             || voice_id.starts_with("designed-")
             || voice_id.starts_with("persona-")
             || voice_id.starts_with("custom-")
+            || !voice_id.contains('-')
         {
-            if let Some(engine) = lock.get("edge-tts").or_else(|| lock.values().next()).cloned() {
+            if let Some(engine) = lock
+                .get("qwen3-tts")
+                .or_else(|| lock.get("edge-tts"))
+                .or_else(|| lock.values().next())
+                .cloned()
+            {
                 let fallback_voice = Voice {
                     id: voice_id.to_string(),
                     name: format!("{} (Custom)", voice_id),

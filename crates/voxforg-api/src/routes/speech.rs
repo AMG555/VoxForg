@@ -351,8 +351,20 @@ pub async fn synthesize_speech(
     }
 
     // ── Cloned voice profile synthesis path ──────────────────────────────
-    if let Some(profile) = state.voice_profiles.get(&payload.voice).await {
-        if let Some(engine) = state.engine_registry.get(&profile.engine_id).await {
+    if let Some(profile) = state.voice_profiles.find(&payload.voice).await {
+        let engine_opt = state
+            .engine_registry
+            .get(&profile.engine_id)
+            .await
+            .or_else(|| {
+                // If engine_id is not found directly, try qwen3-tts
+                tokio::task::block_in_place(|| None)
+            });
+        let target_engine = match engine_opt {
+            Some(e) => Some(e),
+            None => state.engine_registry.get("qwen3-tts").await,
+        };
+        if let Some(engine) = target_engine {
             if engine.supports_cloning() {
                 let chunks = split_text_into_chunks(&payload.input, 800);
                 let crossfade_ms = payload.crossfade_ms.unwrap_or(30);

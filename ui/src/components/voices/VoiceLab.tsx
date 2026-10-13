@@ -35,6 +35,7 @@ import { Voice } from '../../types';
 import { api } from '../../services/api';
 import { AudioVisualizer } from '../common/AudioVisualizer';
 import { PronunciationModal } from './PronunciationModal';
+import { VoiceTipsModal } from './VoiceTipsModal';
 import {
   AudioProcessor,
   AudioQualityAssessment,
@@ -170,6 +171,7 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated, onVo
   // Voice Design Studio State
   const [showDesignModal, setShowDesignModal] = useState<boolean>(false);
   const [showPronunciationModal, setShowPronunciationModal] = useState<boolean>(false);
+  const [showTipsModal, setShowTipsModal] = useState<boolean>(false);
   const [designPrompt, setDesignPrompt] = useState<string>('');
   const [designName, setDesignName] = useState<string>('');
   const [designGender, setDesignGender] = useState<'male' | 'female' | 'neutral'>('neutral');
@@ -613,9 +615,15 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated, onVo
       }
 
       try {
+        const targetVoiceObj = localVoices.find((v) => v.id === voiceToSynthesize) || selectedVoice;
+        const targetModel =
+          targetVoiceObj?.engine_id ||
+          (isCustomVoice(targetVoiceObj) ? 'qwen3-tts' : undefined);
+
         blob = await api.synthesizeDirect({
           input: promptText,
           voice: voiceToSynthesize,
+          model: targetModel,
           speed,
           pitch,
           instruct: instruct.trim() || undefined,
@@ -1367,6 +1375,18 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated, onVo
                 <span>
                   Studio Mode: <strong className={studioMode ? 'text-amber-400' : 'text-[#94A3B8]'}>{studioMode ? 'PRO STUDIO' : 'DEFAULT'}</strong>
                 </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowTipsModal(true)}
+                className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg border border-sky-500/40 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 text-xs font-mono font-medium transition-all shadow-sm hover:border-sky-400 group"
+                title="Voice Optimization & Realism Tips (Best Output Guide)"
+              >
+                <div className="w-4 h-4 rounded-full bg-sky-500/20 border border-sky-400/50 flex items-center justify-center font-bold text-[10px] text-sky-300 group-hover:bg-sky-500 group-hover:text-black transition-colors">
+                  i
+                </div>
+                <span>Voice Tips</span>
               </button>
 
               {takes.length > 0 && (
@@ -2847,16 +2867,29 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated, onVo
                   <p className="text-[11px] text-[#94A3B8] font-mono">Zero-shot speaker acoustic embedding extraction</p>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  if (isRecording) stopRecording();
-                  setShowCloneModal(false);
-                }}
-                className="p-1.5 rounded-lg text-[#64748B] hover:text-white hover:bg-[#1A222D] transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              <div className="flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setShowTipsModal(true)}
+                  className="flex items-center space-x-1 px-2.5 py-1 rounded-lg border border-sky-500/40 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 text-xs font-mono transition-colors group"
+                  title="Reference Audio & 100% Realism Tips"
+                >
+                  <div className="w-3.5 h-3.5 rounded-full bg-sky-500/20 border border-sky-400/60 flex items-center justify-center text-[9px] font-bold text-sky-300 group-hover:bg-sky-500 group-hover:text-black transition-colors">
+                    i
+                  </div>
+                  <span>Clone Tips</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isRecording) stopRecording();
+                    setShowCloneModal(false);
+                  }}
+                  className="p-1.5 rounded-lg text-[#64748B] hover:text-white hover:bg-[#1A222D] transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
             {/* Form: flex-1 flex flex-col min-h-0 */}
@@ -3542,6 +3575,16 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated, onVo
       <PronunciationModal
         isOpen={showPronunciationModal}
         onClose={() => setShowPronunciationModal(false)}
+      />
+
+      {/* Voice Optimization & Realism Tips Modal */}
+      <VoiceTipsModal
+        isOpen={showTipsModal}
+        onClose={() => setShowTipsModal(false)}
+        onApplyPrompt={(newPrompt) => {
+          setText(newPrompt);
+          setSpokenPrompt(newPrompt);
+        }}
       />
     </div>
   );

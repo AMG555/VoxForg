@@ -32,7 +32,7 @@ service-account.json
 Thumbs.db
 
 # Database / Storage
-/data/
+data/
 *.sqlite
 *.sqlite3
 *.db

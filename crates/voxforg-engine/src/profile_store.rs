@@ -28,7 +28,7 @@ impl VoiceProfileStore {
         }
     }
 
-    /// Construct store populated with default base profiles, checking environment for persistent folder.
+    /// Construct store populated with default base profiles, checking environment or standard path for persistent folder.
     pub fn with_defaults() -> Self {
         if let Ok(dir_str) = std::env::var("VOXFORG_PROFILES_DIR") {
             let path = PathBuf::from(dir_str.trim());
@@ -36,7 +36,8 @@ impl VoiceProfileStore {
                 return Self::with_storage_dir(path);
             }
         }
-        Self::in_memory_with_defaults()
+        let default_dir = PathBuf::from("data/voice_profiles");
+        Self::with_storage_dir(default_dir)
     }
 
     /// Construct in-memory store populated with base profiles without disk writing.
@@ -153,6 +154,21 @@ impl VoiceProfileStore {
     pub async fn get(&self, id: &str) -> Option<VoiceProfile> {
         let lock = self.profiles.read().await;
         lock.get(id).cloned()
+    }
+
+    /// Retrieve a voice profile by ID, name, or case-insensitive query (ignoring "(Cloned)" suffix).
+    pub async fn find(&self, query: &str) -> Option<VoiceProfile> {
+        let lock = self.profiles.read().await;
+        if let Some(profile) = lock.get(query) {
+            return Some(profile.clone());
+        }
+        let clean = query.trim_end_matches(" (Cloned)").trim().to_lowercase();
+        for profile in lock.values() {
+            if profile.id.to_lowercase() == clean || profile.name.trim().to_lowercase() == clean {
+                return Some(profile.clone());
+            }
+        }
+        None
     }
 
     /// List all stored voice profiles sorted by ID.

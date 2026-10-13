@@ -62,7 +62,15 @@ export const api = {
       method: 'POST',
       headers: getHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
-        model: options.model || 'edge-tts',
+        model:
+          options.model ||
+          (options.voice.startsWith('qwen3') ||
+          options.voice.startsWith('cloned-') ||
+          options.voice.startsWith('designed-') ||
+          options.voice.startsWith('persona-') ||
+          options.voice.startsWith('custom-')
+            ? 'qwen3-tts'
+            : 'edge-tts'),
         input: options.input,
         voice: options.voice,
         speed: options.speed ?? 1.0,
