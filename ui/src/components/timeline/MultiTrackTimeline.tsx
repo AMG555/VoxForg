@@ -244,6 +244,11 @@ export const MultiTrackTimeline: React.FC<MultiTrackTimelineProps> = ({ voices }
       masterAudioRef.current = new Audio(masterAudioUrl);
       masterAudioRef.current.onended = () => setIsAuditioningMaster(false);
       masterAudioRef.current.onpause = () => setIsAuditioningMaster(false);
+      masterAudioRef.current.ontimeupdate = () => {
+        if (masterAudioRef.current) {
+          setCurrentTimeSec(masterAudioRef.current.currentTime);
+        }
+      };
     }
     if (isAuditioningMaster) {
       masterAudioRef.current.pause();
@@ -313,8 +318,9 @@ export const MultiTrackTimeline: React.FC<MultiTrackTimelineProps> = ({ voices }
   const handleRenderMaster = async () => {
     try {
       setIsRenderingMaster(true);
+      const anySoloed = tracks.some((t) => t.isSoloed);
       const allActiveClips = tracks
-        .filter((t) => !t.isMuted)
+        .filter((t) => (anySoloed ? t.isSoloed && !t.isMuted : !t.isMuted))
         .flatMap((t) =>
           t.clips.map((c) => ({
             ...c,
@@ -379,8 +385,9 @@ export const MultiTrackTimeline: React.FC<MultiTrackTimelineProps> = ({ voices }
     } catch (err) {
       console.error('Master multi-track mix error, falling back:', err);
       try {
+        const anySoloed = tracks.some((t) => t.isSoloed);
         const activeClips = tracks
-          .filter((t) => !t.isMuted)
+          .filter((t) => (anySoloed ? t.isSoloed && !t.isMuted : !t.isMuted))
           .flatMap((t) => t.clips)
           .sort((a, b) => a.startSec - b.startSec);
 
@@ -708,8 +715,16 @@ export const MultiTrackTimeline: React.FC<MultiTrackTimelineProps> = ({ voices }
             className="flex-1 divide-y divide-[#1A222D]"
             style={{ width: `${totalDurationSec * zoomPxPerSec}px` }}
           >
-            {tracks.map((track) => (
-              <div key={track.id} className="h-28 relative bg-[#0B0E14]/40 hover:bg-[#0E131A]/60">
+            {tracks.map((track) => {
+              const anySoloed = tracks.some((t) => t.isSoloed);
+              const isInactive = anySoloed ? (!track.isSoloed || track.isMuted) : track.isMuted;
+              return (
+              <div
+                key={track.id}
+                className={`h-28 relative bg-[#0B0E14]/40 hover:bg-[#0E131A]/60 transition-opacity ${
+                  isInactive ? 'opacity-40' : ''
+                }`}
+              >
                 {/* Clips in Lane */}
                 {track.clips.map((clip) => {
                   const clipLeft = clip.startSec * zoomPxPerSec;
@@ -766,7 +781,8 @@ export const MultiTrackTimeline: React.FC<MultiTrackTimelineProps> = ({ voices }
                   );
                 })}
               </div>
-            ))}
+            );
+          })}
           </div>
         </div>
       </div>
