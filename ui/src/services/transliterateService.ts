@@ -163,6 +163,11 @@ const MANGLISH_WORDS: Record<string, string> = {
   'illallo': 'ഇല്ലല്ലോ',
   'veendum': 'വീണ്ടും',
   'neram': 'നേരം',
+  'ee': 'ഈ',
+  'aa': 'ആ',
+  'oo': 'ഊ',
+  'ith': 'ഇത്',
+  'ath': 'അത്',
 };
 
 const HINGLISH_PHRASES: [RegExp, string][] = [
@@ -232,6 +237,35 @@ const HINGLISH_WORDS: Record<string, string> = {
   'tera': 'तेरा',
   'voxforg': 'वॉक्सफोर्ज',
   'studio': 'स्टूडियो',
+  'ka': 'का',
+  'ki': 'की',
+  'ke': 'के',
+  'ko': 'को',
+  'se': 'से',
+  'mein': 'में',
+  'me': 'में',
+  'par': 'पर',
+  'aur': 'और',
+  'bhi': 'भी',
+  'yeh': 'यह',
+  'ye': 'ये',
+  'woh': 'वह',
+  'wo': 'वो',
+  'toh': 'तो',
+  'to': 'तो',
+  'lekin': 'लेकिन',
+  'ab': 'अब',
+  'jab': 'जब',
+  'tab': 'तब',
+  'kaha': 'कहा',
+  'raha': 'रहा',
+  'rahi': 'रही',
+  'rahe': 'रहे',
+  'tha': 'था',
+  'thi': 'थी',
+  'the': 'थे',
+  'baat': 'बात',
+  'ghar': 'घर',
 };
 
 const TANGLISH_PHRASES: [RegExp, string][] = [
@@ -258,6 +292,18 @@ const TANGLISH_WORDS: Record<string, string> = {
   'enna': 'என்ன',
   'inga': 'இங்க',
   'anga': 'அங்க',
+  'aama': 'ஆமா',
+  'illai': 'இல்லை',
+  'illa': 'இல்ல',
+  'enakku': 'எனக்கு',
+  'unakku': 'உனக்கு',
+  'nalla': 'நல்ல',
+  'epdi': 'எப்படி',
+  'eppadi': 'எப்படி',
+  'vaanga': 'வாங்க',
+  'ponga': 'போங்க',
+  'paaru': 'பாரு',
+  'sollu': 'சொல்லு',
   'voxforg': 'வாக்ஸ்ஃபோர்ஜ்',
 };
 
@@ -347,7 +393,7 @@ export function transliterateManglishToMalayalam(text: string): string {
     if (MANGLISH_WORDS[lower]) {
       return MANGLISH_WORDS[lower];
     }
-    if (match.length > 2) {
+    if (match.length >= 2) {
       return phoneticFallbackMalayalam(match);
     }
     return match;
@@ -402,17 +448,15 @@ export function transliterateTanglishToTamil(text: string): string {
  * Universal dispatcher to convert Romanized dialect to its respective native script.
  */
 export function transliterateToNativeScript(text: string, langCode: string): string {
-  switch (langCode) {
-    case 'ml-Latn':
-    case 'ml-IN':
-      return transliterateManglishToMalayalam(text);
-    case 'hi-Latn':
-    case 'hi-IN':
-      return transliterateHinglishToHindi(text);
-    case 'ta-Latn':
-    case 'ta-IN':
-      return transliterateTanglishToTamil(text);
-    default:
-      return text;
+  const norm = (langCode || '').toLowerCase().replace('_', '-');
+  if (norm.startsWith('ml') || norm === 'manglish') {
+    return transliterateManglishToMalayalam(text);
   }
+  if (norm.startsWith('hi') || norm === 'hinglish') {
+    return transliterateHinglishToHindi(text);
+  }
+  if (norm.startsWith('ta') || norm === 'tanglish') {
+    return transliterateTanglishToTamil(text);
+  }
+  return text;
 }
