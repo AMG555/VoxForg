@@ -126,10 +126,17 @@ impl SmartFitPlanner {
 
             if silence_count > 0 {
                 let slack_per_gap = slack_ms / silence_count as u32;
+                let mut slack_remainder = slack_ms % silence_count as u32;
                 for seg in &mut adjusted {
                     seg.start_ms = cur_ms;
                     if seg.segment_type == SegmentType::SilenceGap {
-                        seg.adjusted_duration_ms = seg.original_duration_ms + slack_per_gap;
+                        let extra = if slack_remainder > 0 {
+                            slack_remainder -= 1;
+                            1
+                        } else {
+                            0
+                        };
+                        seg.adjusted_duration_ms = seg.original_duration_ms + slack_per_gap + extra;
                     } else {
                         seg.adjusted_duration_ms = seg.original_duration_ms;
                     }
@@ -233,10 +240,16 @@ impl SmartFitPlanner {
             };
         }
 
+        let max_speedup = if self.max_audio_speedup.is_finite() && self.max_audio_speedup >= 1.01 {
+            self.max_audio_speedup
+        } else {
+            1.30
+        };
+
         let target_speech_ms = total_speech_ms.saturating_sub(remaining_overrun);
         let required_speedup = total_speech_ms as f32 / target_speech_ms.max(1) as f32;
 
-        if required_speedup <= self.max_audio_speedup {
+        if required_speedup <= max_speedup {
             // Speedup is within natural audio time-stretch limits!
             let mut adjusted = segments.to_vec();
             let mut cur_ms = 0;
@@ -267,7 +280,7 @@ impl SmartFitPlanner {
 
         // Step 3: Required speedup exceeds natural vocal limit (e.g. > 1.30x).
         // Apply geometric 50/50 split between maximum audio speedup and video track deceleration.
-        let audio_speedup = self.max_audio_speedup;
+        let audio_speedup = max_speedup;
         let audio_fitted_speech_ms = ((total_speech_ms as f32) / audio_speedup).round() as u32;
         let total_audio_ms = (segments
             .iter()
@@ -312,7 +325,7 @@ impl SmartFitPlanner {
         sample_rate: u32,
         target_duration_ms: u32,
     ) -> Vec<i16> {
-        if samples.is_empty() || target_duration_ms == 0 {
+        if samples.is_empty() || target_duration_ms == 0 || sample_rate == 0 {
             return samples.to_vec();
         }
 
@@ -328,5 +341,166 @@ impl SmartFitPlanner {
             ((target_duration_ms as f64 / 1000.0) * sample_rate as f64).round() as usize;
         let wsola = WsolaTimeStretch::new(sample_rate);
         wsola.stretch_to_len(samples, target_len)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_empty_and_zero_target() {
+        let planner = SmartFitPlanner::new();
+        let plan = planner.plan_fit(&[], 1000);
+        assert_eq!(plan.strategy, FitStrategy::ExactFit);
+        assert_eq!(plan.total_source_duration_ms, 0);
+
+        let plan_zero = planner.plan_fit(
+            &[SegmentTiming {
+                id: "s1".into(),
+                segment_type: SegmentType::Speech,
+                original_duration_ms: 500,
+                adjusted_duration_ms: 500,
+                start_ms: 0,
+            }],
+            0,
+        );
+        assert_eq!(plan_zero.strategy, FitStrategy::ExactFit);
+    }
+
+    #[test]
+    fn test_exact_fit_tolerance() {
+        let planner = SmartFitPlanner::new();
+        let segments = vec![SegmentTiming {
+            id: "s1".into(),
+            segment_type: SegmentType::Speech,
+            original_duration_ms: 1020,
+            adjusted_duration_ms: 1020,
+            start_ms: 0,
+        }];
+        // Within 40ms tolerance window (1000 vs 1020)
+        let plan = planner.plan_fit(&segments, 1000);
+        assert_eq!(plan.strategy, FitStrategy::ExactFit);
+        assert_eq!(plan.fitted_duration_ms, 1020);
+    }
+
+    #[test]
+    fn test_underrun_distributes_slack_and_remainder() {
+        let planner = SmartFitPlanner::new();
+        let segments = vec![
+            SegmentTiming {
+                id: "speech1".into(),
+                segment_type: SegmentType::Speech,
+                original_duration_ms: 1000,
+                adjusted_duration_ms: 1000,
+                start_ms: 0,
+            },
+            SegmentTiming {
+                id: "gap1".into(),
+                segment_type: SegmentType::SilenceGap,
+                original_duration_ms: 200,
+                adjusted_duration_ms: 200,
+                start_ms: 1000,
+            },
+            SegmentTiming {
+                id: "gap2".into(),
+                segment_type: SegmentType::SilenceGap,
+                original_duration_ms: 200,
+                adjusted_duration_ms: 200,
+                start_ms: 1200,
+            },
+        ];
+        // Total = 1400ms, target = 1501ms -> slack = 101ms across 2 gaps (51ms to first, 50ms to second)
+        let plan = planner.plan_fit(&segments, 1501);
+        assert_eq!(plan.strategy, FitStrategy::SlackDistributed);
+        assert_eq!(plan.fitted_duration_ms, 1501);
+        assert_eq!(plan.segments[1].adjusted_duration_ms, 251);
+        assert_eq!(plan.segments[2].adjusted_duration_ms, 250);
+    }
+
+    #[test]
+    fn test_overrun_silence_absorption() {
+        let planner = SmartFitPlanner::new();
+        let segments = vec![
+            SegmentTiming {
+                id: "speech1".into(),
+                segment_type: SegmentType::Speech,
+                original_duration_ms: 1000,
+                adjusted_duration_ms: 1000,
+                start_ms: 0,
+            },
+            SegmentTiming {
+                id: "gap1".into(),
+                segment_type: SegmentType::SilenceGap,
+                original_duration_ms: 500,
+                adjusted_duration_ms: 500,
+                start_ms: 1000,
+            },
+        ];
+        // Total = 1500ms, target = 1300ms -> overrun = 200ms. Gap can absorb 500 - 120 = 380ms.
+        let plan = planner.plan_fit(&segments, 1300);
+        assert_eq!(plan.strategy, FitStrategy::SilenceAbsorbed);
+        assert_eq!(plan.silence_absorbed_ms, 200);
+        assert_eq!(plan.fitted_duration_ms, 1300);
+    }
+
+    #[test]
+    fn test_overrun_audio_time_stretching() {
+        let planner = SmartFitPlanner::new();
+        let segments = vec![
+            SegmentTiming {
+                id: "speech1".into(),
+                segment_type: SegmentType::Speech,
+                original_duration_ms: 1000,
+                adjusted_duration_ms: 1000,
+                start_ms: 0,
+            },
+            SegmentTiming {
+                id: "gap1".into(),
+                segment_type: SegmentType::SilenceGap,
+                original_duration_ms: 120, // already at min floor
+                adjusted_duration_ms: 120,
+                start_ms: 1000,
+            },
+        ];
+        // Total = 1120ms, target = 950ms -> overrun = 170ms. Silence cannot absorb any.
+        // Requires ~1.20x speedup (within 1.30 max).
+        let plan = planner.plan_fit(&segments, 950);
+        assert_eq!(plan.strategy, FitStrategy::AudioTimeStretched);
+        assert!(plan.audio_speedup_ratio > 1.15 && plan.audio_speedup_ratio <= 1.30);
+    }
+
+    #[test]
+    fn test_overrun_hybrid_audio_video_stretch() {
+        let planner = SmartFitPlanner::new();
+        let segments = vec![SegmentTiming {
+            id: "speech1".into(),
+            segment_type: SegmentType::Speech,
+            original_duration_ms: 2000,
+            adjusted_duration_ms: 2000,
+            start_ms: 0,
+        }];
+        // Severe constraint: 2000ms speech forced into 800ms slot (speedup > 2.0x exceeds 1.30 max)
+        let plan = planner.plan_fit(&segments, 800);
+        assert_eq!(plan.strategy, FitStrategy::HybridAudioVideoStretched);
+        assert_eq!(plan.audio_speedup_ratio, 1.30);
+        assert!(plan.video_stretch_ratio > 1.0);
+    }
+
+    #[test]
+    fn test_apply_fit_to_pcm_zero_sample_rate_safe() {
+        let planner = SmartFitPlanner::new();
+        let input = vec![100, 200, 300];
+        // Sample rate 0 must not panic or divide by zero
+        let out = planner.apply_fit_to_pcm(&input, 0, 500);
+        assert_eq!(out, input);
+    }
+
+    #[test]
+    fn test_apply_fit_to_pcm_empty_and_zero_target() {
+        let planner = SmartFitPlanner::new();
+        assert!(planner.apply_fit_to_pcm(&[], 16000, 500).is_empty());
+        let input = vec![100, 200];
+        assert_eq!(planner.apply_fit_to_pcm(&input, 16000, 0), input);
     }
 }
