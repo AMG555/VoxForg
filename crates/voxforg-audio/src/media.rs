@@ -240,7 +240,9 @@ mod tests {
 
     #[test]
     fn test_media_processor_availability_probe() {
-        let _avail = MediaProcessor::is_available();
+        let avail = MediaProcessor::is_available();
+        let path = MediaProcessor::ffmpeg_path();
+        assert_eq!(avail, path.is_some());
     }
 
     #[test]
