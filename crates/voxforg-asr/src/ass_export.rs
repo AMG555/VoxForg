@@ -14,7 +14,8 @@ impl AssSubtitleExporter {
 
         // Script Info header
         out.push_str("[Script Info]\n");
-        out.push_str(&format!("Title: {}\n", title));
+        let safe_title = title.replace('\r', "").replace('\n', " ");
+        out.push_str(&format!("Title: {}\n", safe_title));
         out.push_str("ScriptType: v4.00+\n");
         out.push_str("WrapStyle: 0\n");
         out.push_str("ScaledBorderAndShadow: yes\n");
@@ -41,7 +42,11 @@ impl AssSubtitleExporter {
             let text = if !seg.words.is_empty() {
                 Self::format_karaoke_words(&seg.words, seg.start_ms)
             } else {
-                seg.text.trim().to_string()
+                seg.text
+                    .trim()
+                    .replace("\r\n", "\\N")
+                    .replace('\n', "\\N")
+                    .replace('\r', "")
             };
 
             out.push_str(&format!(
@@ -66,10 +71,13 @@ impl AssSubtitleExporter {
 
     /// Generates `{\k<centiseconds>}word` tag sequence.
     fn format_karaoke_words(words: &[WordTimestamp], segment_start_ms: u64) -> String {
+        let mut sorted_words = words.to_vec();
+        sorted_words.sort_by_key(|w| w.start_ms);
+
         let mut text = String::new();
         let mut cur_ms = segment_start_ms;
 
-        for w in words {
+        for w in &sorted_words {
             // Gap before word
             if w.start_ms > cur_ms {
                 let gap_cs = (w.start_ms - cur_ms) / 10;
@@ -80,8 +88,14 @@ impl AssSubtitleExporter {
 
             let word_duration_ms = w.end_ms.saturating_sub(w.start_ms).max(20);
             let word_cs = (word_duration_ms / 10).max(1);
-            text.push_str(&format!("{{\\k{}}}{} ", word_cs, w.word.trim()));
-            cur_ms = w.end_ms;
+            let safe_word = w
+                .word
+                .trim()
+                .replace("\r\n", "\\N")
+                .replace('\n', "\\N")
+                .replace('\r', "");
+            text.push_str(&format!("{{\\k{}}}{} ", word_cs, safe_word));
+            cur_ms = cur_ms.max(w.end_ms);
         }
 
         text.trim_end().to_string()
@@ -174,5 +188,52 @@ mod tests {
 
         let ass = AssSubtitleExporter::export_karaoke_ass(&result, "Fallback");
         assert!(ass.contains("Dialogue: 0,0:00:00.10,0:00:01.50,Karaoke,,0,0,0,,Raw segment text"));
+    }
+
+    #[test]
+    fn test_export_karaoke_ass_newline_and_sorting() {
+        let result = TranscriptionResult {
+            text: "Line 1\nLine 2".to_string(),
+            task: "transcribe".to_string(),
+            language: "en".to_string(),
+            duration_seconds: 3.0,
+            segments: vec![TranscriptionSegment {
+                id: 0,
+                seek: 0,
+                start_ms: 100,
+                end_ms: 2500,
+                text: "Line 1\nLine 2".to_string(),
+                tokens: vec![],
+                temperature: 0.0,
+                avg_logprob: 0.0,
+                compression_ratio: 1.0,
+                no_speech_prob: 0.0,
+                speaker: None,
+                words: vec![
+                    WordTimestamp {
+                        word: "second".to_string(),
+                        start_ms: 600,
+                        end_ms: 1200,
+                        probability: 0.9,
+                    },
+                    WordTimestamp {
+                        word: "first\nline".to_string(),
+                        start_ms: 100,
+                        end_ms: 500,
+                        probability: 0.9,
+                    },
+                ],
+            }],
+            words: vec![],
+        };
+
+        let ass = AssSubtitleExporter::export_karaoke_ass(&result, "Multi\nLine");
+        assert!(ass.contains("Title: Multi Line"));
+        assert!(ass.contains("first\\Nline"));
+        assert!(!ass.contains("first\nline"));
+        // Check sorting: first appears before second
+        let first_pos = ass.find("first\\Nline").unwrap();
+        let second_pos = ass.find("second").unwrap();
+        assert!(first_pos < second_pos);
     }
 }
