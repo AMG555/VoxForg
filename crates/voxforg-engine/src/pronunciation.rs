@@ -169,11 +169,22 @@ pub struct SsmlSegment {
     pub pitch_factor: f32,
 }
 
+static TAG_REGEX: std::sync::LazyLock<Regex> =
+    std::sync::LazyLock::new(|| Regex::new(r"<[^>]+>").expect("Valid tag regex"));
+
+static BREAK_REGEX: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
+    Regex::new(r#"(?i)<break\s+time=["'](\d+)(ms|s)["']\s*/>"#).expect("Valid break regex")
+});
+
+static PHONEME_REGEX: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
+    Regex::new(r#"(?i)<phoneme\s+alphabet=["']\w+["']\s+ph=["']([^"']+)["']>([^<]+)</phoneme>"#)
+        .expect("Valid phoneme regex")
+});
+
 impl SsmlLite {
     /// Strips XML/SSML tags leaving clean pronounceable text
     pub fn strip_tags(input: &str) -> String {
-        let tag_regex = Regex::new(r"<[^>]+>").unwrap();
-        tag_regex
+        TAG_REGEX
             .replace_all(input, " ")
             .replace("  ", " ")
             .trim()
@@ -183,18 +194,13 @@ impl SsmlLite {
     /// Parses SSML-lite into sequential segments with pause and rate controls
     pub fn parse_segments(input: &str) -> Vec<SsmlSegment> {
         let mut segments = Vec::new();
-        let break_regex = Regex::new(r#"(?i)<break\s+time=["'](\d+)(ms|s)["']\s*/>"#).unwrap();
-        let phoneme_regex = Regex::new(
-            r#"(?i)<phoneme\s+alphabet=["']\w+["']\s+ph=["']([^"']+)["']>([^<]+)</phoneme>"#,
-        )
-        .unwrap();
 
         // First replace phoneme tags with the phonetic transcription directly
-        let preprocessed = phoneme_regex.replace_all(input, "$1");
+        let preprocessed = PHONEME_REGEX.replace_all(input, "$1");
 
         // Split on break tags to generate segments with pauses
         let mut last_idx = 0;
-        for cap in break_regex.captures_iter(&preprocessed) {
+        for cap in BREAK_REGEX.captures_iter(&preprocessed) {
             let m = cap.get(0).unwrap();
             let text_part = &preprocessed[last_idx..m.start()];
             let clean_text = Self::strip_tags(text_part);

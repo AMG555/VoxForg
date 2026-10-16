@@ -188,7 +188,7 @@ impl KokoroTtsEngine {
     /// Decode WAV or RAW PCM payload into 16-bit PCM samples.
     #[allow(clippy::chunks_exact_to_as_chunks)]
     fn parse_audio_response(&self, bytes: &[u8]) -> Result<Vec<i16>> {
-        if bytes.len() >= 44 && &bytes[0..4] == b"RIFF" && &bytes[8..12] == b"WAVE" {
+        if bytes.len() >= 12 && &bytes[0..4] == b"RIFF" && &bytes[8..12] == b"WAVE" {
             // Standard WAV format: find 'data' subchunk
             let mut offset = 12;
             while offset + 8 <= bytes.len() {
@@ -209,8 +209,22 @@ impl KokoroTtsEngine {
                         .collect();
                     return Ok(samples);
                 }
-                offset += chunk_size;
+
+                // Chunks in WAV are padded to word boundary (even byte offset)
+                let padded_size = chunk_size.saturating_add(chunk_size & 1);
+                if padded_size == 0 {
+                    // Zero-length chunk: avoid infinite loop
+                    break;
+                }
+                offset = match offset.checked_add(padded_size) {
+                    Some(next) => next,
+                    None => break,
+                };
             }
+
+            return Err(VoxForgError::AudioProcessing(
+                "WAV response missing valid data subchunk".into(),
+            ));
         }
 
         // Direct raw 16-bit PCM little-endian
@@ -451,5 +465,43 @@ mod tests {
         let engine = KokoroTtsEngine::new();
         let healthy = engine.health_check().await.unwrap();
         assert!(healthy);
+    }
+
+    #[test]
+    fn test_kokoro_parse_audio_response_wav_and_raw() {
+        let engine = KokoroTtsEngine::new();
+        // 1. Raw PCM
+        let raw = vec![0x10, 0x00, 0x20, 0x00];
+        let pcm = engine.parse_audio_response(&raw).unwrap();
+        assert_eq!(pcm, vec![0x0010, 0x0020]);
+
+        // 2. Synthesized valid minimal WAV
+        let mut wav = Vec::new();
+        wav.extend_from_slice(b"RIFF");
+        wav.extend_from_slice(&28u32.to_le_bytes()); // remaining len
+        wav.extend_from_slice(b"WAVE");
+        // Unknown 0-sized chunk preceding data (test loop termination safety)
+        wav.extend_from_slice(b"LIST");
+        wav.extend_from_slice(&0u32.to_le_bytes());
+        // Data chunk
+        wav.extend_from_slice(b"data");
+        wav.extend_from_slice(&4u32.to_le_bytes());
+        wav.extend_from_slice(&[0x34, 0x12, 0x78, 0x56]);
+
+        let parsed_wav = engine.parse_audio_response(&wav);
+        // LIST chunk with 0-size breaks out safely without infinite loop, returning missing data error
+        assert!(parsed_wav.is_err());
+
+        // Now with data chunk first
+        let mut valid_wav = Vec::new();
+        valid_wav.extend_from_slice(b"RIFF");
+        valid_wav.extend_from_slice(&20u32.to_le_bytes());
+        valid_wav.extend_from_slice(b"WAVE");
+        valid_wav.extend_from_slice(b"data");
+        valid_wav.extend_from_slice(&4u32.to_le_bytes());
+        valid_wav.extend_from_slice(&[0x34, 0x12, 0x78, 0x56]);
+
+        let parsed_valid = engine.parse_audio_response(&valid_wav).unwrap();
+        assert_eq!(parsed_valid, vec![0x1234, 0x5678]);
     }
 }
