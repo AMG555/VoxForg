@@ -156,15 +156,25 @@ impl VoiceProfileStore {
         lock.get(id).cloned()
     }
 
-    /// Retrieve a voice profile by ID, name, or case-insensitive query (ignoring "(Cloned)" suffix).
+    /// Retrieve a voice profile by ID, name, or case-insensitive query (ignoring "(Cloned)" or "(cloned)" suffix).
     pub async fn find(&self, query: &str) -> Option<VoiceProfile> {
         let lock = self.profiles.read().await;
         if let Some(profile) = lock.get(query) {
             return Some(profile.clone());
         }
-        let clean = query.trim_end_matches(" (Cloned)").trim().to_lowercase();
+        let q_trimmed = query.trim().to_lowercase();
+        let clean = if let Some(stripped) = q_trimmed.strip_suffix(" (cloned)") {
+            stripped.trim()
+        } else if let Some(stripped) = q_trimmed.strip_suffix("(cloned)") {
+            stripped.trim()
+        } else {
+            q_trimmed.as_str()
+        };
+
         for profile in lock.values() {
-            if profile.id.to_lowercase() == clean || profile.name.trim().to_lowercase() == clean {
+            let pid = profile.id.to_lowercase();
+            let pname = profile.name.trim().to_lowercase();
+            if pid == clean || pname == clean || pid == q_trimmed || pname == q_trimmed {
                 return Some(profile.clone());
             }
         }
@@ -198,7 +208,7 @@ impl VoiceProfileStore {
         removed
     }
 
-    /// Sanitize ID to prevent path traversal or unsafe filesystem characters.
+    /// Sanitize ID to prevent path traversal, unsafe filesystem characters, and Windows reserved names.
     pub fn sanitize_id(id: &str) -> Option<String> {
         let trimmed = id.trim();
         if trimmed.is_empty() || trimmed.len() > 128 {
@@ -215,7 +225,15 @@ impl VoiceProfileStore {
             })
             .collect();
         if safe.is_empty() || safe == "." || safe == ".." {
-            None
+            return None;
+        }
+
+        const WINDOWS_RESERVED: &[&str] = &[
+            "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7",
+            "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+        ];
+        if WINDOWS_RESERVED.contains(&safe.to_uppercase().as_str()) {
+            Some(format!("prof_{}", safe))
         } else {
             Some(safe)
         }
@@ -303,5 +321,24 @@ mod tests {
             Some("valid-voice_name-123".to_string())
         );
         assert!(VoiceProfileStore::sanitize_id("").is_none());
+        assert_eq!(
+            VoiceProfileStore::sanitize_id("con"),
+            Some("prof_con".to_string())
+        );
+        assert_eq!(
+            VoiceProfileStore::sanitize_id("AUX"),
+            Some("prof_AUX".to_string())
+        );
+    }
+
+    #[tokio::test]
+    async fn test_find_with_case_and_cloned_suffixes() {
+        let store = VoiceProfileStore::in_memory_with_defaults();
+        assert!(store.find("qwen3-base-female").await.is_some());
+        assert!(store.find("Qwen3 Base Female").await.is_some());
+        assert!(store.find("qwen3-base-female (Cloned)").await.is_some());
+        assert!(store.find("qwen3-base-female (cloned)").await.is_some());
+        assert!(store.find("Qwen3 Base Female(cloned)").await.is_some());
+        assert!(store.find("non-existent-profile").await.is_none());
     }
 }
