@@ -341,38 +341,58 @@ impl ArchetypeBank {
         // Apply Director taxonomy modifiers to archetype weights
         if let Some(dir) = req.director {
             for (i, arc) in self.archetypes.iter().enumerate() {
-                if dir.energy.is_finite()
-                    && dir.energy > 0.3
-                    && (arc.name.contains("energetic") || arc.name.contains("bold"))
-                {
-                    weights[i] += dir.energy * 2.0;
+                if dir.energy.is_finite() {
+                    if dir.energy > 0.3
+                        && (arc.name.contains("energetic") || arc.name.contains("bold"))
+                    {
+                        weights[i] += dir.energy * 2.0;
+                    } else if dir.energy < -0.3
+                        && (arc.name.contains("gentle")
+                            || arc.name.contains("whisper")
+                            || arc.name.contains("soothing")
+                            || arc.name.contains("meditation"))
+                    {
+                        weights[i] += (-dir.energy) * 2.0;
+                    }
                 }
-                if dir.intimacy.is_finite()
-                    && dir.intimacy > 0.3
-                    && (arc.name.contains("whisper")
-                        || arc.name.contains("intimate")
-                        || arc.name.contains("gentle"))
-                {
-                    weights[i] += dir.intimacy * 2.5;
+                if dir.intimacy.is_finite() {
+                    if dir.intimacy > 0.3
+                        && (arc.name.contains("whisper")
+                            || arc.name.contains("intimate")
+                            || arc.name.contains("gentle"))
+                    {
+                        weights[i] += dir.intimacy * 2.5;
+                    } else if dir.intimacy < -0.3
+                        && (arc.name.contains("broadcast") || arc.name.contains("announcer"))
+                    {
+                        weights[i] += (-dir.intimacy) * 2.0;
+                    }
                 }
-                if dir.formality.is_finite()
-                    && dir.formality > 0.3
-                    && (arc.name.contains("broadcast")
-                        || arc.name.contains("academic")
-                        || arc.name.contains("authoritative"))
-                {
-                    weights[i] += dir.formality * 2.0;
+                if dir.formality.is_finite() {
+                    if dir.formality > 0.3
+                        && (arc.name.contains("broadcast")
+                            || arc.name.contains("academic")
+                            || arc.name.contains("authoritative"))
+                    {
+                        weights[i] += dir.formality * 2.0;
+                    } else if dir.formality < -0.3
+                        && (arc.name.contains("playful")
+                            || arc.name.contains("storyteller")
+                            || arc.name.contains("cheerful"))
+                    {
+                        weights[i] += (-dir.formality) * 2.0;
+                    }
                 }
-                if dir.emotion.is_finite()
-                    && dir.emotion > 0.3
-                    && (arc.name.contains("cheerful") || arc.name.contains("playful"))
-                {
-                    weights[i] += dir.emotion * 2.0;
-                } else if dir.emotion.is_finite()
-                    && dir.emotion < -0.3
-                    && (arc.name.contains("melancholic") || arc.name.contains("raspy"))
-                {
-                    weights[i] += (-dir.emotion) * 2.0;
+                if dir.emotion.is_finite() {
+                    if dir.emotion > 0.3
+                        && (arc.name.contains("cheerful") || arc.name.contains("playful"))
+                    {
+                        weights[i] += dir.emotion * 2.0;
+                    } else if dir.emotion < -0.3
+                        && (arc.name.contains("melancholic") || arc.name.contains("raspy"))
+                    {
+                        weights[i] += (-dir.emotion) * 2.0;
+                    }
                 }
             }
         }
@@ -402,46 +422,62 @@ impl ArchetypeBank {
             "vdes_{}",
             &Uuid::new_v4().to_string().replace('-', "")[..12]
         );
-        let voice_name = req.name.clone().unwrap_or_else(|| {
-            // Auto-generate name based on top weighted archetype
-            let max_idx = weights
-                .iter()
-                .enumerate()
-                .max_by(|a, b| a.1.partial_cmp(b.1).unwrap_or(std::cmp::Ordering::Equal))
-                .map(|(idx, _)| idx)
-                .unwrap_or(0);
-            let raw_name = self.archetypes[max_idx].name.replace('_', " ");
-            let capitalized: String = raw_name
-                .split_whitespace()
-                .map(|w| {
-                    let mut chars = w.chars();
-                    match chars.next() {
-                        None => String::new(),
-                        Some(f) => f.to_uppercase().collect::<String>() + chars.as_str(),
-                    }
-                })
-                .collect::<Vec<_>>()
-                .join(" ");
-            format!("Designed {}", capitalized)
-        });
+        let voice_name = req
+            .name
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_string)
+            .unwrap_or_else(|| {
+                // Auto-generate name based on top weighted archetype
+                let max_idx = weights
+                    .iter()
+                    .enumerate()
+                    .max_by(|a, b| a.1.partial_cmp(b.1).unwrap_or(std::cmp::Ordering::Equal))
+                    .map(|(idx, _)| idx)
+                    .unwrap_or(0);
+                let raw_name = self.archetypes[max_idx].name.replace('_', " ");
+                let capitalized: String = raw_name
+                    .split_whitespace()
+                    .map(|w| {
+                        let mut chars = w.chars();
+                        match chars.next() {
+                            None => String::new(),
+                            Some(f) => f.to_uppercase().collect::<String>() + chars.as_str(),
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                format!("Designed {}", capitalized)
+            });
 
         let mut metadata = HashMap::new();
         metadata.insert("design_prompt".to_string(), req.prompt.clone());
         if let Some(dir) = req.director {
-            metadata.insert("director_energy".to_string(), format!("{:.2}", dir.energy));
-            metadata.insert("director_pace".to_string(), format!("{:.2}", dir.pace));
-            metadata.insert(
-                "director_intimacy".to_string(),
-                format!("{:.2}", dir.intimacy),
-            );
-            metadata.insert(
-                "director_formality".to_string(),
-                format!("{:.2}", dir.formality),
-            );
-            metadata.insert(
-                "director_emotion".to_string(),
-                format!("{:.2}", dir.emotion),
-            );
+            if dir.energy.is_finite() {
+                metadata.insert("director_energy".to_string(), format!("{:.2}", dir.energy));
+            }
+            if dir.pace.is_finite() {
+                metadata.insert("director_pace".to_string(), format!("{:.2}", dir.pace));
+            }
+            if dir.intimacy.is_finite() {
+                metadata.insert(
+                    "director_intimacy".to_string(),
+                    format!("{:.2}", dir.intimacy),
+                );
+            }
+            if dir.formality.is_finite() {
+                metadata.insert(
+                    "director_formality".to_string(),
+                    format!("{:.2}", dir.formality),
+                );
+            }
+            if dir.emotion.is_finite() {
+                metadata.insert(
+                    "director_emotion".to_string(),
+                    format!("{:.2}", dir.emotion),
+                );
+            }
         }
 
         VoiceProfile {
@@ -541,6 +577,38 @@ mod tests {
         let embedding = profile.embedding.expect("Embedding must be generated");
         for val in &embedding {
             assert!(val.is_finite(), "All embedding dimensions must be finite");
+        }
+        // NaN emotion should not be written to metadata
+        assert!(!profile.metadata.contains_key("director_emotion"));
+        assert!(profile.metadata.contains_key("director_energy"));
+    }
+
+    #[test]
+    fn test_voice_design_whitespace_name_fallback_and_low_energy() {
+        let bank = ArchetypeBank::new();
+        let req = VoiceDesignRequest {
+            prompt: "calm gentle whisper narrator".to_string(),
+            name: Some("   ".to_string()),
+            gender: Some(Gender::Neutral),
+            language: None,
+            director: Some(DirectorTaxonomy {
+                energy: -0.6,
+                emotion: -0.4,
+                pace: -0.2,
+                intimacy: 0.7,
+                formality: -0.5,
+            }),
+        };
+
+        let profile = bank.design_voice(&req);
+        // Name should not be whitespace, but auto-generated
+        assert!(profile.name.starts_with("Designed"));
+        assert!(!profile.name.trim().is_empty());
+
+        let embedding = profile.embedding.expect("Embedding must be generated");
+        assert_eq!(embedding.len(), 512);
+        for val in &embedding {
+            assert!(val.is_finite());
         }
     }
 }
