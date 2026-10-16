@@ -39,6 +39,8 @@ pub struct SpeechToSpeechRequest {
     pub response_format: AudioContainerFormat,
 }
 
+pub const MAX_AUDIO_PAYLOAD_CHARS: usize = 32 * 1024 * 1024;
+
 fn default_speed() -> f32 {
     1.0
 }
@@ -96,9 +98,15 @@ fn decode_audio(payload: &str) -> Result<(Vec<i16>, u32), String> {
         payload.trim()
     };
 
+    if clean.is_empty() {
+        return Err("Audio payload is empty".to_string());
+    }
+
     let bytes = decode_b64(clean)
         .or_else(|| hex::decode(clean).ok())
-        .unwrap_or_else(|| clean.as_bytes().to_vec());
+        .ok_or_else(|| {
+            "Invalid audio payload: expected valid base64 or hex encoding".to_string()
+        })?;
 
     if bytes.is_empty() {
         return Err("Audio payload is empty".to_string());
@@ -106,16 +114,50 @@ fn decode_audio(payload: &str) -> Result<(Vec<i16>, u32), String> {
 
     if bytes.len() >= 12 && &bytes[0..4] == b"RIFF" && &bytes[8..12] == b"WAVE" {
         let cursor = Cursor::new(&bytes);
-        if let Ok(mut reader) = hound::WavReader::new(cursor) {
-            let spec = reader.spec();
-            let samples: Result<Vec<i16>, _> = reader.samples::<i16>().collect();
-            if let Ok(s) = samples {
-                return Ok((s, spec.sample_rate));
+        match hound::WavReader::new(cursor) {
+            Ok(mut reader) => {
+                let spec = reader.spec();
+                let sample_rate = spec.sample_rate.clamp(8000, 192000);
+                let samples: Result<Vec<i16>, _> = reader.samples::<i16>().collect();
+                match samples {
+                    Ok(s) => {
+                        if spec.channels == 2 {
+                            let mono: Vec<i16> = s
+                                .chunks_exact(2)
+                                .map(|ch| ((ch[0] as i32 + ch[1] as i32) / 2) as i16)
+                                .collect();
+                            return Ok((mono, sample_rate));
+                        } else if spec.channels == 1 {
+                            return Ok((s, sample_rate));
+                        } else if spec.channels > 2 {
+                            let ch = spec.channels as usize;
+                            let mono: Vec<i16> = s
+                                .chunks_exact(ch)
+                                .map(|frame| {
+                                    let sum: i32 = frame.iter().map(|&x| x as i32).sum();
+                                    (sum / ch as i32) as i16
+                                })
+                                .collect();
+                            return Ok((mono, sample_rate));
+                        } else {
+                            return Err("Invalid WAV: 0 channels reported".to_string());
+                        }
+                    }
+                    Err(e) => {
+                        return Err(format!("Failed to read 16-bit PCM samples from WAV: {}", e));
+                    }
+                }
+            }
+            Err(e) => {
+                return Err(format!("Malformed WAV container: {}", e));
             }
         }
     }
 
     // Raw 16-bit PCM fallback
+    if bytes.len() % 2 != 0 {
+        return Err("Raw PCM payload byte length must be an even number (16-bit)".to_string());
+    }
     let samples = bytes
         .chunks_exact(2)
         .map(|pair| i16::from_le_bytes([pair[0], pair[1]]))
@@ -137,6 +179,20 @@ pub async fn speech_to_speech(
             instance: "/v1/audio/speech-to-speech".to_string(),
         };
         return Err((StatusCode::BAD_REQUEST, Json(err)));
+    }
+
+    if payload.audio_base64.len() > MAX_AUDIO_PAYLOAD_CHARS {
+        let err = ProblemDetails {
+            problem_type: "https://voxforg.org/errors/payload-too-large".to_string(),
+            title: "Audio Payload Too Large".to_string(),
+            status: StatusCode::PAYLOAD_TOO_LARGE.as_u16(),
+            detail: format!(
+                "The 'audio_base64' payload exceeds the 32MB limit (was {} bytes)",
+                payload.audio_base64.len()
+            ),
+            instance: "/v1/audio/speech-to-speech".to_string(),
+        };
+        return Err((StatusCode::PAYLOAD_TOO_LARGE, Json(err)));
     }
 
     let (pcm_samples, sample_rate) = decode_audio(&payload.audio_base64).map_err(|detail| {
@@ -327,6 +383,25 @@ mod tests {
         let (samples, sr) = decode_audio(&b64).unwrap();
         assert_eq!(sr, 16000);
         assert_eq!(samples, vec![512, 1024]);
+    }
+
+    #[test]
+    fn test_decode_audio_stereo_wav_downmix() {
+        // Interleaved stereo samples: (100, 200), (-100, -200) -> mono: (150, -150)
+        let wav_bytes = WavEncoder::encode_pcm16_to_wav(&[100, 200, -100, -200], 16000, 2).unwrap();
+        let b64 = format!("data:audio/wav;base64,{}", hex_sim_or_b64(&wav_bytes));
+        let (samples, sr) = decode_audio(&b64).unwrap();
+        assert_eq!(sr, 16000);
+        assert_eq!(samples.len(), 2);
+        assert_eq!(samples, vec![150, -150]);
+    }
+
+    #[test]
+    fn test_decode_audio_odd_raw_pcm_rejected() {
+        // 3 bytes cannot form 16-bit PCM
+        let odd_pcm = vec![0x00, 0x02, 0x00];
+        let b64 = hex_sim_or_b64(&odd_pcm);
+        assert!(decode_audio(&b64).is_err());
     }
 
     #[test]

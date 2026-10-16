@@ -1,8 +1,20 @@
+use std::sync::LazyLock;
+
 use axum::{extract::State, http::StatusCode, Json};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
 use crate::state::AppState;
+
+static FILLER_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"(?i)\b(um|uh|er|ah|like|you know|sort of|kind of|i mean|basically|actually)\b[,.]?",
+    )
+    .expect("Valid filler regex")
+});
+
+static SPACE_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"\s+").expect("Valid space regex"));
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RefineTextRequest {
@@ -41,13 +53,8 @@ pub async fn refine_text(
 
     // 1. Strip conversational filler words if requested
     if payload.strip_fillers {
-        let filler_regex = Regex::new(
-            r"(?i)\b(um|uh|er|ah|like|you know|sort of|kind of|i mean|basically|actually)\b[,.]?",
-        )
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-
-        fillers_count = filler_regex.find_iter(&refined).count();
-        refined = filler_regex.replace_all(&refined, "").to_string();
+        fillers_count = FILLER_REGEX.find_iter(&refined).count();
+        refined = FILLER_REGEX.replace_all(&refined, "").to_string();
     }
 
     // 2. Strip Whisper hallucination repetition loops (loops of identical words)
@@ -74,8 +81,7 @@ pub async fn refine_text(
 
     // 3. Fix punctuation and whitespace cleanup
     if payload.fix_punctuation {
-        let space_regex = Regex::new(r"\s+").unwrap();
-        refined = space_regex.replace_all(&refined, " ").trim().to_string();
+        refined = SPACE_REGEX.replace_all(&refined, " ").trim().to_string();
 
         let mut chars = refined.chars();
         if let Some(first) = chars.next() {
