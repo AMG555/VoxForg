@@ -1,5 +1,18 @@
 {
   "mcpServers": {
+    "voxforg": {
+      "command": "cargo",
+      "args": [
+        "run",
+        "-p",
+        "voxforg-cli",
+        "--",
+        "mcp"
+      ],
+      "env": {
+        "RUST_LOG": "info"
+      }
+    },
     "chrome-devtools": {
       "command": "npx",
       "args": [

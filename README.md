@@ -198,6 +198,7 @@ For complete technical specifications, sequence diagrams, and lifecycle document
 - [Installation Guide](docs/installation.md)
 - [User Manual & CLI Reference](docs/user-guide.md)
 - [Architecture Deep-Dive](docs/architecture.md)
+- [Model Context Protocol (MCP) Integration](docs/mcp.md)
 - [UI/UX Wireframes & Component Specs](docs/wireframes.md)
 - [REST & WebSocket API Reference](docs/api.md)
 - [Architecture Decision Records (ADRs)](docs/decisions/)
@@ -235,6 +236,24 @@ Start the visual workstation:
 ```bash
 voxforg serve --open
 ```
+
+---
+
+### 3. AI Agent Integration via Model Context Protocol (MCP)
+
+Connect Claude Desktop, Cursor, Google Antigravity, Windsurf, or Roo Code directly to VoxForg:
+
+```json
+{
+  "mcpServers": {
+    "voxforg": {
+      "command": "cargo",
+      "args": ["run", "-p", "voxforg-cli", "--", "mcp"]
+    }
+  }
+}
+```
+*Equips AI agents with 14 speech tools (synthesis, cloning, Whisper transcription, voice conversion, DAG pipelines, watermark embedding/verification), 4 resource streams, and direct file artifact delivery.* See the [MCP Integration Guide](docs/mcp.md).
 
 ---
 

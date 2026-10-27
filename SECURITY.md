@@ -80,3 +80,9 @@ VoxForg adheres to an enterprise security baseline:
 - **RAII Intermediate Audio Cleanup:** Intermediate video demux and mux WAV files are wrapped in `TempFileGuard`, guaranteeing automatic deletion upon scope exit, error, or panic.
 - **WebSocket Input Bounds:** Incoming WebSocket streaming messages are strictly validated against character length limits (10,000 chars) and finite parameter bounds, preventing unbounded memory allocations.
 - **Backpressure Channels:** All asynchronous audio streaming channels use bounded buffers (capacity 4 to 16) with zero `Box::leak` calls across the workspace.
+
+### 8. Model Context Protocol (MCP) & Agentic IDE Hardening (CWE-306, CWE-346, CWE-22, CWE-400)
+- **Unified Authentication:** The `/mcp` HTTP and SSE endpoints enforce strict authentication whenever an API key is configured. Requests must supply a valid token via `Authorization: Bearer <token>`, `x-api-key: <token>`, or `?api_key=<token>` / `?token=<token>` (for SSE streams), verified via constant-time comparisons (`subtle::ConstantTimeEq`).
+- **Restricted CORS Policy:** Wildcard origins are strictly forbidden. CORS is restricted to local loopbacks (`localhost`, `127.0.0.1`, `[::1]`), IDE webview extensions (`vscode-webview://`, `app://`), and explicit `VOXFORG_ALLOWED_ORIGINS`, preventing cross-origin drive-by attacks from untrusted websites.
+- **Path Sandboxing:** Tool parameters specifying filesystem paths (`output_file`, `audio_path`, `reference_audio_path`) reject directory traversal (`..`), null bytes (`\0`), and sensitive OS directories (`C:\Windows`, `/etc`, etc.), with extension allowlisting.
+- **Payload Limits:** Audio payloads (base64/hex) are capped at 32MB and input text is capped at 100,000 characters before allocation to prevent memory exhaustion DoS.

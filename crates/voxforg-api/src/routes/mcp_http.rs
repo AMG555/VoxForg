@@ -34,6 +34,7 @@ pub async fn handle_mcp_post(
         asr_registry: state.asr_registry.clone(),
         model_catalog: state.model_catalog.clone(),
         pipeline_executor: state.pipeline_executor.clone(),
+        pronunciation: state.pronunciation.clone(),
         hardware: state.hardware_profile.clone(),
         worker_pool: state.worker_pool.clone(),
     };

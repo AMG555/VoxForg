@@ -1,11 +1,11 @@
-use crate::protocol::McpTool;
+use crate::protocol::{McpPrompt, McpPromptArgument, McpResource, McpTool};
 
 /// Returns the complete registry of MCP tool definitions provided by VoxForg.
 pub fn get_mcp_tools() -> Vec<McpTool> {
     vec![
         McpTool {
             name: "synthesize_speech".to_string(),
-            description: "Generate speech audio using local neural TTS engines (Edge-TTS, Kokoro, Piper, Qwen3-TTS) or cloned voice profiles.".to_string(),
+            description: "Generate speech audio using local neural TTS engines (Edge-TTS, Kokoro, Piper, Qwen3-TTS) or cloned voice profiles. Supports directly writing the output audio file to disk.".to_string(),
             input_schema: serde_json::json!({
                 "type": "object",
                 "properties": {
@@ -19,7 +19,7 @@ pub fn get_mcp_tools() -> Vec<McpTool> {
                     },
                     "speed": {
                         "type": "number",
-                        "description": "Speaking rate multiplier (0.5 to 2.0). Default is 1.0"
+                        "description": "Speaking rate multiplier (0.25 to 4.0). Default is 1.0"
                     },
                     "pitch": {
                         "type": "number",
@@ -29,6 +29,10 @@ pub fn get_mcp_tools() -> Vec<McpTool> {
                         "type": "string",
                         "enum": ["wav", "pcm"],
                         "description": "Audio container format. Default is wav"
+                    },
+                    "output_file": {
+                        "type": "string",
+                        "description": "Optional local file path to save the generated audio (.wav or .pcm). Avoids returning large hex/base64 payload in model context."
                     }
                 },
                 "required": ["text", "voice"]
@@ -46,7 +50,11 @@ pub fn get_mcp_tools() -> Vec<McpTool> {
                     },
                     "reference_audio_base64": {
                         "type": "string",
-                        "description": "Hex or Base64-encoded reference audio clip (WAV or 16-bit PCM)"
+                        "description": "Base64 or hex-encoded reference audio clip (WAV or 16-bit PCM)"
+                    },
+                    "reference_audio_path": {
+                        "type": "string",
+                        "description": "Local filesystem path to reference audio file (.wav, .mp3, etc.)"
                     },
                     "engine_id": {
                         "type": "string",
@@ -65,18 +73,22 @@ pub fn get_mcp_tools() -> Vec<McpTool> {
                         "description": "Optional exact text transcript of reference audio to improve cloning fidelity"
                     }
                 },
-                "required": ["name", "reference_audio_base64"]
+                "required": ["name"]
             }),
         },
         McpTool {
             name: "transcribe_audio".to_string(),
-            description: "Transcribe audio speech into text or timed subtitles using neural Whisper ASR engines.".to_string(),
+            description: "Transcribe audio speech into text or timed subtitles using neural Whisper ASR engines. Accepts file path or base64 data.".to_string(),
             input_schema: serde_json::json!({
                 "type": "object",
                 "properties": {
                     "audio_base64": {
                         "type": "string",
                         "description": "Base64 or hex-encoded 16-bit PCM or WAV container"
+                    },
+                    "audio_path": {
+                        "type": "string",
+                        "description": "Local filesystem path to input audio or video file (.wav, .mp3, .mp4, .mkv, .webm)"
                     },
                     "model": {
                         "type": "string",
@@ -91,8 +103,41 @@ pub fn get_mcp_tools() -> Vec<McpTool> {
                         "enum": ["json", "verbose_json", "srt", "vtt", "text"],
                         "description": "Transcription output serialization format. Default: json"
                     }
+                }
+            }),
+        },
+        McpTool {
+            name: "speech_to_speech".to_string(),
+            description: "Convert a source voice audio recording into a target voice persona while preserving timing and cadence.".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "source_audio_base64": {
+                        "type": "string",
+                        "description": "Base64 or hex-encoded source speech audio"
+                    },
+                    "source_audio_path": {
+                        "type": "string",
+                        "description": "Local filesystem path to source speech audio file"
+                    },
+                    "target_voice": {
+                        "type": "string",
+                        "description": "Target voice identifier or profile to convert into"
+                    },
+                    "speed": {
+                        "type": "number",
+                        "description": "Speed factor (0.5 to 2.5). Default: 1.0"
+                    },
+                    "preserve_tempo": {
+                        "type": "boolean",
+                        "description": "Whether to preserve the exact duration of the source speech"
+                    },
+                    "output_file": {
+                        "type": "string",
+                        "description": "Optional path to save the converted audio directly to disk (.wav)"
+                    }
                 },
-                "required": ["audio_base64"]
+                "required": ["target_voice"]
             }),
         },
         McpTool {
@@ -117,9 +162,104 @@ pub fn get_mcp_tools() -> Vec<McpTool> {
                     "input_text": {
                         "type": "string",
                         "description": "Input script, manuscript, or dialogue text"
+                    },
+                    "output_file": {
+                        "type": "string",
+                        "description": "Optional path to save the resulting audio (.wav)"
                     }
                 },
                 "required": ["template"]
+            }),
+        },
+        McpTool {
+            name: "manage_pronunciation".to_string(),
+            description: "Manage custom phoneme and word pronunciation dictionary (e.g. SQL -> sequel, domain acronyms).".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "enum": ["list", "add", "remove", "apply"],
+                        "description": "Pronunciation dictionary action"
+                    },
+                    "term": {
+                        "type": "string",
+                        "description": "Original term or word (for add or remove)"
+                    },
+                    "replacement": {
+                        "type": "string",
+                        "description": "Spoken replacement or phoneme string (for add)"
+                    },
+                    "text": {
+                        "type": "string",
+                        "description": "Text to normalize through pronunciation dictionary (for apply)"
+                    }
+                },
+                "required": ["action"]
+            }),
+        },
+        McpTool {
+            name: "refine_text".to_string(),
+            description: "Clean transcribed or draft speech text by removing conversational filler words ('um', 'uh') and Whisper hallucination loops.".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "text": {
+                        "type": "string",
+                        "description": "Text to refine and clean"
+                    },
+                    "strip_fillers": {
+                        "type": "boolean",
+                        "description": "Strip verbal filler words (default: true)"
+                    },
+                    "strip_hallucinations": {
+                        "type": "boolean",
+                        "description": "Strip repetitive hallucination loops (default: true)"
+                    }
+                },
+                "required": ["text"]
+            }),
+        },
+        McpTool {
+            name: "embed_watermark".to_string(),
+            description: "Embed an invisible, spread-spectrum provenance watermark into a WAV audio file or base64 stream.".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "audio_base64": {
+                        "type": "string",
+                        "description": "Base64 or hex-encoded WAV audio data"
+                    },
+                    "audio_path": {
+                        "type": "string",
+                        "description": "Local filesystem path to WAV audio file"
+                    },
+                    "payload": {
+                        "type": "integer",
+                        "description": "Optional 16-bit payload signature (0 - 65535). Default: 0x5658"
+                    },
+                    "output_file": {
+                        "type": "string",
+                        "description": "Optional path to save watermarked WAV audio file"
+                    }
+                }
+            }),
+        },
+        McpTool {
+            name: "verify_watermark".to_string(),
+            description: "Detect and verify the presence of an invisible cryptographic provenance watermark in an audio recording.".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "audio_base64": {
+                        "type": "string",
+                        "description": "Base64 or hex-encoded WAV audio data"
+                    },
+                    "audio_path": {
+                        "type": "string",
+                        "description": "Local filesystem path to WAV audio file"
+                    }
+                }
             }),
         },
         McpTool {
@@ -154,6 +294,20 @@ pub fn get_mcp_tools() -> Vec<McpTool> {
             }),
         },
         McpTool {
+            name: "install_model".to_string(),
+            description: "Download and install an open-weights model package into the local cache directory.".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "model_id": {
+                        "type": "string",
+                        "description": "Model identifier to install (e.g. kokoro-v0_19, piper-en-lessac-medium)"
+                    }
+                },
+                "required": ["model_id"]
+            }),
+        },
+        McpTool {
             name: "benchmark_engine".to_string(),
             description: "Trigger latency, throughput, and RTF benchmarking on an engine using the standard test sentence suite.".to_string(),
             input_schema: serde_json::json!({
@@ -173,6 +327,74 @@ pub fn get_mcp_tools() -> Vec<McpTool> {
                 "type": "object",
                 "properties": {}
             }),
+        },
+    ]
+}
+
+/// Returns the complete registry of MCP resources available for context inspection.
+pub fn get_mcp_resources() -> Vec<McpResource> {
+    vec![
+        McpResource {
+            uri: "voxforg://voices".to_string(),
+            name: "Available Voices & Profiles".to_string(),
+            mime_type: Some("application/json".to_string()),
+            description: Some("Catalogue of all registered TTS voices, language coverage, and cloned profiles".to_string()),
+        },
+        McpResource {
+            uri: "voxforg://models".to_string(),
+            name: "Model Weights Catalogue".to_string(),
+            mime_type: Some("application/json".to_string()),
+            description: Some("Open-weights packages (Piper, Kokoro, Whisper, Qwen3) and installation state".to_string()),
+        },
+        McpResource {
+            uri: "voxforg://hardware".to_string(),
+            name: "Hardware Acceleration Profile".to_string(),
+            mime_type: Some("application/json".to_string()),
+            description: Some("Host CPU SIMD extensions, physical RAM, GPU accelerators, and VRAM budget".to_string()),
+        },
+        McpResource {
+            uri: "voxforg://cluster".to_string(),
+            name: "Distributed Cluster Nodes".to_string(),
+            mime_type: Some("application/json".to_string()),
+            description: Some("Registered distributed worker nodes, status, and health metrics".to_string()),
+        },
+    ]
+}
+
+/// Returns pre-built prompt workflows for agent consumption.
+pub fn get_mcp_prompts() -> Vec<McpPrompt> {
+    vec![
+        McpPrompt {
+            name: "speech_production".to_string(),
+            description: "Prepare and synthesize production-ready narration audio with dictionary normalization".to_string(),
+            arguments: vec![
+                McpPromptArgument {
+                    name: "script".to_string(),
+                    description: "Script text to speak".to_string(),
+                    required: true,
+                },
+                McpPromptArgument {
+                    name: "voice".to_string(),
+                    description: "Voice identifier to use".to_string(),
+                    required: false,
+                },
+            ],
+        },
+        McpPrompt {
+            name: "audio_transcription_and_dubbing".to_string(),
+            description: "Transcribe source media and dub into target language/voice using DAG pipeline".to_string(),
+            arguments: vec![
+                McpPromptArgument {
+                    name: "media_path".to_string(),
+                    description: "Path to video or audio file".to_string(),
+                    required: true,
+                },
+                McpPromptArgument {
+                    name: "target_voice".to_string(),
+                    description: "Target voice identifier".to_string(),
+                    required: true,
+                },
+            ],
         },
     ]
 }

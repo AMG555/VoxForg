@@ -6,14 +6,36 @@ pub mod state;
 use axum::{
     extract::DefaultBodyLimit, middleware::from_fn, middleware::from_fn_with_state, Router,
 };
-use tower_http::cors::{Any, CorsLayer};
+use axum::http::HeaderValue;
+use tower_http::cors::{AllowOrigin, Any, CorsLayer};
 use tower_http::trace::TraceLayer;
 
 pub use state::AppState;
 
 pub fn create_app(state: AppState) -> Router {
     let cors = CorsLayer::new()
-        .allow_origin(Any)
+        .allow_origin(AllowOrigin::predicate(|origin: &HeaderValue, _parts: &axum::http::request::Parts| {
+            if let Ok(origin_str) = origin.to_str() {
+                if origin_str.starts_with("http://localhost")
+                    || origin_str.starts_with("https://localhost")
+                    || origin_str.starts_with("http://127.0.0.1")
+                    || origin_str.starts_with("https://127.0.0.1")
+                    || origin_str.starts_with("http://[::1]")
+                    || origin_str.starts_with("vscode-webview://")
+                    || origin_str.starts_with("app://")
+                {
+                    return true;
+                }
+                if let Ok(allowed) = std::env::var("VOXFORG_ALLOWED_ORIGINS") {
+                    for item in allowed.split(',') {
+                        if item.trim().eq_ignore_ascii_case(origin_str) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            false
+        }))
         .allow_methods(Any)
         .allow_headers(Any);
 
@@ -1223,5 +1245,79 @@ mod tests {
             .as_str()
             .unwrap()
             .contains("basically"));
+    }
+
+    #[tokio::test]
+    async fn test_mcp_auth_hardening() {
+        let state = setup_test_state(Some("secret-mcp-key".to_string())).await;
+        let app = create_app(state);
+
+        let mcp_req = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/list",
+            "params": {}
+        });
+
+        // 1. Unauthenticated request to /mcp must be rejected with 401
+        let unauth_req = Request::builder()
+            .method("POST")
+            .uri("/mcp")
+            .header("content-type", "application/json")
+            .body(Body::from(mcp_req.to_string()))
+            .unwrap();
+        let res = app.clone().oneshot(unauth_req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
+
+        // 2. Request with Bearer authorization must succeed
+        let auth_req = Request::builder()
+            .method("POST")
+            .uri("/mcp")
+            .header("content-type", "application/json")
+            .header("authorization", "Bearer secret-mcp-key")
+            .body(Body::from(mcp_req.to_string()))
+            .unwrap();
+        let res = app.clone().oneshot(auth_req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+
+        // 3. SSE GET /mcp with query token must succeed
+        let sse_req = Request::builder()
+            .method("GET")
+            .uri("/mcp?api_key=secret-mcp-key")
+            .body(Body::empty())
+            .unwrap();
+        let res = app.oneshot(sse_req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_cors_hardening_blocks_evil_origin() {
+        let state = setup_test_state(None).await;
+        let app = create_app(state);
+
+        // Evil website origin must not get Access-Control-Allow-Origin header
+        let evil_req = Request::builder()
+            .method("OPTIONS")
+            .uri("/v1/models")
+            .header("origin", "https://malicious-attacker-site.com")
+            .header("access-control-request-method", "GET")
+            .body(Body::empty())
+            .unwrap();
+        let res = app.clone().oneshot(evil_req).await.unwrap();
+        assert!(res.headers().get("access-control-allow-origin").is_none());
+
+        // Localhost origin must be permitted
+        let local_req = Request::builder()
+            .method("OPTIONS")
+            .uri("/v1/models")
+            .header("origin", "http://localhost:3000")
+            .header("access-control-request-method", "GET")
+            .body(Body::empty())
+            .unwrap();
+        let res = app.oneshot(local_req).await.unwrap();
+        assert_eq!(
+            res.headers().get("access-control-allow-origin").unwrap(),
+            "http://localhost:3000"
+        );
     }
 }

@@ -1163,4 +1163,12 @@ Authorization: Bearer <api_key>
 | GET  | `/metrics` | Prometheus-style metrics |
 | GET  | `/docs` | Scalar API documentation UI |
 | GET  | `/openapi.json` | OpenAPI 3.1 spec |
+| POST | `/mcp` | Model Context Protocol (MCP) JSON-RPC 2.0 tool execution |
+| GET  | `/mcp` | Model Context Protocol (MCP) Server-Sent Events (SSE) stream |
+
+---
+
+### Model Context Protocol (MCP)
+
+For integrating agentic IDEs (Cursor, Claude Desktop, Antigravity, Windsurf, Roo Code) with VoxForg, see the dedicated [Model Context Protocol (MCP) Integration Guide](mcp.md).
 

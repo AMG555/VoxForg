@@ -93,7 +93,8 @@ pub async fn auth_middleware(
 
     let path = req.uri().path();
     // Allow static UI assets, health checks, metrics, and documentation without API key
-    if !path.starts_with("/v1/") {
+    let requires_auth = path.starts_with("/v1/") || path == "/mcp" || path.starts_with("/mcp/");
+    if !requires_auth {
         return Ok(next.run(req).await);
     }
 
@@ -102,14 +103,44 @@ pub async fn auth_middleware(
         .get(header::AUTHORIZATION)
         .and_then(|h| h.to_str().ok());
 
-    let is_authorized = match auth_header {
-        Some(auth) if auth.starts_with("Bearer ") => {
-            let token = &auth[7..];
-            let token_bytes = token.as_bytes();
+    let api_key_header = req
+        .headers()
+        .get("x-api-key")
+        .or_else(|| req.headers().get("x-voxforg-api-key"))
+        .and_then(|h| h.to_str().ok());
+
+    let query_token = req.uri().query().and_then(|q| {
+        q.split('&').find_map(|pair| {
+            let mut parts = pair.split('=');
+            let key = parts.next()?;
+            let val = parts.next()?;
+            if key == "api_key" || key == "token" {
+                Some(val)
+            } else {
+                None
+            }
+        })
+    });
+
+    let token = if let Some(auth) = auth_header {
+        if let Some(stripped) = auth.strip_prefix("Bearer ") {
+            Some(stripped)
+        } else {
+            Some(auth)
+        }
+    } else if let Some(key) = api_key_header {
+        Some(key)
+    } else {
+        query_token
+    };
+
+    let is_authorized = match token {
+        Some(t) => {
+            let token_bytes = t.as_bytes();
             let expected_bytes = expected_key.as_bytes();
             token_bytes.ct_eq(expected_bytes).into()
         }
-        _ => false,
+        None => false,
     };
 
     if is_authorized {
@@ -119,7 +150,7 @@ pub async fn auth_middleware(
             problem_type: "https://voxforg.org/errors/unauthorized".to_string(),
             title: "Unauthorized".to_string(),
             status: StatusCode::UNAUTHORIZED.as_u16(),
-            detail: "Invalid or missing Bearer API token".to_string(),
+            detail: "Invalid or missing Bearer API token or x-api-key".to_string(),
             instance: path.to_string(),
         };
         Err((StatusCode::UNAUTHORIZED, Json(err)))

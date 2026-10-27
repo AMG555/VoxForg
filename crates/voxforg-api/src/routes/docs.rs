@@ -280,6 +280,63 @@ pub async fn openapi_spec() -> Json<serde_json::Value> {
                         "500": { "$ref": "#/components/responses/ServerError" }
                     }
                 }
+            },
+            "/mcp": {
+                "post": {
+                    "tags": ["Model Context Protocol"],
+                    "summary": "Execute Model Context Protocol (MCP) JSON-RPC 2.0 requests",
+                    "description": "Streamable HTTP endpoint for AI agents (Claude Desktop, Cursor, Antigravity, Windsurf) to execute tools, read resources, and inspect prompts over JSON-RPC 2.0.",
+                    "security": [{ "BearerAuth": [] }, { "ApiKeyAuth": [] }],
+                    "requestBody": {
+                        "required": true,
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": ["jsonrpc", "method"],
+                                    "properties": {
+                                        "jsonrpc": { "type": "string", "example": "2.0" },
+                                        "id": { "oneOf": [{ "type": "integer" }, { "type": "string" }], "example": 1 },
+                                        "method": { "type": "string", "example": "tools/call" },
+                                        "params": { "type": "object" }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "responses": {
+                        "200": {
+                            "description": "JSON-RPC 2.0 Response",
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "type": "object",
+                                        "properties": {
+                                            "jsonrpc": { "type": "string", "example": "2.0" },
+                                            "id": { "oneOf": [{ "type": "integer" }, { "type": "string" }] },
+                                            "result": { "type": "object" }
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "204": { "description": "Notification acknowledged without response" },
+                        "401": { "$ref": "#/components/responses/Unauthorized" }
+                    }
+                },
+                "get": {
+                    "tags": ["Model Context Protocol"],
+                    "summary": "Model Context Protocol (MCP) Server-Sent Events (SSE) stream",
+                    "description": "SSE subscription endpoint for real-time MCP agent connectivity.",
+                    "security": [{ "BearerAuth": [] }, { "ApiKeyAuth": [] }],
+                    "responses": {
+                        "200": {
+                            "description": "SSE event stream emitting MCP endpoint registration",
+                            "content": { "text/event-stream": {} }
+                        },
+                        "401": { "$ref": "#/components/responses/Unauthorized" }
+                    }
+                }
             }
         },
         "components": {
@@ -289,6 +346,12 @@ pub async fn openapi_spec() -> Json<serde_json::Value> {
                     "scheme": "bearer",
                     "bearerFormat": "API Key",
                     "description": "API key passed as Bearer token in the Authorization header"
+                },
+                "ApiKeyAuth": {
+                    "type": "apiKey",
+                    "in": "header",
+                    "name": "x-api-key",
+                    "description": "API key passed in x-api-key header or ?api_key query parameter"
                 }
             },
             "responses": {

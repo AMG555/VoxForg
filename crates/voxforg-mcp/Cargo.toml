@@ -15,6 +15,7 @@ voxforg-asr           = { workspace = true }
 voxforg-catalog       = { workspace = true }
 voxforg-pipeline      = { workspace = true }
 voxforg-worker        = { workspace = true }
+voxforg-pronunciation = { workspace = true }
 async-trait.workspace = true
 tokio                 = { workspace = true, features = ["sync", "rt", "io-util", "macros"] }
 serde.workspace       = true
@@ -23,6 +24,7 @@ tracing.workspace     = true
 uuid.workspace        = true
 chrono.workspace      = true
 hex.workspace         = true
+regex.workspace       = true
 thiserror.workspace   = true
 anyhow.workspace      = true
 

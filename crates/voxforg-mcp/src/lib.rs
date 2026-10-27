@@ -5,9 +5,13 @@
 //! via standard JSON-RPC 2.0 over standard input and output streams.
 
 pub mod protocol;
+pub mod security;
 pub mod server;
 pub mod tools;
 
-pub use protocol::{JsonRpcError, JsonRpcRequest, JsonRpcResponse, McpTool, ToolCallResult};
+pub use protocol::{
+    JsonRpcError, JsonRpcRequest, JsonRpcResponse, McpPrompt, McpResource, McpResourceContent,
+    McpTool, ToolCallResult,
+};
 pub use server::McpServer;
 pub use tools::get_mcp_tools;
