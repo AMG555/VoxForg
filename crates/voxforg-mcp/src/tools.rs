@@ -338,25 +338,36 @@ pub fn get_mcp_resources() -> Vec<McpResource> {
             uri: "voxforg://voices".to_string(),
             name: "Available Voices & Profiles".to_string(),
             mime_type: Some("application/json".to_string()),
-            description: Some("Catalogue of all registered TTS voices, language coverage, and cloned profiles".to_string()),
+            description: Some(
+                "Catalogue of all registered TTS voices, language coverage, and cloned profiles"
+                    .to_string(),
+            ),
         },
         McpResource {
             uri: "voxforg://models".to_string(),
             name: "Model Weights Catalogue".to_string(),
             mime_type: Some("application/json".to_string()),
-            description: Some("Open-weights packages (Piper, Kokoro, Whisper, Qwen3) and installation state".to_string()),
+            description: Some(
+                "Open-weights packages (Piper, Kokoro, Whisper, Qwen3) and installation state"
+                    .to_string(),
+            ),
         },
         McpResource {
             uri: "voxforg://hardware".to_string(),
             name: "Hardware Acceleration Profile".to_string(),
             mime_type: Some("application/json".to_string()),
-            description: Some("Host CPU SIMD extensions, physical RAM, GPU accelerators, and VRAM budget".to_string()),
+            description: Some(
+                "Host CPU SIMD extensions, physical RAM, GPU accelerators, and VRAM budget"
+                    .to_string(),
+            ),
         },
         McpResource {
             uri: "voxforg://cluster".to_string(),
             name: "Distributed Cluster Nodes".to_string(),
             mime_type: Some("application/json".to_string()),
-            description: Some("Registered distributed worker nodes, status, and health metrics".to_string()),
+            description: Some(
+                "Registered distributed worker nodes, status, and health metrics".to_string(),
+            ),
         },
     ]
 }

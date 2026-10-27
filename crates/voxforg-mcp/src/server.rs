@@ -14,9 +14,7 @@ use voxforg_pipeline::{PipelineExecutor, PipelineTemplates};
 use voxforg_pronunciation::{DictionaryEntry, ProcessorConfig, PronunciationProcessor};
 use voxforg_worker::WorkerPool;
 
-use crate::protocol::{
-    JsonRpcRequest, JsonRpcResponse, McpResourceContent, ToolCallResult,
-};
+use crate::protocol::{JsonRpcRequest, JsonRpcResponse, McpResourceContent, ToolCallResult};
 use crate::security::{
     safe_decode_audio_bytes, validate_safe_input_path, validate_safe_output_path,
     validate_text_length,
@@ -608,7 +606,9 @@ impl McpServer {
                     language: lang,
                     temperature: None,
                     prompt: None,
-                    word_timestamps: resp_format == "srt" || resp_format == "vtt" || resp_format == "json",
+                    word_timestamps: resp_format == "srt"
+                        || resp_format == "vtt"
+                        || resp_format == "json",
                     response_format: resp_format.to_string(),
                 };
 
@@ -685,20 +685,26 @@ impl McpServer {
                     None => return ToolCallResult::error("No default ASR engine available"),
                 };
                 let asr_opts = TranscriptionOptions::default();
-                let transcription = match asr_engine.transcribe(&pcm, sample_rate, &asr_opts).await {
+                let transcription = match asr_engine.transcribe(&pcm, sample_rate, &asr_opts).await
+                {
                     Ok(t) => t,
-                    Err(e) => return ToolCallResult::error(format!("ASR transcription failed: {e}")),
+                    Err(e) => {
+                        return ToolCallResult::error(format!("ASR transcription failed: {e}"))
+                    }
                 };
 
                 if transcription.text.trim().is_empty() {
-                    return ToolCallResult::error("Source audio contains no discernible speech to convert");
+                    return ToolCallResult::error(
+                        "Source audio contains no discernible speech to convert",
+                    );
                 }
 
                 // Step 2: Synthesize transcribed speech in target voice
-                let (engine, voice_info) = match self.engine_registry.resolve_voice(target_voice).await {
-                    Ok(res) => res,
-                    Err(e) => return ToolCallResult::error(format!("Target voice error: {e}")),
-                };
+                let (engine, voice_info) =
+                    match self.engine_registry.resolve_voice(target_voice).await {
+                        Ok(res) => res,
+                        Err(e) => return ToolCallResult::error(format!("Target voice error: {e}")),
+                    };
 
                 let synth_req = SynthesisRequest {
                     text: transcription.text.clone(),
@@ -710,17 +716,16 @@ impl McpServer {
 
                 let chunk = match engine.synthesize(&synth_req).await {
                     Ok(c) => c,
-                    Err(e) => return ToolCallResult::error(format!("Target synthesis failed: {e}")),
+                    Err(e) => {
+                        return ToolCallResult::error(format!("Target synthesis failed: {e}"))
+                    }
                 };
 
-                let wav_bytes = match WavEncoder::encode_pcm16_to_wav(
-                    &chunk.pcm_data,
-                    chunk.sample_rate,
-                    1,
-                ) {
-                    Ok(b) => b,
-                    Err(e) => return ToolCallResult::error(e.to_string()),
-                };
+                let wav_bytes =
+                    match WavEncoder::encode_pcm16_to_wav(&chunk.pcm_data, chunk.sample_rate, 1) {
+                        Ok(b) => b,
+                        Err(e) => return ToolCallResult::error(e.to_string()),
+                    };
 
                 let duration = chunk.pcm_data.len() as f32 / chunk.sample_rate as f32;
 
@@ -809,7 +814,10 @@ impl McpServer {
             "manage_pronunciation" => {
                 let action = args.get("action").and_then(|a| a.as_str()).unwrap_or("");
                 let term = args.get("term").and_then(|t| t.as_str()).unwrap_or("");
-                let replacement = args.get("replacement").and_then(|r| r.as_str()).unwrap_or("");
+                let replacement = args
+                    .get("replacement")
+                    .and_then(|r| r.as_str())
+                    .unwrap_or("");
                 let text = args.get("text").and_then(|t| t.as_str()).unwrap_or("");
 
                 match action {
@@ -822,7 +830,9 @@ impl McpServer {
                     }
                     "add" => {
                         if term.trim().is_empty() || replacement.trim().is_empty() {
-                            return ToolCallResult::error("Both 'term' and 'replacement' are required for add");
+                            return ToolCallResult::error(
+                                "Both 'term' and 'replacement' are required for add",
+                            );
                         }
                         self.pronunciation.dictionary().upsert(DictionaryEntry {
                             term: term.to_string(),
@@ -852,14 +862,22 @@ impl McpServer {
                             "normalized": processed
                         }))
                     }
-                    other => ToolCallResult::error(format!("Unknown pronunciation action '{other}'")),
+                    other => {
+                        ToolCallResult::error(format!("Unknown pronunciation action '{other}'"))
+                    }
                 }
             }
 
             "refine_text" => {
                 let text = args.get("text").and_then(|t| t.as_str()).unwrap_or("");
-                let strip_fillers = args.get("strip_fillers").and_then(|b| b.as_bool()).unwrap_or(true);
-                let strip_hallucinations = args.get("strip_hallucinations").and_then(|b| b.as_bool()).unwrap_or(true);
+                let strip_fillers = args
+                    .get("strip_fillers")
+                    .and_then(|b| b.as_bool())
+                    .unwrap_or(true);
+                let strip_hallucinations = args
+                    .get("strip_hallucinations")
+                    .and_then(|b| b.as_bool())
+                    .unwrap_or(true);
 
                 if text.trim().is_empty() {
                     return ToolCallResult::error("Parameter 'text' cannot be empty");
@@ -870,7 +888,9 @@ impl McpServer {
                 let mut loops_count = 0;
 
                 if strip_fillers {
-                    if let Ok(re) = regex::Regex::new(r"(?i)\b(um|uh|er|ah|like|you know|sort of|kind of|i mean|basically|actually)\b[,.]?") {
+                    if let Ok(re) = regex::Regex::new(
+                        r"(?i)\b(um|uh|er|ah|like|you know|sort of|kind of|i mean|basically|actually)\b[,.]?",
+                    ) {
                         fillers_count = re.find_iter(&refined).count();
                         refined = re.replace_all(&refined, "").to_string();
                     }
@@ -882,7 +902,9 @@ impl McpServer {
                     let mut i = 0;
                     while i < words.len() {
                         let mut run_len = 1;
-                        while i + run_len < words.len() && words[i].eq_ignore_ascii_case(words[i + run_len]) {
+                        while i + run_len < words.len()
+                            && words[i].eq_ignore_ascii_case(words[i + run_len])
+                        {
                             run_len += 1;
                         }
                         if run_len > 2 {
@@ -908,7 +930,10 @@ impl McpServer {
             "embed_watermark" => {
                 let audio_b64 = args.get("audio_base64").and_then(|b| b.as_str());
                 let audio_path = args.get("audio_path").and_then(|p| p.as_str());
-                let payload = args.get("payload").and_then(|p| p.as_u64()).unwrap_or(DEFAULT_SIGNATURE_PAYLOAD as u64) as u16;
+                let payload =
+                    args.get("payload")
+                        .and_then(|p| p.as_u64())
+                        .unwrap_or(DEFAULT_SIGNATURE_PAYLOAD as u64) as u16;
                 let output_file = args.get("output_file").and_then(|f| f.as_str());
 
                 let safe_out_path = if let Some(out_str) = output_file {
@@ -935,13 +960,16 @@ impl McpServer {
                         Err(e) => return ToolCallResult::error(e),
                     }
                 } else {
-                    return ToolCallResult::error("Either 'audio_path' or 'audio_base64' is required");
+                    return ToolCallResult::error(
+                        "Either 'audio_path' or 'audio_base64' is required",
+                    );
                 };
 
-                let (mut pcm16, sample_rate, channels) = match WavEncoder::decode_wav_to_pcm16(&wav_bytes) {
-                    Ok(r) => r,
-                    Err(e) => return ToolCallResult::error(format!("WAV decode error: {e}")),
-                };
+                let (mut pcm16, sample_rate, channels) =
+                    match WavEncoder::decode_wav_to_pcm16(&wav_bytes) {
+                        Ok(r) => r,
+                        Err(e) => return ToolCallResult::error(format!("WAV decode error: {e}")),
+                    };
 
                 let wm = AudioWatermark::new(sample_rate);
                 let mut f32_samples: Vec<f32> = pcm16.iter().map(|&s| s as f32 / 32768.0).collect();
@@ -951,10 +979,11 @@ impl McpServer {
                     *dst = (src.clamp(-1.0, 1.0) * 32767.0).round() as i16;
                 }
 
-                let watermarked_wav = match WavEncoder::encode_pcm16_to_wav(&pcm16, sample_rate, channels) {
-                    Ok(b) => b,
-                    Err(e) => return ToolCallResult::error(format!("WAV encode error: {e}")),
-                };
+                let watermarked_wav =
+                    match WavEncoder::encode_pcm16_to_wav(&pcm16, sample_rate, channels) {
+                        Ok(b) => b,
+                        Err(e) => return ToolCallResult::error(format!("WAV encode error: {e}")),
+                    };
 
                 let duration = pcm16.len() as f32 / sample_rate as f32;
 
@@ -1000,7 +1029,9 @@ impl McpServer {
                         Err(e) => return ToolCallResult::error(e),
                     }
                 } else {
-                    return ToolCallResult::error("Either 'audio_path' or 'audio_base64' is required");
+                    return ToolCallResult::error(
+                        "Either 'audio_path' or 'audio_base64' is required",
+                    );
                 };
 
                 let (pcm16, sample_rate, _) = match WavEncoder::decode_wav_to_pcm16(&wav_bytes) {
@@ -1180,7 +1211,10 @@ mod tests {
         let resp_str = server.handle_message(read_req).await.unwrap();
         let resp: serde_json::Value = serde_json::from_str(&resp_str).unwrap();
         assert_eq!(resp["id"], 5);
-        assert!(!resp["result"]["contents"][0]["text"].as_str().unwrap().is_empty());
+        assert!(!resp["result"]["contents"][0]["text"]
+            .as_str()
+            .unwrap()
+            .is_empty());
 
         // Prompts list
         let prompt_req = r#"{"jsonrpc":"2.0","id":6,"method":"prompts/list"}"#;

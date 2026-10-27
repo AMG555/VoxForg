@@ -258,51 +258,52 @@ impl ProsodyMirror {
         };
 
         // Formant resonance & spectral tilt estimation
-        let (formant_f1_hz, formant_f2_hz, formant_f3_hz, spectral_tilt_db) = if samples.len() >= 256 {
-            let mut low_energy = 0.0f64;
-            let mut mid_energy = 0.0f64;
-            let mut high_energy = 0.0f64;
+        let (formant_f1_hz, formant_f2_hz, formant_f3_hz, spectral_tilt_db) =
+            if samples.len() >= 256 {
+                let mut low_energy = 0.0f64;
+                let mut mid_energy = 0.0f64;
+                let mut high_energy = 0.0f64;
 
-            let n = samples.len().min(48000);
-            for i in 2..n {
-                let s = samples[i] as f64;
-                let s_prev = samples[i - 1] as f64;
-                let s_prev2 = samples[i - 2] as f64;
+                let n = samples.len().min(48000);
+                for i in 2..n {
+                    let s = samples[i] as f64;
+                    let s_prev = samples[i - 1] as f64;
+                    let s_prev2 = samples[i - 2] as f64;
 
-                let low = (s + 2.0 * s_prev + s_prev2) * 0.25;
-                let high = s - s_prev;
-                let mid = s - low;
+                    let low = (s + 2.0 * s_prev + s_prev2) * 0.25;
+                    let high = s - s_prev;
+                    let mid = s - low;
 
-                low_energy += low * low;
-                mid_energy += mid * mid;
-                high_energy += high * high;
-            }
+                    low_energy += low * low;
+                    mid_energy += mid * mid;
+                    high_energy += high * high;
+                }
 
-            let tilt =
-                (10.0 * (low_energy / high_energy.max(1.0)).log10()).clamp(-12.0, 12.0) as f32;
+                let tilt =
+                    (10.0 * (low_energy / high_energy.max(1.0)).log10()).clamp(-12.0, 12.0) as f32;
 
-            let f1 = if f0_mean_hz < 165.0 {
-                (380.0 + (mid_energy / low_energy.max(1.0) * 150.0).min(200.0)) as f32
+                let f1 = if f0_mean_hz < 165.0 {
+                    (380.0 + (mid_energy / low_energy.max(1.0) * 150.0).min(200.0)) as f32
+                } else {
+                    (520.0 + (mid_energy / low_energy.max(1.0) * 180.0).min(250.0)) as f32
+                };
+
+                let f2 = if f0_mean_hz < 165.0 {
+                    (1400.0 + (high_energy / mid_energy.max(1.0) * 300.0).min(500.0)) as f32
+                } else {
+                    (1750.0 + (high_energy / mid_energy.max(1.0) * 350.0).min(600.0)) as f32
+                };
+
+                let f3 = if f0_mean_hz < 165.0 {
+                    (2500.0 + (high_energy / mid_energy.max(1.0) * 350.0).min(500.0)) as f32
+                } else {
+                    (2800.0 + (high_energy / mid_energy.max(1.0) * 400.0).min(600.0)) as f32
+                };
+
+                (f1, f2, f3, tilt)
             } else {
-                (520.0 + (mid_energy / low_energy.max(1.0) * 180.0).min(250.0)) as f32
+                (500.0, 1500.0, 2600.0, 0.0)
             };
-
-            let f2 = if f0_mean_hz < 165.0 {
-                (1400.0 + (high_energy / mid_energy.max(1.0) * 300.0).min(500.0)) as f32
-            } else {
-                (1750.0 + (high_energy / mid_energy.max(1.0) * 350.0).min(600.0)) as f32
-            };
-
-            let f3 = if f0_mean_hz < 165.0 {
-                (2500.0 + (high_energy / mid_energy.max(1.0) * 350.0).min(500.0)) as f32
-            } else {
-                (2800.0 + (high_energy / mid_energy.max(1.0) * 400.0).min(600.0)) as f32
-            };
-
-            (f1, f2, f3, tilt)
-        } else {
-            (500.0, 1500.0, 2600.0, 0.0)
-        };
 
         AcousticFeatures {
             f0_mean_hz,

@@ -152,6 +152,7 @@ impl VocalTractResonator {
 
     /// Applies 4-stage formant acoustic shaping to match speaker's throat (F1), oral (F2),
     /// nasal/individual (F3), and presence resonances.
+    #[allow(clippy::too_many_arguments)]
     pub fn process_4band(
         samples: &mut [i16],
         sample_rate: u32,

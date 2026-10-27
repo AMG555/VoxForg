@@ -198,23 +198,23 @@ impl Qwen3TtsEngine {
         embedding[15] = (prosody.shimmer_percent / 4.0).clamp(0.0, 2.0);
 
         // Phase-invariant harmonic decay mapping fundamental frequency
-        for i in 16..48 {
-            let harmonic_idx = (i - 15) as f32;
+        for (idx, slot) in embedding[16..48].iter_mut().enumerate() {
+            let harmonic_idx = (idx + 1) as f32;
             let harmonic_freq = prosody.f0_mean_hz * harmonic_idx;
             let decay = 1.0 / (1.0 + (harmonic_freq / 2200.0).powi(2));
-            embedding[i] = decay.clamp(0.0, 1.0);
+            *slot = decay.clamp(0.0, 1.0);
         }
 
         // Slots 48..128: 3-Formant Vocal tract resonance filterbank profile
-        for i in 48..128 {
-            let band_center = 200.0 + (i - 48) as f32 * 45.0; // 200Hz to 3800Hz
+        for (idx, slot) in embedding[48..128].iter_mut().enumerate() {
+            let band_center = 200.0 + idx as f32 * 45.0; // 200Hz to 3800Hz
             let d1 = (band_center - prosody.formant_f1_hz).abs() / 150.0;
             let d2 = (band_center - prosody.formant_f2_hz).abs() / 250.0;
             let d3 = (band_center - prosody.formant_f3_hz).abs() / 300.0;
             let response = 1.0 / (1.0 + d1 * d1) * 0.45
                 + 1.0 / (1.0 + d2 * d2) * 0.35
                 + 1.0 / (1.0 + d3 * d3) * 0.20;
-            embedding[i] = response.clamp(0.0, 1.0);
+            *slot = response.clamp(0.0, 1.0);
         }
 
         // Slots 128..320: 16-band perceptual spectral filterbank (Long-Term Average Spectrum)
@@ -238,8 +238,7 @@ impl Qwen3TtsEngine {
             }
         }
 
-        for b in 0..num_bands {
-            let base_val = band_powers[b];
+        for (b, &base_val) in band_powers.iter().enumerate().take(num_bands) {
             for sub in 0..12 {
                 let slot = 128 + b * 12 + sub;
                 if slot < 320 {
@@ -320,15 +319,15 @@ fn compute_spectral_timbre_deltas(ref_pcm: &[i16], synth_pcm: &[i16]) -> (f32, f
         let mut high_e = 0.0f64;
 
         // Cutoff coefficients at 24kHz: 350Hz low-pass, 3200Hz high-pass
-        let alpha_low = 0.9124f64;  // exp(-2*pi*350/24000)
+        let alpha_low = 0.9124f64; // exp(-2*pi*350/24000)
         let alpha_high = 0.4326f64; // exp(-2*pi*3200/24000)
 
         let mut y_low = 0.0f64;
         let mut y_high_lp = 0.0f64;
 
         let n = samples.len().min(48000);
-        for i in 0..n {
-            let s = samples[i] as f64;
+        for &sample in &samples[..n] {
+            let s = sample as f64;
 
             y_low = alpha_low * y_low + (1.0 - alpha_low) * s;
             y_high_lp = alpha_high * y_high_lp + (1.0 - alpha_high) * s;
@@ -651,7 +650,9 @@ impl TtsEngine for Qwen3TtsEngine {
         } else if let Some(ref path) = request.reference_audio_path {
             let trimmed = path.trim();
             let p = std::path::Path::new(trimmed);
-            if p.components().any(|c| matches!(c, std::path::Component::ParentDir)) {
+            if p.components()
+                .any(|c| matches!(c, std::path::Component::ParentDir))
+            {
                 return Err(VoxForgError::Config(
                     "Path traversal prohibited in reference_audio_path".to_string(),
                 ));
@@ -698,9 +699,18 @@ impl TtsEngine for Qwen3TtsEngine {
                 "f0_std_semitones".to_string(),
                 format!("{:.2}", f.f0_std_semitones),
             );
-            metadata.insert("formant_f1_hz".to_string(), format!("{:.1}", f.formant_f1_hz));
-            metadata.insert("formant_f2_hz".to_string(), format!("{:.1}", f.formant_f2_hz));
-            metadata.insert("formant_f3_hz".to_string(), format!("{:.1}", f.formant_f3_hz));
+            metadata.insert(
+                "formant_f1_hz".to_string(),
+                format!("{:.1}", f.formant_f1_hz),
+            );
+            metadata.insert(
+                "formant_f2_hz".to_string(),
+                format!("{:.1}", f.formant_f2_hz),
+            );
+            metadata.insert(
+                "formant_f3_hz".to_string(),
+                format!("{:.1}", f.formant_f3_hz),
+            );
             metadata.insert("hnr_db".to_string(), format!("{:.2}", f.hnr_db));
             metadata.insert(
                 "shimmer_percent".to_string(),
@@ -854,7 +864,11 @@ impl TtsEngine for Qwen3TtsEngine {
         let (ref_pcm, mut ref_features_opt) = match ref_audio_opt {
             Some((pcm, sr)) if !pcm.is_empty() => {
                 let trimmed = voxforg_audio::dsp::SilenceTrimmer::trim(&pcm, sr, -45.0, 40);
-                let active = if trimmed.len() >= 2400 { &trimmed } else { &pcm };
+                let active = if trimmed.len() >= 2400 {
+                    &trimmed
+                } else {
+                    &pcm
+                };
                 let features = voxforg_audio::ProsodyMirror::analyze(active, sr);
                 (Some(pcm), Some(features))
             }
@@ -1507,7 +1521,10 @@ mod tests {
 
         // Identical audio must have similarity 1.0
         let sim_self = Qwen3TtsEngine::compute_cosine_similarity(&emb_a1, &emb_a1);
-        assert!((sim_self - 1.0).abs() < 1e-4, "Self similarity must equal 1.0");
+        assert!(
+            (sim_self - 1.0).abs() < 1e-4,
+            "Self similarity must equal 1.0"
+        );
 
         // Same speaker across different recordings must exhibit high consistency (>0.85)
         let sim_same = Qwen3TtsEngine::compute_cosine_similarity(&emb_a1, &emb_a2);
@@ -1531,9 +1548,7 @@ mod tests {
         let _ = std::fs::create_dir_all(&temp_dir);
         let wav_path = temp_dir.join("ref_sample.wav");
 
-        let pcm: Vec<i16> = (0..4800)
-            .map(|i| ((i % 80) * 150) as i16)
-            .collect();
+        let pcm: Vec<i16> = (0..4800).map(|i| ((i % 80) * 150) as i16).collect();
         let wav_bytes = voxforg_audio::WavEncoder::encode_pcm16_to_wav(&pcm, 24000, 1)
             .expect("WAV encoding must succeed");
         std::fs::write(&wav_path, wav_bytes).expect("Write wav must succeed");
@@ -1550,7 +1565,10 @@ mod tests {
             metadata: HashMap::new(),
         };
 
-        let profile = engine.clone_voice(&req).await.expect("Path cloning must succeed");
+        let profile = engine
+            .clone_voice(&req)
+            .await
+            .expect("Path cloning must succeed");
         assert_eq!(profile.name, "Path Cloned Speaker");
         assert!(profile.embedding.is_some());
         assert_eq!(profile.embedding.as_ref().unwrap().len(), 512);

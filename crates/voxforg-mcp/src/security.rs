@@ -75,7 +75,9 @@ fn validate_safe_path_internal(
     // Check for directory traversal sequences ("..")
     for component in path.components() {
         if let std::path::Component::ParentDir = component {
-            return Err("Parent directory traversal ('..') is strictly forbidden for security".to_string());
+            return Err(
+                "Parent directory traversal ('..') is strictly forbidden for security".to_string(),
+            );
         }
     }
 
@@ -117,7 +119,9 @@ fn validate_safe_path_internal(
 
     for prefix in forbidden_prefixes {
         if path_str_lower.starts_with(prefix) {
-            return Err(format!("Access to system directory '{prefix}' is blocked for security"));
+            return Err(format!(
+                "Access to system directory '{prefix}' is blocked for security"
+            ));
         }
     }
 
@@ -154,7 +158,10 @@ pub fn safe_decode_audio_bytes(payload: &str) -> Result<Vec<u8>, String> {
     let clean = clean.trim();
 
     // Check if hex encoded
-    if clean.len() >= 8 && clean.len() % 2 == 0 && clean.chars().take(32).all(|c| c.is_ascii_hexdigit()) {
+    if clean.len() >= 8
+        && clean.len() % 2 == 0
+        && clean.chars().take(32).all(|c| c.is_ascii_hexdigit())
+    {
         if let Ok(bytes) = hex::decode(clean) {
             return Ok(bytes);
         }

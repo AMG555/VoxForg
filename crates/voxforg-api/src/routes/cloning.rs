@@ -474,7 +474,9 @@ pub async fn verify_voice(
     let test_emb = voxforg_engine::Qwen3TtsEngine::extract_speaker_embedding(&test_samples);
     let test_prosody = voxforg_audio::ProsodyMirror::analyze(&test_samples, test_sr);
 
-    let (ref_emb, ref_f0, ref_f1, ref_f2, ref_pace) = if let Some(ref profile_id) = body.voice_profile_id {
+    let (ref_emb, ref_f0, ref_f1, ref_f2, ref_pace) = if let Some(ref profile_id) =
+        body.voice_profile_id
+    {
         let profile_opt = if let Some(p) = state.voice_profiles.get(profile_id).await {
             Some(p)
         } else {
@@ -495,8 +497,12 @@ pub async fn verify_voice(
                     }
                 } else if let Some(ref path) = profile.reference_audio_path {
                     if let Ok(bytes) = std::fs::read(path) {
-                        if let Ok((samples, _, _)) = voxforg_audio::WavEncoder::decode_wav_to_pcm16(&bytes) {
-                            return voxforg_engine::Qwen3TtsEngine::extract_speaker_embedding(&samples);
+                        if let Ok((samples, _, _)) =
+                            voxforg_audio::WavEncoder::decode_wav_to_pcm16(&bytes)
+                        {
+                            return voxforg_engine::Qwen3TtsEngine::extract_speaker_embedding(
+                                &samples,
+                            );
                         }
                     }
                 }
@@ -538,7 +544,13 @@ pub async fn verify_voice(
             })?;
             let emb = voxforg_engine::Qwen3TtsEngine::extract_speaker_embedding(&ref_samples);
             let prosody = voxforg_audio::ProsodyMirror::analyze(&ref_samples, ref_sr);
-            (emb, prosody.f0_mean_hz, prosody.formant_f1_hz, prosody.formant_f2_hz, prosody.syllable_rate)
+            (
+                emb,
+                prosody.f0_mean_hz,
+                prosody.formant_f1_hz,
+                prosody.formant_f2_hz,
+                prosody.syllable_rate,
+            )
         } else {
             return Err((
                 StatusCode::NOT_FOUND,
@@ -546,7 +558,9 @@ pub async fn verify_voice(
                     problem_type: "https://voxforg.org/errors/profile-not-found".to_string(),
                     title: "Profile Not Found".to_string(),
                     status: 404,
-                    detail: format!("Voice profile '{profile_id}' not found and no reference audio provided"),
+                    detail: format!(
+                        "Voice profile '{profile_id}' not found and no reference audio provided"
+                    ),
                     instance: "/v1/voices/verify".to_string(),
                 }),
             ));
@@ -566,7 +580,13 @@ pub async fn verify_voice(
         })?;
         let emb = voxforg_engine::Qwen3TtsEngine::extract_speaker_embedding(&ref_samples);
         let prosody = voxforg_audio::ProsodyMirror::analyze(&ref_samples, ref_sr);
-        (emb, prosody.f0_mean_hz, prosody.formant_f1_hz, prosody.formant_f2_hz, prosody.syllable_rate)
+        (
+            emb,
+            prosody.f0_mean_hz,
+            prosody.formant_f1_hz,
+            prosody.formant_f2_hz,
+            prosody.syllable_rate,
+        )
     } else {
         return Err((
             StatusCode::BAD_REQUEST,
@@ -584,19 +604,18 @@ pub async fn verify_voice(
         voxforg_engine::Qwen3TtsEngine::compute_cosine_similarity(&ref_emb, &test_emb);
 
     let pitch_delta = (ref_f0 - test_prosody.f0_mean_hz).abs();
-    let pitch_match_percent =
-        ((1.0 - (pitch_delta / ref_f0.max(50.0))).clamp(0.0, 1.0)) * 100.0;
+    let pitch_match_percent = ((1.0 - (pitch_delta / ref_f0.max(50.0))).clamp(0.0, 1.0)) * 100.0;
     let timbre_match_percent = ((similarity_score.clamp(0.0, 1.0)) * 100.0).round();
 
     let f1_delta = (ref_f1 - test_prosody.formant_f1_hz).abs();
     let f2_delta = (ref_f2 - test_prosody.formant_f2_hz).abs();
     let f1_match = (1.0 - (f1_delta / ref_f1.max(100.0))).clamp(0.0, 1.0);
     let f2_match = (1.0 - (f2_delta / ref_f2.max(200.0))).clamp(0.0, 1.0);
-    let formant_match_percent = (((f1_match * 0.5 + f2_match * 0.5) * 100.0) as f32).round();
+    let formant_match_percent = ((f1_match * 0.5 + f2_match * 0.5) * 100.0).round();
 
     let pace_delta = (ref_pace - test_prosody.syllable_rate).abs();
     let cadence_match_percent =
-        (((1.0 - (pace_delta / ref_pace.max(1.0))).clamp(0.0, 1.0) * 100.0) as f32).round();
+        ((1.0 - (pace_delta / ref_pace.max(1.0))).clamp(0.0, 1.0) * 100.0).round();
 
     let overall_biometric_score = ((timbre_match_percent * 0.50
         + pitch_match_percent * 0.25
@@ -665,8 +684,16 @@ mod tests {
         let mut i = 0;
         while i < data.len() {
             let b0 = data[i] as u32;
-            let b1 = if i + 1 < data.len() { data[i + 1] as u32 } else { 0 };
-            let b2 = if i + 2 < data.len() { data[i + 2] as u32 } else { 0 };
+            let b1 = if i + 1 < data.len() {
+                data[i + 1] as u32
+            } else {
+                0
+            };
+            let b2 = if i + 2 < data.len() {
+                data[i + 2] as u32
+            } else {
+                0
+            };
             let triple = (b0 << 16) | (b1 << 8) | b2;
 
             result.push(CHARSET[((triple >> 18) & 0x3F) as usize] as char);
@@ -743,7 +770,9 @@ mod tests {
             test_audio_base64: b64,
             voice_profile_id: None,
         };
-        let res = verify_voice(State(state), Json(req)).await.expect("Verification must succeed");
+        let res = verify_voice(State(state), Json(req))
+            .await
+            .expect("Verification must succeed");
         assert!(res.0.is_match);
         assert_eq!(res.0.confidence_rating, "high");
         assert!(res.0.similarity_score > 0.95);

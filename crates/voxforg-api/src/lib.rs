@@ -5,10 +5,10 @@ pub mod middleware;
 pub mod routes;
 pub mod state;
 
+use axum::http::HeaderValue;
 use axum::{
     extract::DefaultBodyLimit, middleware::from_fn, middleware::from_fn_with_state, Router,
 };
-use axum::http::HeaderValue;
 use tower_http::cors::{AllowOrigin, Any, CorsLayer};
 use tower_http::trace::TraceLayer;
 
@@ -16,28 +16,30 @@ pub use state::AppState;
 
 pub fn create_app(state: AppState) -> Router {
     let cors = CorsLayer::new()
-        .allow_origin(AllowOrigin::predicate(|origin: &HeaderValue, _parts: &axum::http::request::Parts| {
-            if let Ok(origin_str) = origin.to_str() {
-                if origin_str.starts_with("http://localhost")
-                    || origin_str.starts_with("https://localhost")
-                    || origin_str.starts_with("http://127.0.0.1")
-                    || origin_str.starts_with("https://127.0.0.1")
-                    || origin_str.starts_with("http://[::1]")
-                    || origin_str.starts_with("vscode-webview://")
-                    || origin_str.starts_with("app://")
-                {
-                    return true;
-                }
-                if let Ok(allowed) = std::env::var("VOXFORG_ALLOWED_ORIGINS") {
-                    for item in allowed.split(',') {
-                        if item.trim().eq_ignore_ascii_case(origin_str) {
-                            return true;
+        .allow_origin(AllowOrigin::predicate(
+            |origin: &HeaderValue, _parts: &axum::http::request::Parts| {
+                if let Ok(origin_str) = origin.to_str() {
+                    if origin_str.starts_with("http://localhost")
+                        || origin_str.starts_with("https://localhost")
+                        || origin_str.starts_with("http://127.0.0.1")
+                        || origin_str.starts_with("https://127.0.0.1")
+                        || origin_str.starts_with("http://[::1]")
+                        || origin_str.starts_with("vscode-webview://")
+                        || origin_str.starts_with("app://")
+                    {
+                        return true;
+                    }
+                    if let Ok(allowed) = std::env::var("VOXFORG_ALLOWED_ORIGINS") {
+                        for item in allowed.split(',') {
+                            if item.trim().eq_ignore_ascii_case(origin_str) {
+                                return true;
+                            }
                         }
                     }
                 }
-            }
-            false
-        }))
+                false
+            },
+        ))
         .allow_methods(Any)
         .allow_headers(Any);
 
