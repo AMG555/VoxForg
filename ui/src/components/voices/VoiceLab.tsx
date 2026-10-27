@@ -193,6 +193,55 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated, onVo
   const [takes, setTakes] = useState<VoiceTake[]>([]);
   const [activeTakeId, setActiveTakeId] = useState<string | null>(null);
   const takesReelRef = useRef<HTMLDivElement | null>(null);
+
+  // Biometric Voice Identity Verification State
+  const [lastSynthesizedBlob, setLastSynthesizedBlob] = useState<Blob | null>(null);
+  const [isVerifyingVoice, setIsVerifyingVoice] = useState<boolean>(false);
+  const [verificationResult, setVerificationResult] = useState<{
+    similarity_score: number;
+    is_match: boolean;
+    confidence_rating: 'high' | 'medium' | 'low';
+    reference_f0_hz: number;
+    test_f0_hz: number;
+    pitch_match_percent: number;
+    timbre_match_percent: number;
+    formant_match_percent: number;
+    cadence_match_percent: number;
+    overall_biometric_score: number;
+    recommendations: string[];
+  } | null>(null);
+  const [verificationError, setVerificationError] = useState<string | null>(null);
+
+  const handleVerifyVoice = async () => {
+    if (!lastSynthesizedBlob && !audioUrl) return;
+    setIsVerifyingVoice(true);
+    setVerificationError(null);
+    try {
+      let b64 = '';
+      if (lastSynthesizedBlob) {
+        b64 = await AudioProcessor.blobToBase64(lastSynthesizedBlob);
+      } else if (audioUrl) {
+        const resp = await fetch(audioUrl);
+        const b = await resp.blob();
+        b64 = await AudioProcessor.blobToBase64(b);
+      }
+      if (!b64) {
+        throw new Error('Unable to encode audio for biometric verification');
+      }
+      const res = await api.verifyVoice({
+        test_audio_base64: b64,
+        voice_profile_id: selectedVoiceId,
+      });
+      setVerificationResult(res);
+    } catch (err: any) {
+      console.warn('Voice verification note:', err);
+      setVerificationError(
+        err?.message || 'Biometric verification offline or reference profile missing'
+      );
+    } finally {
+      setIsVerifyingVoice(false);
+    }
+  };
   const manualVoiceOverrideRef = useRef<boolean>(false);
 
   const handleInsertTag = (tag: string) => {
@@ -646,6 +695,9 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated, onVo
 
       const url = URL.createObjectURL(blob);
       setAudioUrl(url);
+      setLastSynthesizedBlob(blob);
+      setVerificationResult(null);
+      setVerificationError(null);
       setSpokenPrompt(promptText);
 
       const newTake: VoiceTake = {
@@ -2622,7 +2674,7 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated, onVo
 
           {audioUrl && (
             <div className="space-y-4">
-              <div className="p-3 bg-[#121820] rounded-xl border border-[#242E3D] flex items-center justify-between gap-4">
+              <div className="p-3 bg-[#121820] rounded-xl border border-[#242E3D] flex flex-wrap sm:flex-nowrap items-center justify-between gap-3">
                 <audio
                   ref={audioRef}
                   controls
@@ -2641,14 +2693,131 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated, onVo
                   onLoadedMetadata={(e) => {
                     setTeleprompterDuration(e.currentTarget.duration);
                   }}
-                  className="h-9 flex-1 rounded bg-[#0B0E14]"
+                  className="h-9 flex-1 rounded bg-[#0B0E14] min-w-[200px]"
                 />
+                {Boolean(selectedVoice?.tags?.includes('cloned') || selectedVoice?.id?.startsWith('cloned-') || selectedVoice?.id?.startsWith('qwen3-cloned-') || (selectedVoice as any)?.is_cloned) && (
+                  <button
+                    type="button"
+                    onClick={handleVerifyVoice}
+                    disabled={isVerifyingVoice}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-lg transition-colors whitespace-nowrap disabled:opacity-50"
+                    title="Audit biometric accuracy against reference voice recording"
+                  >
+                    {isVerifyingVoice ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                    )}
+                    <span>{isVerifyingVoice ? 'Auditing...' : 'Audit Biometric Match'}</span>
+                  </button>
+                )}
               </div>
 
               <AudioVisualizer
                 audioElement={audioRef.current}
                 isPlaying={isPlaying}
               />
+
+              {verificationError && (
+                <div className="p-3 rounded-xl bg-red-950/40 border border-red-500/40 text-red-300 text-xs flex items-center justify-between animate-in fade-in duration-200">
+                  <div className="flex items-center space-x-2">
+                    <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
+                    <span>{verificationError}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setVerificationError(null)}
+                    className="text-red-400 hover:text-red-200 transition-colors"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+
+              {verificationResult && (
+                <div className="p-4 rounded-xl bg-gradient-to-br from-[#121820] to-[#0D1219] border border-emerald-500/40 shadow-xl space-y-3 animate-in fade-in duration-200">
+                  <div className="flex items-center justify-between border-b border-[#242E3D] pb-2.5">
+                    <div className="flex items-center space-x-2.5">
+                      <div className={`p-1.5 rounded-lg ${verificationResult.is_match ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                        <CheckCircle2 className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-white uppercase tracking-wider font-mono flex items-center gap-2">
+                          <span>Biometric Voice Match Audit</span>
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                            verificationResult.confidence_rating === 'high'
+                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                              : verificationResult.confidence_rating === 'medium'
+                              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                              : 'bg-red-500/20 text-red-300 border border-red-500/40'
+                          }`}>
+                            {verificationResult.confidence_rating} Confidence
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-[#94A3B8]">
+                          Aggregate Forensic Match: <span className="text-emerald-400 font-bold font-mono">{verificationResult.overall_biometric_score.toFixed(1)}%</span>
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setVerificationResult(null)}
+                      className="text-[#64748B] hover:text-[#94A3B8] transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
+                    <div className="p-2.5 bg-[#0B0E14] rounded-lg border border-[#242E3D]">
+                      <div className="text-[10px] text-[#64748B] font-mono uppercase">Neural Timbre</div>
+                      <div className="text-sm font-bold text-white font-mono mt-0.5">
+                        {verificationResult.timbre_match_percent.toFixed(1)}%
+                      </div>
+                      <div className="text-[10px] text-[#94A3B8]">512-D Cosine</div>
+                    </div>
+
+                    <div className="p-2.5 bg-[#0B0E14] rounded-lg border border-[#242E3D]">
+                      <div className="text-[10px] text-[#64748B] font-mono uppercase">Fundamental Pitch</div>
+                      <div className="text-sm font-bold text-white font-mono mt-0.5">
+                        {verificationResult.pitch_match_percent.toFixed(1)}%
+                      </div>
+                      <div className="text-[10px] text-[#94A3B8]">
+                        {verificationResult.test_f0_hz.toFixed(0)} Hz vs {verificationResult.reference_f0_hz.toFixed(0)} Hz
+                      </div>
+                    </div>
+
+                    <div className="p-2.5 bg-[#0B0E14] rounded-lg border border-[#242E3D]">
+                      <div className="text-[10px] text-[#64748B] font-mono uppercase">Vocal Formants</div>
+                      <div className="text-sm font-bold text-white font-mono mt-0.5">
+                        {verificationResult.formant_match_percent.toFixed(1)}%
+                      </div>
+                      <div className="text-[10px] text-[#94A3B8]">F1/F2 Resonances</div>
+                    </div>
+
+                    <div className="p-2.5 bg-[#0B0E14] rounded-lg border border-[#242E3D]">
+                      <div className="text-[10px] text-[#64748B] font-mono uppercase">Cadence & Rhythm</div>
+                      <div className="text-sm font-bold text-white font-mono mt-0.5">
+                        {verificationResult.cadence_match_percent.toFixed(1)}%
+                      </div>
+                      <div className="text-[10px] text-[#94A3B8]">Energy Dynamics</div>
+                    </div>
+                  </div>
+
+                  {verificationResult.recommendations && verificationResult.recommendations.length > 0 && (
+                    <div className="p-2.5 rounded-lg bg-[#0B0E14]/80 border border-[#242E3D] space-y-1">
+                      <div className="text-[10px] font-mono font-semibold text-amber-400 uppercase tracking-wider">
+                        Acoustic Calibrations & Recommendations:
+                      </div>
+                      <ul className="text-[11px] text-[#CBD5E1] space-y-1 list-disc pl-4">
+                        {verificationResult.recommendations.map((rec, idx) => (
+                          <li key={idx}>{rec}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Voicebox Live Karaoke Teleprompter */}
               {spokenPrompt && (
@@ -2800,6 +2969,9 @@ export const VoiceLab: React.FC<VoiceLabProps> = ({ voices, onVoiceCreated, onVo
                             onClick={() => {
                               setActiveTakeId(take.id);
                               setAudioUrl(take.audioUrl);
+                              setLastSynthesizedBlob(take.blob);
+                              setVerificationResult(null);
+                              setVerificationError(null);
                               if (audioRef.current) {
                                 audioRef.current.src = take.audioUrl;
                                 audioRef.current.play().catch(() => {});

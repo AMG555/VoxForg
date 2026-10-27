@@ -219,6 +219,7 @@ mod tests {
                         || err_str.contains("failed to lookup address")
                         || err_str.contains("Connect")
                         || err_str.contains("timeout")
+                        || err_str.contains("timed out")
                         || err_str.contains("Edge TTS WebSocket error"),
                     "Unexpected comparison error: {err_str}"
                 );

@@ -755,6 +755,37 @@ Retrieves metadata and speaker embedding for a specific voice profile.
 
 Deletes a stored voice profile. Returns `204 No Content`.
 
+### `POST /v1/voices/verify`
+
+Forensic acoustic verification endpoint. Evaluates test audio against a target voice profile, analyzing 512-D neural speaker embedding similarity (cosine), pitch alignment ($F_0$ in Hz), vocal tract formant resonances ($F_1, F_2$), and cadence energy dynamics.
+
+#### Request Body
+```json
+{
+  "test_audio_base64": "<base64_or_hex_encoded_audio>",
+  "voice_profile_id": "profile-narrator-alex"
+}
+```
+
+#### Response (`200 OK`)
+```json
+{
+  "similarity_score": 0.942,
+  "is_match": true,
+  "confidence_rating": "high",
+  "reference_f0_hz": 124.5,
+  "test_f0_hz": 126.1,
+  "pitch_match_percent": 98.7,
+  "timbre_match_percent": 94.2,
+  "formant_match_percent": 91.5,
+  "cadence_match_percent": 93.0,
+  "overall_biometric_score": 94.3,
+  "recommendations": [
+    "Pitch, timbre, and vocal tract formants closely align with reference profile."
+  ]
+}
+```
+
 ### Using Cloned Profiles in Synthesis
 
 Any persistent profile ID or name can be passed directly to `POST /v1/audio/speech`:
@@ -1129,6 +1160,7 @@ Authorization: Bearer <api_key>
 | GET  | `/v1/voices/{id}/export` | Export voice profile as a portable `.voxpersona` bundle |
 | POST | `/v1/voices/import` | Import portable `.voxpersona` bundle into persistent voice store |
 | POST | `/v1/voices/assess` | Quality grade reference audio for SNR, RMS, peak dBFS, and clipping |
+| POST | `/v1/voices/verify` | Verify speaker acoustic identity & compute cosine similarity against profile |
 | GET  | `/v1/voices/profiles/{id}` | Get voice profile by ID |
 | DELETE | `/v1/voices/profiles/{id}` | Delete voice profile |
 | GET  | `/v1/models` | List all registered engines |

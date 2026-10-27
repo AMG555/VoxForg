@@ -27,9 +27,13 @@ export const AgentBeacon: React.FC<AgentBeaconProps> = ({ serverUrl = '' }) => {
 
     // Initial MCP readiness ping
     const endpoint = serverUrl ? `${serverUrl}/mcp` : '/mcp';
+    const token = typeof window !== 'undefined' ? localStorage.getItem('voxforg_api_key') : null;
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
     fetch(endpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ jsonrpc: '2.0', method: 'ping', id: 1 }),
     })
       .then((res) => {

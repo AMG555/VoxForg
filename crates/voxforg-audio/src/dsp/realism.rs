@@ -137,6 +137,32 @@ impl VocalTractResonator {
         f2_gain_db: f32,
         presence_gain_db: f32,
     ) {
+        Self::process_4band(
+            samples,
+            sample_rate,
+            f1_hz,
+            f1_gain_db,
+            f2_hz,
+            f2_gain_db,
+            2600.0,
+            0.0,
+            presence_gain_db,
+        );
+    }
+
+    /// Applies 4-stage formant acoustic shaping to match speaker's throat (F1), oral (F2),
+    /// nasal/individual (F3), and presence resonances.
+    pub fn process_4band(
+        samples: &mut [i16],
+        sample_rate: u32,
+        f1_hz: f32,
+        f1_gain_db: f32,
+        f2_hz: f32,
+        f2_gain_db: f32,
+        f3_hz: f32,
+        f3_gain_db: f32,
+        presence_gain_db: f32,
+    ) {
         if samples.is_empty() || sample_rate == 0 {
             return;
         }
@@ -152,28 +178,36 @@ impl VocalTractResonator {
         } else {
             0.0
         };
+        let g3 = if f3_gain_db.is_finite() {
+            f3_gain_db.clamp(-8.0, 8.0)
+        } else {
+            0.0
+        };
         let gp = if presence_gain_db.is_finite() {
             presence_gain_db.clamp(-6.0, 6.0)
         } else {
             0.0
         };
 
-        if g1.abs() < 0.05 && g2.abs() < 0.05 && gp.abs() < 0.05 {
+        if g1.abs() < 0.05 && g2.abs() < 0.05 && g3.abs() < 0.05 && gp.abs() < 0.05 {
             return;
         }
 
         let safe_f1 = f1_hz.clamp(200.0, 1000.0);
         let safe_f2 = f2_hz.clamp(900.0, 2600.0);
+        let safe_f3 = f3_hz.clamp(2200.0, 3600.0);
 
         let mut b1 = Biquad::peaking(sr, safe_f1, g1, 2.0);
         let mut b2 = Biquad::peaking(sr, safe_f2, g2, 2.2);
+        let mut b3 = Biquad::peaking(sr, safe_f3, g3, 2.4);
         let mut bp = Biquad::peaking(sr, 3100.0, gp, 1.8);
 
         for sample in samples.iter_mut() {
             let in_val = *sample as f32;
             let out1 = b1.process(in_val);
             let out2 = b2.process(out1);
-            let outp = bp.process(out2);
+            let out3 = b3.process(out2);
+            let outp = bp.process(out3);
 
             if outp.is_finite() {
                 *sample = outp.round().clamp(-32768.0, 32767.0) as i16;

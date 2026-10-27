@@ -413,3 +413,340 @@ pub async fn assess_reference_audio(
         recommendations,
     }))
 }
+
+#[derive(Debug, Deserialize)]
+pub struct VerifyVoiceRequest {
+    /// Base64-encoded reference audio clip (or original sample).
+    pub reference_audio_base64: Option<String>,
+    /// Base64-encoded synthesized or test audio to compare against.
+    pub test_audio_base64: String,
+    /// Optional stored voice profile ID to compare against.
+    pub voice_profile_id: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct VoiceVerificationResponse {
+    pub similarity_score: f32,
+    pub is_match: bool,
+    pub confidence_rating: &'static str,
+    pub reference_f0_hz: f32,
+    pub test_f0_hz: f32,
+    pub pitch_match_percent: f32,
+    pub timbre_match_percent: f32,
+    pub formant_match_percent: f32,
+    pub cadence_match_percent: f32,
+    pub overall_biometric_score: f32,
+    pub recommendations: Vec<String>,
+}
+
+/// `POST /v1/voices/verify` — evaluate speaker acoustic identity and compute cosine similarity.
+pub async fn verify_voice(
+    State(state): State<AppState>,
+    Json(body): Json<VerifyVoiceRequest>,
+) -> Result<Json<VoiceVerificationResponse>, (StatusCode, Json<ProblemDetails>)> {
+    if body.test_audio_base64.trim().is_empty() {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ProblemDetails {
+                problem_type: "https://voxforg.org/errors/missing-audio".to_string(),
+                title: "Missing Test Audio".to_string(),
+                status: 400,
+                detail: "'test_audio_base64' is required for voice verification".to_string(),
+                instance: "/v1/voices/verify".to_string(),
+            }),
+        ));
+    }
+
+    let (test_samples, test_sr, _) =
+        decode_b64_to_pcm(&body.test_audio_base64).map_err(|detail| {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(ProblemDetails {
+                    problem_type: "https://voxforg.org/errors/invalid-audio".to_string(),
+                    title: "Invalid Test Audio".to_string(),
+                    status: 400,
+                    detail,
+                    instance: "/v1/voices/verify".to_string(),
+                }),
+            )
+        })?;
+
+    let test_emb = voxforg_engine::Qwen3TtsEngine::extract_speaker_embedding(&test_samples);
+    let test_prosody = voxforg_audio::ProsodyMirror::analyze(&test_samples, test_sr);
+
+    let (ref_emb, ref_f0, ref_f1, ref_f2, ref_pace) = if let Some(ref profile_id) = body.voice_profile_id {
+        let profile_opt = if let Some(p) = state.voice_profiles.get(profile_id).await {
+            Some(p)
+        } else {
+            let list = state.voice_profiles.list().await;
+            list.into_iter().find(|p| {
+                p.id == *profile_id
+                    || p.name.eq_ignore_ascii_case(profile_id)
+                    || profile_id.ends_with(&p.id)
+                    || p.id.ends_with(profile_id)
+            })
+        };
+
+        if let Some(profile) = profile_opt {
+            let emb = profile.embedding.unwrap_or_else(|| {
+                if let Some(ref b64) = profile.reference_audio_base64 {
+                    if let Ok((samples, _, _)) = decode_b64_to_pcm(b64) {
+                        return voxforg_engine::Qwen3TtsEngine::extract_speaker_embedding(&samples);
+                    }
+                } else if let Some(ref path) = profile.reference_audio_path {
+                    if let Ok(bytes) = std::fs::read(path) {
+                        if let Ok((samples, _, _)) = voxforg_audio::WavEncoder::decode_wav_to_pcm16(&bytes) {
+                            return voxforg_engine::Qwen3TtsEngine::extract_speaker_embedding(&samples);
+                        }
+                    }
+                }
+                vec![0.0; 512]
+            });
+            let f0 = profile
+                .metadata
+                .get("f0_mean_hz")
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(150.0);
+            let f1 = profile
+                .metadata
+                .get("formant_f1_hz")
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(500.0);
+            let f2 = profile
+                .metadata
+                .get("formant_f2_hz")
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(1500.0);
+            let pace = profile
+                .metadata
+                .get("syllable_rate")
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(4.2);
+            (emb, f0, f1, f2, pace)
+        } else if let Some(ref ref_b64) = body.reference_audio_base64 {
+            let (ref_samples, ref_sr, _) = decode_b64_to_pcm(ref_b64).map_err(|detail| {
+                (
+                    StatusCode::BAD_REQUEST,
+                    Json(ProblemDetails {
+                        problem_type: "https://voxforg.org/errors/invalid-audio".to_string(),
+                        title: "Invalid Reference Audio".to_string(),
+                        status: 400,
+                        detail,
+                        instance: "/v1/voices/verify".to_string(),
+                    }),
+                )
+            })?;
+            let emb = voxforg_engine::Qwen3TtsEngine::extract_speaker_embedding(&ref_samples);
+            let prosody = voxforg_audio::ProsodyMirror::analyze(&ref_samples, ref_sr);
+            (emb, prosody.f0_mean_hz, prosody.formant_f1_hz, prosody.formant_f2_hz, prosody.syllable_rate)
+        } else {
+            return Err((
+                StatusCode::NOT_FOUND,
+                Json(ProblemDetails {
+                    problem_type: "https://voxforg.org/errors/profile-not-found".to_string(),
+                    title: "Profile Not Found".to_string(),
+                    status: 404,
+                    detail: format!("Voice profile '{profile_id}' not found and no reference audio provided"),
+                    instance: "/v1/voices/verify".to_string(),
+                }),
+            ));
+        }
+    } else if let Some(ref ref_b64) = body.reference_audio_base64 {
+        let (ref_samples, ref_sr, _) = decode_b64_to_pcm(ref_b64).map_err(|detail| {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(ProblemDetails {
+                    problem_type: "https://voxforg.org/errors/invalid-audio".to_string(),
+                    title: "Invalid Reference Audio".to_string(),
+                    status: 400,
+                    detail,
+                    instance: "/v1/voices/verify".to_string(),
+                }),
+            )
+        })?;
+        let emb = voxforg_engine::Qwen3TtsEngine::extract_speaker_embedding(&ref_samples);
+        let prosody = voxforg_audio::ProsodyMirror::analyze(&ref_samples, ref_sr);
+        (emb, prosody.f0_mean_hz, prosody.formant_f1_hz, prosody.formant_f2_hz, prosody.syllable_rate)
+    } else {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ProblemDetails {
+                problem_type: "https://voxforg.org/errors/missing-reference".to_string(),
+                title: "Missing Reference Audio or Profile".to_string(),
+                status: 400,
+                detail: "Provide either 'reference_audio_base64' or 'voice_profile_id'".to_string(),
+                instance: "/v1/voices/verify".to_string(),
+            }),
+        ));
+    };
+
+    let similarity_score =
+        voxforg_engine::Qwen3TtsEngine::compute_cosine_similarity(&ref_emb, &test_emb);
+
+    let pitch_delta = (ref_f0 - test_prosody.f0_mean_hz).abs();
+    let pitch_match_percent =
+        ((1.0 - (pitch_delta / ref_f0.max(50.0))).clamp(0.0, 1.0)) * 100.0;
+    let timbre_match_percent = ((similarity_score.clamp(0.0, 1.0)) * 100.0).round();
+
+    let f1_delta = (ref_f1 - test_prosody.formant_f1_hz).abs();
+    let f2_delta = (ref_f2 - test_prosody.formant_f2_hz).abs();
+    let f1_match = (1.0 - (f1_delta / ref_f1.max(100.0))).clamp(0.0, 1.0);
+    let f2_match = (1.0 - (f2_delta / ref_f2.max(200.0))).clamp(0.0, 1.0);
+    let formant_match_percent = (((f1_match * 0.5 + f2_match * 0.5) * 100.0) as f32).round();
+
+    let pace_delta = (ref_pace - test_prosody.syllable_rate).abs();
+    let cadence_match_percent =
+        (((1.0 - (pace_delta / ref_pace.max(1.0))).clamp(0.0, 1.0) * 100.0) as f32).round();
+
+    let overall_biometric_score = ((timbre_match_percent * 0.50
+        + pitch_match_percent * 0.25
+        + formant_match_percent * 0.15
+        + cadence_match_percent * 0.10)
+        .clamp(0.0, 100.0)
+        * 10.0)
+        .round()
+        / 10.0;
+
+    let is_match = similarity_score >= 0.78 && overall_biometric_score >= 75.0;
+    let confidence_rating = if overall_biometric_score >= 88.0 && similarity_score >= 0.85 {
+        "high"
+    } else if overall_biometric_score >= 75.0 && similarity_score >= 0.72 {
+        "medium"
+    } else {
+        "low"
+    };
+
+    let mut recommendations = Vec::new();
+    if is_match {
+        recommendations.push(
+            format!("Speaker biometric identity verified with {overall_biometric_score:.1}% aggregate precision."),
+        );
+    } else {
+        recommendations.push(
+            "Acoustic disparity detected between reference identity and generated speech."
+                .to_string(),
+        );
+        if pitch_match_percent < 75.0 {
+            recommendations.push(format!(
+                "Pitch offset needed: target is {ref_f0:.1}Hz vs synthesized {test_f0:.1}Hz.",
+                test_f0 = test_prosody.f0_mean_hz
+            ));
+        }
+        if formant_match_percent < 70.0 {
+            recommendations.push(
+                "Formant envelope mismatch: adjust vocal tract resonance parameters.".to_string(),
+            );
+        }
+    }
+
+    Ok(Json(VoiceVerificationResponse {
+        similarity_score,
+        is_match,
+        confidence_rating,
+        reference_f0_hz: ref_f0,
+        test_f0_hz: test_prosody.f0_mean_hz,
+        pitch_match_percent,
+        timbre_match_percent,
+        formant_match_percent,
+        cadence_match_percent,
+        overall_biometric_score,
+        recommendations,
+    }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::extract::State;
+
+    fn b64_encode(data: &[u8]) -> String {
+        const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        let mut result = String::new();
+        let mut i = 0;
+        while i < data.len() {
+            let b0 = data[i] as u32;
+            let b1 = if i + 1 < data.len() { data[i + 1] as u32 } else { 0 };
+            let b2 = if i + 2 < data.len() { data[i + 2] as u32 } else { 0 };
+            let triple = (b0 << 16) | (b1 << 8) | b2;
+
+            result.push(CHARSET[((triple >> 18) & 0x3F) as usize] as char);
+            result.push(CHARSET[((triple >> 12) & 0x3F) as usize] as char);
+            if i + 1 < data.len() {
+                result.push(CHARSET[((triple >> 6) & 0x3F) as usize] as char);
+            } else {
+                result.push('=');
+            }
+            if i + 2 < data.len() {
+                result.push(CHARSET[(triple & 0x3F) as usize] as char);
+            } else {
+                result.push('=');
+            }
+            i += 3;
+        }
+        result
+    }
+
+    fn test_state() -> AppState {
+        let registry = std::sync::Arc::new(voxforg_engine::EngineRegistry::new());
+        let store = std::sync::Arc::new(voxforg_core::store::memory::MemoryStore::new());
+        let hardware = voxforg_hardware::HardwareProbe::probe();
+        AppState::new(registry, store, hardware, None)
+    }
+
+    #[tokio::test]
+    async fn test_verify_voice_empty_test_audio_rejected() {
+        let state = test_state();
+        let req = VerifyVoiceRequest {
+            reference_audio_base64: Some("dGVzdA==".to_string()),
+            test_audio_base64: "   ".to_string(),
+            voice_profile_id: None,
+        };
+        let err = verify_voice(State(state), Json(req)).await.unwrap_err();
+        assert_eq!(err.0, StatusCode::BAD_REQUEST);
+        assert_eq!(err.1 .0.title, "Missing Test Audio");
+    }
+
+    #[tokio::test]
+    async fn test_verify_voice_missing_reference_rejected() {
+        let state = test_state();
+        let pcm: Vec<i16> = (0..4800).map(|i| ((i % 80) * 100) as i16).collect();
+        let wav = voxforg_audio::WavEncoder::encode_pcm16_to_wav(&pcm, 24000, 1).unwrap();
+        let b64 = b64_encode(&wav);
+
+        let req = VerifyVoiceRequest {
+            reference_audio_base64: None,
+            test_audio_base64: b64,
+            voice_profile_id: None,
+        };
+        let err = verify_voice(State(state), Json(req)).await.unwrap_err();
+        assert_eq!(err.0, StatusCode::BAD_REQUEST);
+        assert_eq!(err.1 .0.title, "Missing Reference Audio or Profile");
+    }
+
+    #[tokio::test]
+    async fn test_verify_voice_identical_audio_matches_with_high_confidence() {
+        let state = test_state();
+        // 140Hz tone with formants
+        let pcm: Vec<i16> = (0..9600)
+            .map(|i| {
+                let t = i as f32 / 24000.0;
+                let s = (2.0 * std::f32::consts::PI * 140.0 * t).sin() * 12000.0
+                    + (2.0 * std::f32::consts::PI * 500.0 * t).sin() * 4000.0;
+                s.round() as i16
+            })
+            .collect();
+        let wav = voxforg_audio::WavEncoder::encode_pcm16_to_wav(&pcm, 24000, 1).unwrap();
+        let b64 = b64_encode(&wav);
+
+        let req = VerifyVoiceRequest {
+            reference_audio_base64: Some(b64.clone()),
+            test_audio_base64: b64,
+            voice_profile_id: None,
+        };
+        let res = verify_voice(State(state), Json(req)).await.expect("Verification must succeed");
+        assert!(res.0.is_match);
+        assert_eq!(res.0.confidence_rating, "high");
+        assert!(res.0.similarity_score > 0.95);
+        assert!(res.0.overall_biometric_score > 90.0);
+    }
+}

@@ -1,3 +1,5 @@
+#![recursion_limit = "256"]
+
 pub mod metrics;
 pub mod middleware;
 pub mod routes;
@@ -261,6 +263,40 @@ mod tests {
         assert_eq!(json["sample_rate"], 24000);
         assert!(!json["is_silent"].as_bool().unwrap());
         assert!(json["clarity_rating"].is_string());
+    }
+
+    #[tokio::test]
+    async fn test_verify_voice_endpoint() {
+        let state = setup_test_state(None).await;
+        let app = create_app(state);
+        let pcm: Vec<i16> = (0..9600)
+            .map(|i| ((i as f32 * 0.05).sin() * 12000.0) as i16)
+            .collect();
+        let wav = voxforg_audio::WavEncoder::encode_pcm16_to_wav(&pcm, 24000, 1).unwrap();
+        let hex_audio = hex::encode(&wav);
+
+        let req = Request::builder()
+            .method("POST")
+            .uri("/v1/voices/verify")
+            .header("Content-Type", "application/json")
+            .body(Body::from(
+                serde_json::json!({
+                    "reference_audio_base64": hex_audio,
+                    "test_audio_base64": hex_audio
+                })
+                .to_string(),
+            ))
+            .unwrap();
+
+        let res = app.oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+
+        let body = res.into_body().collect().await.unwrap().to_bytes();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert!(json["is_match"].as_bool().unwrap());
+        let sim = json["similarity_score"].as_f64().unwrap();
+        assert!(sim > 0.95);
+        assert_eq!(json["confidence_rating"], "high");
     }
 
     #[tokio::test]

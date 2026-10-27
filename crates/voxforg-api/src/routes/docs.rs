@@ -281,6 +281,91 @@ pub async fn openapi_spec() -> Json<serde_json::Value> {
                     }
                 }
             },
+            "/v1/voices/clone": {
+                "post": {
+                    "tags": ["Voice Cloning"],
+                    "summary": "Clone voice from reference audio",
+                    "description": "Zero-shot neural voice cloning from reference audio sample (Base64 payload or validated file path). Extracts 512-D phase-invariant acoustic speaker embedding, vocal tract formants, and prosodic DNA.",
+                    "security": [{ "BearerAuth": [] }],
+                    "requestBody": {
+                        "required": true,
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": ["name", "engine_id"],
+                                    "properties": {
+                                        "name": { "type": "string", "example": "Custom Voice Profile" },
+                                        "engine_id": { "type": "string", "example": "qwen3-tts" },
+                                        "reference_audio_base64": { "type": "string", "description": "Base64-encoded WAV/MP3 audio sample" },
+                                        "reference_audio_path": { "type": "string", "description": "Local path to clean WAV reference audio" },
+                                        "reference_transcript": { "type": "string", "description": "Optional exact text transcript of reference clip" },
+                                        "language": { "type": "string", "default": "en-US" },
+                                        "gender": { "type": "string", "enum": ["female", "male", "neutral"] }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "responses": {
+                        "201": {
+                            "description": "Voice profile successfully cloned and persisted",
+                            "content": { "application/json": { "schema": { "type": "object" } } }
+                        },
+                        "400": { "$ref": "#/components/responses/BadRequest" },
+                        "401": { "$ref": "#/components/responses/Unauthorized" }
+                    }
+                }
+            },
+            "/v1/voices/verify": {
+                "post": {
+                    "tags": ["Voice Cloning"],
+                    "summary": "Verify speaker identity and consistency",
+                    "description": "Calculates cosine similarity between reference speaker embedding and test audio. Evaluates pitch alignment, vocal tract timbre match, and biometric consistency confidence rating.",
+                    "security": [{ "BearerAuth": [] }],
+                    "requestBody": {
+                        "required": true,
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": ["test_audio_base64"],
+                                    "properties": {
+                                        "test_audio_base64": { "type": "string", "description": "Base64-encoded test audio" },
+                                        "reference_audio_base64": { "type": "string", "description": "Base64-encoded reference audio" },
+                                        "voice_profile_id": { "type": "string", "description": "ID of stored voice profile" }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "responses": {
+                        "200": {
+                            "description": "Voice verification similarity score and diagnostic metrics",
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "type": "object",
+                                        "properties": {
+                                            "similarity_score": { "type": "number", "example": 0.94 },
+                                            "is_match": { "type": "boolean", "example": true },
+                                            "confidence_rating": { "type": "string", "example": "high" },
+                                            "reference_f0_hz": { "type": "number", "example": 142.5 },
+                                            "test_f0_hz": { "type": "number", "example": 144.1 },
+                                            "pitch_match_percent": { "type": "number", "example": 98.8 },
+                                            "timbre_match_percent": { "type": "number", "example": 94.0 },
+                                            "recommendations": { "type": "array", "items": { "type": "string" } }
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "400": { "$ref": "#/components/responses/BadRequest" },
+                        "401": { "$ref": "#/components/responses/Unauthorized" },
+                        "404": { "$ref": "#/components/responses/NotFound" }
+                    }
+                }
+            },
             "/mcp": {
                 "post": {
                     "tags": ["Model Context Protocol"],

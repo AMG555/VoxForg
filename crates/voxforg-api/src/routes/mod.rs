@@ -97,6 +97,7 @@ pub fn build_api_router() -> Router<AppState> {
         .route("/v1/voices/profiles", get(cloning::list_profiles))
         .route("/v1/voices/clone", post(cloning::clone_voice))
         .route("/v1/voices/assess", post(cloning::assess_reference_audio))
+        .route("/v1/voices/verify", post(cloning::verify_voice))
         .route(
             "/v1/voices/profiles/:id",
             get(cloning::get_profile).delete(cloning::delete_profile),

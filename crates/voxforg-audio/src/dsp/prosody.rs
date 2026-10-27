@@ -67,6 +67,15 @@ pub struct AcousticFeatures {
     /// Estimated oral formant frequency F2 in Hz.
     #[serde(default = "default_f2")]
     pub formant_f2_hz: f32,
+    /// Estimated nasal/individual formant frequency F3 in Hz.
+    #[serde(default = "default_f3")]
+    pub formant_f3_hz: f32,
+    /// Harmonics-to-Noise Ratio in dB (vocal clarity vs breathiness).
+    #[serde(default = "default_hnr")]
+    pub hnr_db: f32,
+    /// Measured amplitude micro-shimmer percentage (cycle-to-cycle amplitude instability).
+    #[serde(default = "default_shimmer")]
+    pub shimmer_percent: f32,
 }
 
 fn default_jitter() -> f32 {
@@ -77,6 +86,15 @@ fn default_f1() -> f32 {
 }
 fn default_f2() -> f32 {
     1500.0
+}
+fn default_f3() -> f32 {
+    2600.0
+}
+fn default_hnr() -> f32 {
+    18.0
+}
+fn default_shimmer() -> f32 {
+    2.5
 }
 
 pub struct ProsodyMirror;
@@ -97,6 +115,9 @@ impl ProsodyMirror {
                 spectral_tilt_db: 0.0,
                 formant_f1_hz: 500.0,
                 formant_f2_hz: 1500.0,
+                formant_f3_hz: 2600.0,
+                hnr_db: 18.0,
+                shimmer_percent: 2.5,
             };
         }
 
@@ -117,6 +138,8 @@ impl ProsodyMirror {
         let max_lag = (sr / 65.0).round() as usize; // Min F0 ~ 65Hz
 
         let mut f0_estimates = Vec::new();
+        let mut hnr_estimates = Vec::new();
+        let mut voiced_amplitudes = Vec::new();
         let mut voiced_frames = 0;
         let mut total_frames = 0;
 
@@ -153,6 +176,10 @@ impl ProsodyMirror {
                 if norm_r > 0.35 && best_lag > 0 {
                     let pitch_hz = sr / best_lag as f32;
                     f0_estimates.push(pitch_hz);
+                    let hnr = 10.0 * (norm_r / (1.0 - norm_r).max(1e-4)).log10();
+                    hnr_estimates.push(hnr);
+                    let frame_rms = (frame_energy / frame_size as f64).sqrt() as f32;
+                    voiced_amplitudes.push(frame_rms);
                     voiced_frames += 1;
                 }
             }
@@ -210,8 +237,28 @@ impl ProsodyMirror {
             0.6
         };
 
+        // Vocal fold micro-shimmer calculation (cycle-to-cycle amplitude perturbation)
+        let shimmer_percent = if voiced_amplitudes.len() > 2 {
+            let mut diff_sum = 0.0f32;
+            for i in 1..voiced_amplitudes.len() {
+                diff_sum += (voiced_amplitudes[i] - voiced_amplitudes[i - 1]).abs();
+            }
+            let mean_amp = voiced_amplitudes.iter().sum::<f32>() / voiced_amplitudes.len() as f32;
+            ((diff_sum / (voiced_amplitudes.len() - 1) as f32) / mean_amp.max(1e-3) * 100.0)
+                .clamp(0.2, 8.0)
+        } else {
+            2.5
+        };
+
+        // Harmonics-to-Noise Ratio (HNR in dB)
+        let hnr_db = if !hnr_estimates.is_empty() {
+            (hnr_estimates.iter().sum::<f64>() / hnr_estimates.len() as f64).clamp(0.0, 35.0) as f32
+        } else {
+            18.0
+        };
+
         // Formant resonance & spectral tilt estimation
-        let (formant_f1_hz, formant_f2_hz, spectral_tilt_db) = if samples.len() >= 256 {
+        let (formant_f1_hz, formant_f2_hz, formant_f3_hz, spectral_tilt_db) = if samples.len() >= 256 {
             let mut low_energy = 0.0f64;
             let mut mid_energy = 0.0f64;
             let mut high_energy = 0.0f64;
@@ -246,9 +293,15 @@ impl ProsodyMirror {
                 (1750.0 + (high_energy / mid_energy.max(1.0) * 350.0).min(600.0)) as f32
             };
 
-            (f1, f2, tilt)
+            let f3 = if f0_mean_hz < 165.0 {
+                (2500.0 + (high_energy / mid_energy.max(1.0) * 350.0).min(500.0)) as f32
+            } else {
+                (2800.0 + (high_energy / mid_energy.max(1.0) * 400.0).min(600.0)) as f32
+            };
+
+            (f1, f2, f3, tilt)
         } else {
-            (500.0, 1500.0, 0.0)
+            (500.0, 1500.0, 2600.0, 0.0)
         };
 
         AcousticFeatures {
@@ -263,6 +316,9 @@ impl ProsodyMirror {
             spectral_tilt_db,
             formant_f1_hz,
             formant_f2_hz,
+            formant_f3_hz,
+            hnr_db,
+            shimmer_percent,
         }
     }
 
@@ -318,6 +374,9 @@ mod tests {
         assert!(features.rms_dbfs > -30.0);
         assert!(features.f0_mean_hz > 200.0 && features.f0_mean_hz < 240.0);
         assert!(features.voicing_ratio > 0.5);
+        assert!(features.formant_f3_hz >= 2000.0 && features.formant_f3_hz <= 4000.0);
+        assert!(features.hnr_db > 0.0);
+        assert!(features.shimmer_percent >= 0.0 && features.shimmer_percent <= 100.0);
 
         let director = ProsodyMirror::features_to_director(&features);
         assert!(director.energy >= -1.0 && director.energy <= 1.0);

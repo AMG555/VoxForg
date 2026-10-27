@@ -397,4 +397,33 @@ export const api = {
     if (!res.ok) throw new Error('Failed to resume job checkpoint');
     return res.json();
   },
+
+  async verifyVoice(payload: {
+    reference_audio_base64?: string;
+    test_audio_base64: string;
+    voice_profile_id?: string;
+  }): Promise<{
+    similarity_score: number;
+    is_match: boolean;
+    confidence_rating: 'high' | 'medium' | 'low';
+    reference_f0_hz: number;
+    test_f0_hz: number;
+    pitch_match_percent: number;
+    timbre_match_percent: number;
+    formant_match_percent: number;
+    cadence_match_percent: number;
+    overall_biometric_score: number;
+    recommendations: string[];
+  }> {
+    const res = await fetch(`${BASE_URL}/v1/voices/verify`, {
+      method: 'POST',
+      headers: getHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Voice verification failed' }));
+      throw new Error(err.detail || 'Voice verification failed');
+    }
+    return res.json();
+  },
 };

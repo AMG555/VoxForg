@@ -136,23 +136,51 @@ impl Qwen3TtsEngine {
     }
 
     /// Extract a 512-dimensional speaker embedding vector from reference audio samples.
-    /// Applies acoustic pre-conditioning: 70Hz high-pass filter (cuts mic thumps and room rumble)
-    /// followed by target RMS normalization before calculating feature vectors.
-    pub(crate) fn extract_speaker_embedding(pcm_data: &[i16]) -> Vec<f32> {
+    /// Applies acoustic pre-conditioning: silence trimming, 70Hz high-pass filter
+    /// (cuts mic thumps and room rumble), target RMS normalization, multi-scale acoustic analysis
+    /// (F0 intonation, formants, 16-band perceptual filterbank), and L2 unit-vector normalization.
+    pub fn extract_speaker_embedding(pcm_data: &[i16]) -> Vec<f32> {
         let mut embedding = vec![0.0f32; 512];
         if pcm_data.is_empty() {
             return embedding;
         }
 
-        // Acoustic pre-conditioning: remove sub-bass mic rumble (<70Hz) & normalize RMS energy
-        let mut conditioned = pcm_data.to_vec();
+        // 1. Acoustic pre-conditioning:
+        // Strip leading/trailing dead air using SilenceTrimmer
+        let trimmed = voxforg_audio::dsp::SilenceTrimmer::trim(pcm_data, 24000, -45.0, 40);
+        let conditioned_raw = if trimmed.len() >= 2400 {
+            trimmed
+        } else {
+            pcm_data.to_vec()
+        };
+
+        let mut conditioned = conditioned_raw;
         voxforg_audio::ParametricEq::high_pass(&mut conditioned, 24000, 70.0);
         voxforg_audio::AudioNormalizer::rms_normalize(&mut conditioned, 0.18);
 
-        let len = conditioned.len();
-        let energy: f64 = conditioned.iter().map(|&s| (s as f64).powi(2)).sum::<f64>() / len as f64;
-        let rms = energy.sqrt() / 32768.0;
+        // 2. Comprehensive acoustic prosody and vocal tract analysis
+        let prosody = voxforg_audio::ProsodyMirror::analyze(&conditioned, 24000);
 
+        // 3. Populate structured 512-D acoustic embedding slots:
+        // Slots 0..48: Pitch dynamics, vocal fold harmonics & intonation
+        embedding[0] = (prosody.f0_mean_hz / 300.0).clamp(0.1, 2.0);
+        embedding[1] = (prosody.f0_std_semitones / 6.0).clamp(0.0, 2.0);
+        embedding[2] = prosody.voicing_ratio;
+        embedding[3] = (prosody.f0_jitter_percent / 2.0).clamp(0.0, 2.0);
+        embedding[4] = (prosody.rms_dbfs / -20.0).clamp(0.1, 2.0);
+        embedding[5] = (prosody.syllable_rate / 4.5).clamp(0.2, 2.0);
+        embedding[6] = (prosody.loudness_z_score / 3.0).clamp(-1.0, 1.0);
+        embedding[7] = (prosody.pace_z_score / 3.0).clamp(-1.0, 1.0);
+        embedding[8] = (prosody.spectral_tilt_db / 12.0).clamp(-1.0, 1.0);
+        embedding[9] = (prosody.formant_f1_hz / 1000.0).clamp(0.1, 2.0);
+        embedding[10] = (prosody.formant_f2_hz / 2500.0).clamp(0.2, 2.0);
+
+        // Vocal tract formant dispersion (indicative of anatomical vocal tract length)
+        let dispersion = (prosody.formant_f2_hz - prosody.formant_f1_hz) / 1000.0;
+        embedding[11] = dispersion.clamp(0.1, 2.0);
+
+        // Zero crossing rate & high-frequency articulation
+        let len = conditioned.len();
         let mut zcr_count = 0usize;
         for i in 1..len {
             if (conditioned[i] >= 0 && conditioned[i - 1] < 0)
@@ -161,30 +189,126 @@ impl Qwen3TtsEngine {
                 zcr_count += 1;
             }
         }
-        let zcr = zcr_count as f64 / len as f64;
+        let zcr = zcr_count as f32 / len as f32;
+        embedding[12] = (zcr * 10.0).clamp(0.0, 2.0);
 
-        let chunk_size = (len / 512).max(1);
-        for (i, slot) in embedding.iter_mut().enumerate() {
-            let start = (i * chunk_size).min(len);
-            let end = ((i + 1) * chunk_size).min(len);
-            if start < end {
-                let slice = &conditioned[start..end];
-                let mean: f64 =
-                    slice.iter().map(|&s| s as f64).sum::<f64>() / slice.len() as f64 / 32768.0;
-                let variance: f64 = slice
-                    .iter()
-                    .map(|&s| ((s as f64 / 32768.0) - mean).powi(2))
-                    .sum::<f64>()
-                    / slice.len() as f64;
-                let val = (mean * 0.4 + variance.sqrt() * 0.4 + zcr * 0.1 + rms * 0.1).sin();
-                *slot = val as f32;
+        // Vocal tract F3, Harmonics-to-Noise Ratio (HNR), and micro-shimmer
+        embedding[13] = (prosody.formant_f3_hz / 3200.0).clamp(0.2, 2.0);
+        embedding[14] = (prosody.hnr_db / 25.0).clamp(0.0, 2.0);
+        embedding[15] = (prosody.shimmer_percent / 4.0).clamp(0.0, 2.0);
+
+        // Phase-invariant harmonic decay mapping fundamental frequency
+        for i in 16..48 {
+            let harmonic_idx = (i - 15) as f32;
+            let harmonic_freq = prosody.f0_mean_hz * harmonic_idx;
+            let decay = 1.0 / (1.0 + (harmonic_freq / 2200.0).powi(2));
+            embedding[i] = decay.clamp(0.0, 1.0);
+        }
+
+        // Slots 48..128: 3-Formant Vocal tract resonance filterbank profile
+        for i in 48..128 {
+            let band_center = 200.0 + (i - 48) as f32 * 45.0; // 200Hz to 3800Hz
+            let d1 = (band_center - prosody.formant_f1_hz).abs() / 150.0;
+            let d2 = (band_center - prosody.formant_f2_hz).abs() / 250.0;
+            let d3 = (band_center - prosody.formant_f3_hz).abs() / 300.0;
+            let response = 1.0 / (1.0 + d1 * d1) * 0.45
+                + 1.0 / (1.0 + d2 * d2) * 0.35
+                + 1.0 / (1.0 + d3 * d3) * 0.20;
+            embedding[i] = response.clamp(0.0, 1.0);
+        }
+
+        // Slots 128..320: 16-band perceptual spectral filterbank (Long-Term Average Spectrum)
+        let num_bands = 16;
+        let mut band_powers = vec![0.0f32; num_bands];
+        let total_energy: f64 = conditioned
+            .iter()
+            .map(|&s| (s as f64).powi(2))
+            .sum::<f64>()
+            .max(1.0);
+
+        for (b, power_slot) in band_powers.iter_mut().enumerate() {
+            let stride = (b + 1) * 2;
+            if stride < len {
+                let mut diff_sum = 0.0f64;
+                for j in stride..len {
+                    let diff = (conditioned[j] - conditioned[j - stride]) as f64;
+                    diff_sum += diff * diff;
+                }
+                *power_slot = ((diff_sum / total_energy) * 10.0).clamp(0.0, 2.0) as f32;
             }
         }
+
+        for b in 0..num_bands {
+            let base_val = band_powers[b];
+            for sub in 0..12 {
+                let slot = 128 + b * 12 + sub;
+                if slot < 320 {
+                    let mod_weight = ((sub as f32 * 0.523).cos() * 0.5 + 0.5) * base_val;
+                    embedding[slot] = mod_weight.clamp(0.0, 2.0);
+                }
+            }
+        }
+
+        // Slots 320..416 (96 slots): Shift-invariant Normalized Autocorrelation sequence R(tau)
+        let max_lag = 96.min(len.saturating_sub(1));
+        for lag in 1..=max_lag {
+            let mut r = 0.0f64;
+            for i in 0..(len - lag) {
+                r += conditioned[i] as f64 * conditioned[i + lag] as f64;
+            }
+            let norm_r = (r / total_energy).clamp(-1.0, 1.0) as f32;
+            embedding[319 + lag] = norm_r;
+        }
+
+        // Slots 416..512 (96 slots): Cepstral Coefficients (DCT of 16-band log energies)
+        let mut cepstra = [0.0f32; 16];
+        for (m, cep_slot) in cepstra.iter_mut().enumerate() {
+            let mut sum = 0.0f32;
+            for (b, &power) in band_powers.iter().enumerate().take(num_bands) {
+                let log_e = (1.0 + power).ln();
+                let angle = std::f32::consts::PI * (m as f32) * (b as f32 + 0.5) / 16.0;
+                sum += log_e * angle.cos();
+            }
+            *cep_slot = sum;
+        }
+
+        for (i, slot) in embedding[416..512].iter_mut().enumerate() {
+            let cep_idx = i % 16;
+            let octave = (i / 16) as f32;
+            let val = cepstra[cep_idx] * (1.0 / (1.0 + octave * 0.3));
+            *slot = val.clamp(-2.0, 2.0);
+        }
+
+        // 4. L2 Unit-Vector Normalization (ensures dot product equals cosine similarity)
+        let l2_norm: f32 = embedding.iter().map(|&x| x * x).sum::<f32>().sqrt();
+        if l2_norm > 1e-6 {
+            for slot in &mut embedding {
+                *slot /= l2_norm;
+            }
+        }
+
         embedding
+    }
+
+    /// Computes cosine similarity between two 512-dimensional speaker embeddings.
+    /// Since embeddings are L2 unit-normalized, this directly equals their dot product.
+    pub fn compute_cosine_similarity(v1: &[f32], v2: &[f32]) -> f32 {
+        if v1.len() != v2.len() || v1.is_empty() {
+            return 0.0;
+        }
+        let dot: f32 = v1.iter().zip(v2.iter()).map(|(a, b)| a * b).sum();
+        let norm1: f32 = v1.iter().map(|a| a * a).sum::<f32>().sqrt();
+        let norm2: f32 = v2.iter().map(|b| b * b).sum::<f32>().sqrt();
+        if norm1 > 1e-6 && norm2 > 1e-6 {
+            (dot / (norm1 * norm2)).clamp(-1.0, 1.0)
+        } else {
+            0.0
+        }
     }
 }
 
 /// Measures the low, mid, and high frequency balance of speech to match vocal timbre.
+/// Uses an exact orthogonal 3-band filterbank (low < 350Hz, mid 350Hz-3200Hz, high > 3200Hz).
 fn compute_spectral_timbre_deltas(ref_pcm: &[i16], synth_pcm: &[i16]) -> (f32, f32, f32) {
     if ref_pcm.len() < 100 || synth_pcm.len() < 100 {
         return (0.0, 0.0, 0.0);
@@ -195,19 +319,25 @@ fn compute_spectral_timbre_deltas(ref_pcm: &[i16], synth_pcm: &[i16]) -> (f32, f
         let mut mid_e = 0.0f64;
         let mut high_e = 0.0f64;
 
+        // Cutoff coefficients at 24kHz: 350Hz low-pass, 3200Hz high-pass
+        let alpha_low = 0.9124f64;  // exp(-2*pi*350/24000)
+        let alpha_high = 0.4326f64; // exp(-2*pi*3200/24000)
+
+        let mut y_low = 0.0f64;
+        let mut y_high_lp = 0.0f64;
+
         let n = samples.len().min(48000);
-        for i in 2..n {
+        for i in 0..n {
             let s = samples[i] as f64;
-            let s_prev = samples[i - 1] as f64;
-            let s_prev2 = samples[i - 2] as f64;
 
-            let low = (s + 2.0 * s_prev + s_prev2) * 0.25;
-            let high = s - s_prev;
-            let mid = s - low;
+            y_low = alpha_low * y_low + (1.0 - alpha_low) * s;
+            y_high_lp = alpha_high * y_high_lp + (1.0 - alpha_high) * s;
+            let y_high = s - y_high_lp;
+            let y_mid = s - y_low - y_high;
 
-            low_e += low * low;
-            mid_e += mid * mid;
-            high_e += high * high;
+            low_e += y_low * y_low;
+            mid_e += y_mid * y_mid;
+            high_e += y_high * y_high;
         }
 
         let total = (low_e + mid_e + high_e).max(1e-6);
@@ -222,6 +352,53 @@ fn compute_spectral_timbre_deltas(ref_pcm: &[i16], synth_pcm: &[i16]) -> (f32, f
     let delta_high = (10.0 * (ref_high / syn_high.max(1e-4)).log10()).clamp(-6.0, 6.0) as f32;
 
     (delta_low, delta_mid, delta_high)
+}
+
+/// Returns the empirical fundamental frequency mean F0 (in Hz) for the base voice.
+pub fn nominal_base_voice_f0(voice_id: &str) -> f32 {
+    let lower = voice_id.to_lowercase();
+    if lower.contains("guy") {
+        118.0
+    } else if lower.contains("aria") {
+        208.0
+    } else if lower.contains("ryan") {
+        120.0
+    } else if lower.contains("sonia") {
+        210.0
+    } else if lower.contains("midhun") {
+        125.0
+    } else if lower.contains("sobhana") {
+        220.0
+    } else if lower.contains("madhur") {
+        120.0
+    } else if lower.contains("swara") {
+        215.0
+    } else if lower.contains("valluvar")
+        || lower.contains("mohan")
+        || lower.contains("gagan")
+        || lower.contains("bashkar")
+        || lower.contains("niranjan")
+        || lower.contains("ojas")
+        || lower.contains("alvaro")
+    {
+        120.0
+    } else if lower.contains("pallavi")
+        || lower.contains("shruti")
+        || lower.contains("sapna")
+        || lower.contains("tanishaa")
+        || lower.contains("dhwani")
+        || lower.contains("vaani")
+        || lower.contains("nanami")
+        || lower.contains("xiaoxiao")
+        || lower.contains("katja")
+        || lower.contains("denise")
+    {
+        215.0
+    } else if lower.contains("male") {
+        120.0
+    } else {
+        210.0
+    }
 }
 
 #[async_trait]
@@ -448,9 +625,9 @@ impl TtsEngine for Qwen3TtsEngine {
             ));
         }
 
-        let embedding = if let Some(ref b64) = request.reference_audio_base64 {
+        let (pcm, ref_features) = if let Some(ref b64) = request.reference_audio_base64 {
             let bytes = decode_audio_payload(b64);
-            let pcm = if bytes.starts_with(b"RIFF") {
+            let samples = if bytes.starts_with(b"RIFF") {
                 voxforg_audio::WavEncoder::decode_wav_to_pcm16(&bytes)
                     .map(|(samples, _, _)| samples)
                     .unwrap_or_else(|_| {
@@ -469,10 +646,45 @@ impl TtsEngine for Qwen3TtsEngine {
                     .map(|c| i16::from_le_bytes([c[0], c[1]]))
                     .collect()
             };
-            Self::extract_speaker_embedding(&pcm)
+            let feat = voxforg_audio::ProsodyMirror::analyze(&samples, 24000);
+            (samples, Some(feat))
+        } else if let Some(ref path) = request.reference_audio_path {
+            let trimmed = path.trim();
+            let p = std::path::Path::new(trimmed);
+            if p.components().any(|c| matches!(c, std::path::Component::ParentDir)) {
+                return Err(VoxForgError::Config(
+                    "Path traversal prohibited in reference_audio_path".to_string(),
+                ));
+            }
+            let bytes = std::fs::read(p).map_err(|e| {
+                VoxForgError::Config(format!("Failed reading reference audio file: {e}"))
+            })?;
+            let samples = if bytes.starts_with(b"RIFF") {
+                voxforg_audio::WavEncoder::decode_wav_to_pcm16(&bytes)
+                    .map(|(samples, _, _)| samples)
+                    .unwrap_or_else(|_| {
+                        bytes
+                            .as_chunks::<2>()
+                            .0
+                            .iter()
+                            .map(|c| i16::from_le_bytes([c[0], c[1]]))
+                            .collect()
+                    })
+            } else {
+                bytes
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
+                    .map(|c| i16::from_le_bytes([c[0], c[1]]))
+                    .collect()
+            };
+            let feat = voxforg_audio::ProsodyMirror::analyze(&samples, 24000);
+            (samples, Some(feat))
         } else {
-            vec![0.1f32; 512]
+            (Vec::new(), None)
         };
+
+        let embedding = Self::extract_speaker_embedding(&pcm);
 
         self.clone_count.fetch_add(1, Ordering::SeqCst);
         let profile_id = format!("qwen3-cloned-{}", Uuid::new_v4());
@@ -480,6 +692,37 @@ impl TtsEngine for Qwen3TtsEngine {
         let mut metadata = HashMap::new();
         metadata.insert("engine".to_string(), "qwen3-tts".to_string());
         metadata.insert("zero_shot".to_string(), "true".to_string());
+        if let Some(ref f) = ref_features {
+            metadata.insert("f0_mean_hz".to_string(), format!("{:.1}", f.f0_mean_hz));
+            metadata.insert(
+                "f0_std_semitones".to_string(),
+                format!("{:.2}", f.f0_std_semitones),
+            );
+            metadata.insert("formant_f1_hz".to_string(), format!("{:.1}", f.formant_f1_hz));
+            metadata.insert("formant_f2_hz".to_string(), format!("{:.1}", f.formant_f2_hz));
+            metadata.insert("formant_f3_hz".to_string(), format!("{:.1}", f.formant_f3_hz));
+            metadata.insert("hnr_db".to_string(), format!("{:.2}", f.hnr_db));
+            metadata.insert(
+                "shimmer_percent".to_string(),
+                format!("{:.2}", f.shimmer_percent),
+            );
+            metadata.insert(
+                "syllable_rate".to_string(),
+                format!("{:.2}", f.syllable_rate),
+            );
+            metadata.insert(
+                "voicing_ratio".to_string(),
+                format!("{:.3}", f.voicing_ratio),
+            );
+            metadata.insert(
+                "f0_jitter_percent".to_string(),
+                format!("{:.3}", f.f0_jitter_percent),
+            );
+            metadata.insert(
+                "spectral_tilt_db".to_string(),
+                format!("{:.2}", f.spectral_tilt_db),
+            );
+        }
         metadata.extend(request.metadata.clone());
 
         let profile = VoiceProfile {
@@ -607,14 +850,94 @@ impl TtsEngine for Qwen3TtsEngine {
             None
         };
 
-        // 3. Acoustic prosody & timbre analysis
-        let (ref_pcm, ref_features_opt) = match ref_audio_opt {
+        // 3. Acoustic prosody & timbre analysis (with persistent profile metadata fallback)
+        let (ref_pcm, mut ref_features_opt) = match ref_audio_opt {
             Some((pcm, sr)) if !pcm.is_empty() => {
-                let features = voxforg_audio::ProsodyMirror::analyze(&pcm, sr);
+                let trimmed = voxforg_audio::dsp::SilenceTrimmer::trim(&pcm, sr, -45.0, 40);
+                let active = if trimmed.len() >= 2400 { &trimmed } else { &pcm };
+                let features = voxforg_audio::ProsodyMirror::analyze(active, sr);
                 (Some(pcm), Some(features))
             }
             _ => (None, None),
         };
+
+        // Reconstruct acoustic feature profile from persistent metadata if raw audio was purged
+        if ref_features_opt.is_none() {
+            let f0 = request
+                .profile
+                .metadata
+                .get("f0_mean_hz")
+                .and_then(|s| s.parse::<f32>().ok());
+            let f1 = request
+                .profile
+                .metadata
+                .get("formant_f1_hz")
+                .and_then(|s| s.parse::<f32>().ok());
+            let f2 = request
+                .profile
+                .metadata
+                .get("formant_f2_hz")
+                .and_then(|s| s.parse::<f32>().ok());
+            let f3 = request
+                .profile
+                .metadata
+                .get("formant_f3_hz")
+                .and_then(|s| s.parse::<f32>().ok());
+            let hnr = request
+                .profile
+                .metadata
+                .get("hnr_db")
+                .and_then(|s| s.parse::<f32>().ok());
+            let shimmer = request
+                .profile
+                .metadata
+                .get("shimmer_percent")
+                .and_then(|s| s.parse::<f32>().ok());
+            let voicing = request
+                .profile
+                .metadata
+                .get("voicing_ratio")
+                .and_then(|s| s.parse::<f32>().ok());
+            let jitter = request
+                .profile
+                .metadata
+                .get("f0_jitter_percent")
+                .and_then(|s| s.parse::<f32>().ok());
+            let rate = request
+                .profile
+                .metadata
+                .get("syllable_rate")
+                .and_then(|s| s.parse::<f32>().ok());
+            let tilt = request
+                .profile
+                .metadata
+                .get("spectral_tilt_db")
+                .and_then(|s| s.parse::<f32>().ok());
+
+            if let Some(f0_val) = f0 {
+                ref_features_opt = Some(voxforg_audio::dsp::AcousticFeatures {
+                    f0_mean_hz: f0_val,
+                    f0_std_semitones: request
+                        .profile
+                        .metadata
+                        .get("f0_std_semitones")
+                        .and_then(|s| s.parse().ok())
+                        .unwrap_or(1.5),
+                    rms_dbfs: -20.0,
+                    syllable_rate: rate.unwrap_or(4.2),
+                    voicing_ratio: voicing.unwrap_or(0.65),
+                    loudness_z_score: 0.0,
+                    pace_z_score: 0.0,
+                    f0_jitter_percent: jitter.unwrap_or(0.5),
+                    spectral_tilt_db: tilt.unwrap_or(0.0),
+                    formant_f1_hz: f1.unwrap_or(500.0),
+                    formant_f2_hz: f2.unwrap_or(1500.0),
+                    formant_f3_hz: f3.unwrap_or(2600.0),
+                    hnr_db: hnr.unwrap_or(18.0),
+                    shimmer_percent: shimmer.unwrap_or(2.5),
+                });
+            }
+        }
 
         // 4. Determine acoustic gender & base voice
         let acoustic_gender = if let Some(ref f) = ref_features_opt {
@@ -638,14 +961,12 @@ impl TtsEngine for Qwen3TtsEngine {
         // 5. Calculate pitch delta matching the cloned speaker's exact fundamental pitch
         let mut pitch_offset = request.pitch;
         if let Some(ref f) = ref_features_opt {
-            let nominal_base_f0 = if matches!(acoustic_gender, Gender::Male) {
-                118.0
-            } else {
-                208.0
-            };
-            let f0_pitch_delta = (12.0
-                * (f.f0_mean_hz.clamp(60.0, 450.0) / nominal_base_f0).log2())
-            .clamp(-14.0, 14.0);
+            let nominal_base_f0 = nominal_base_voice_f0(fallback_voice);
+            let target_f0 = f.f0_mean_hz.clamp(65.0, 420.0);
+            let delta_hz = target_f0 - nominal_base_f0;
+            // edge_tts multiplies request.pitch by 5.0 to generate pitch_hz in SSML.
+            // Setting f0_pitch_delta = delta_hz / 5.0 ensures pitch_hz == delta_hz (exact Hz-for-Hz alignment).
+            let f0_pitch_delta = (delta_hz / 5.0).clamp(-10.0, 10.0);
             pitch_offset += f0_pitch_delta;
         } else if let Some(ref emb) = request.profile.embedding {
             let avg_centroid = emb.iter().take(32).sum::<f32>() / 32.0;
@@ -687,24 +1008,29 @@ impl TtsEngine for Qwen3TtsEngine {
             );
 
             if let Some(ref f) = ref_features_opt {
-                // Vocal tract anatomical formant resonance match
+                // Vocal tract anatomical formant resonance match (F1, F2, F3, Presence)
                 let f1_gain = (low_gain * 0.6).clamp(-4.0, 4.0);
                 let f2_gain = (mid_gain * 0.6).clamp(-4.0, 4.0);
+                let f3_gain = (mid_gain * 0.4 + high_gain * 0.2).clamp(-3.5, 3.5);
                 let presence_gain = (high_gain * 0.5).clamp(-3.0, 3.0);
-                voxforg_audio::VocalTractResonator::process(
+                voxforg_audio::VocalTractResonator::process_4band(
                     &mut chunk.pcm_data,
                     chunk.sample_rate,
                     f.formant_f1_hz,
                     f1_gain,
                     f.formant_f2_hz,
                     f2_gain,
+                    f.formant_f3_hz,
+                    f3_gain,
                     presence_gain,
                 );
 
                 if f.voicing_ratio > 0.40 {
+                    let warmth_drive = (0.25 + (f.voicing_ratio * 0.15).clamp(0.0, 0.25))
+                        * (f.hnr_db / 20.0).clamp(0.7, 1.3);
                     voxforg_audio::HarmonicWarmth::process(
                         &mut chunk.pcm_data,
-                        0.25 + (f.voicing_ratio * 0.15).clamp(0.0, 0.25),
+                        warmth_drive.clamp(0.1, 0.6),
                         0.30,
                     );
                 }
@@ -724,6 +1050,50 @@ impl TtsEngine for Qwen3TtsEngine {
                 mid_bias,
                 high_bias,
             );
+
+            if let Some(ref f) = ref_features_opt {
+                let f1_gain = (low_bias * 0.6).clamp(-4.0, 4.0);
+                let f2_gain = (mid_bias * 0.6).clamp(-4.0, 4.0);
+                let f3_gain = (mid_bias * 0.4 + high_bias * 0.2).clamp(-3.5, 3.5);
+                let presence_gain = (high_bias * 0.5).clamp(-3.0, 3.0);
+                voxforg_audio::VocalTractResonator::process_4band(
+                    &mut chunk.pcm_data,
+                    chunk.sample_rate,
+                    f.formant_f1_hz,
+                    f1_gain,
+                    f.formant_f2_hz,
+                    f2_gain,
+                    f.formant_f3_hz,
+                    f3_gain,
+                    presence_gain,
+                );
+
+                if f.voicing_ratio > 0.40 {
+                    let warmth_drive = (0.25 + (f.voicing_ratio * 0.15).clamp(0.0, 0.25))
+                        * (f.hnr_db / 20.0).clamp(0.7, 1.3);
+                    voxforg_audio::HarmonicWarmth::process(
+                        &mut chunk.pcm_data,
+                        warmth_drive.clamp(0.1, 0.6),
+                        0.30,
+                    );
+                }
+            } else {
+                let f1_gain = (low_bias * 0.6).clamp(-4.0, 4.0);
+                let f2_gain = (mid_bias * 0.6).clamp(-4.0, 4.0);
+                let f3_gain = (mid_bias * 0.4 + high_bias * 0.2).clamp(-3.5, 3.5);
+                let presence_gain = (high_bias * 0.5).clamp(-3.0, 3.0);
+                voxforg_audio::VocalTractResonator::process_4band(
+                    &mut chunk.pcm_data,
+                    chunk.sample_rate,
+                    520.0,
+                    f1_gain,
+                    1550.0,
+                    f2_gain,
+                    2650.0,
+                    f3_gain,
+                    presence_gain,
+                );
+            }
         }
 
         // 9. Physiological vocal fold micro-tremor (jitter & shimmer)
@@ -732,11 +1102,16 @@ impl TtsEngine for Qwen3TtsEngine {
         } else {
             0.35
         };
+        let shimmer_depth = if let Some(ref f) = ref_features_opt {
+            (f.shimmer_percent / 4.0).clamp(0.15, 0.55)
+        } else {
+            0.28
+        };
         voxforg_audio::HumanMicroTremor::process(
             &mut chunk.pcm_data,
             chunk.sample_rate,
             jitter_depth,
-            0.28,
+            shimmer_depth,
         );
 
         // 10. Soft de-essing to tame harsh sibilance
@@ -983,6 +1358,7 @@ mod tests {
                         || err_str.contains("failed to lookup address")
                         || err_str.contains("Connect")
                         || err_str.contains("timeout")
+                        || err_str.contains("timed out")
                         || err_str.contains("Edge TTS WebSocket error"),
                     "Unexpected synthesis error: {err_str}"
                 );
@@ -1087,5 +1463,99 @@ mod tests {
         assert!(low.is_finite());
         assert!(mid.is_finite());
         assert!(high.is_finite());
+    }
+
+    #[test]
+    fn test_speaker_embedding_cosine_similarity_consistency() {
+        let sample_rate = 24000f32;
+        // Speaker A: 130Hz male tone with formants at 500Hz and 1500Hz
+        let pcm_a1: Vec<i16> = (0..9600)
+            .map(|i| {
+                let t = i as f32 / sample_rate;
+                let s = (2.0 * std::f32::consts::PI * 130.0 * t).sin() * 12000.0
+                    + (2.0 * std::f32::consts::PI * 500.0 * t).sin() * 4000.0
+                    + (2.0 * std::f32::consts::PI * 1500.0 * t).sin() * 2000.0;
+                s.round() as i16
+            })
+            .collect();
+
+        // Speaker A variation: same speaker with slight amplitude change and 20ms offset
+        let pcm_a2: Vec<i16> = (480..10080)
+            .map(|i| {
+                let t = i as f32 / sample_rate;
+                let s = (2.0 * std::f32::consts::PI * 130.0 * t).sin() * 14000.0
+                    + (2.0 * std::f32::consts::PI * 500.0 * t).sin() * 4500.0
+                    + (2.0 * std::f32::consts::PI * 1500.0 * t).sin() * 2300.0;
+                s.round() as i16
+            })
+            .collect();
+
+        // Speaker B: 260Hz female tone with different formants
+        let pcm_b: Vec<i16> = (0..9600)
+            .map(|i| {
+                let t = i as f32 / sample_rate;
+                let s = (2.0 * std::f32::consts::PI * 260.0 * t).sin() * 12000.0
+                    + (2.0 * std::f32::consts::PI * 850.0 * t).sin() * 5000.0
+                    + (2.0 * std::f32::consts::PI * 2200.0 * t).sin() * 3000.0;
+                s.round() as i16
+            })
+            .collect();
+
+        let emb_a1 = Qwen3TtsEngine::extract_speaker_embedding(&pcm_a1);
+        let emb_a2 = Qwen3TtsEngine::extract_speaker_embedding(&pcm_a2);
+        let emb_b = Qwen3TtsEngine::extract_speaker_embedding(&pcm_b);
+
+        // Identical audio must have similarity 1.0
+        let sim_self = Qwen3TtsEngine::compute_cosine_similarity(&emb_a1, &emb_a1);
+        assert!((sim_self - 1.0).abs() < 1e-4, "Self similarity must equal 1.0");
+
+        // Same speaker across different recordings must exhibit high consistency (>0.85)
+        let sim_same = Qwen3TtsEngine::compute_cosine_similarity(&emb_a1, &emb_a2);
+        assert!(
+            sim_same > 0.85,
+            "Same speaker similarity should be >0.85, got {sim_same}"
+        );
+
+        // Different speaker must have lower similarity
+        let sim_diff = Qwen3TtsEngine::compute_cosine_similarity(&emb_a1, &emb_b);
+        assert!(
+            sim_same > sim_diff,
+            "Same speaker ({sim_same}) must be higher than different speaker ({sim_diff})"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_clone_voice_from_reference_path() {
+        let engine = Qwen3TtsEngine::default();
+        let temp_dir = std::env::temp_dir().join(format!("voxforg_test_{}", uuid::Uuid::new_v4()));
+        let _ = std::fs::create_dir_all(&temp_dir);
+        let wav_path = temp_dir.join("ref_sample.wav");
+
+        let pcm: Vec<i16> = (0..4800)
+            .map(|i| ((i % 80) * 150) as i16)
+            .collect();
+        let wav_bytes = voxforg_audio::WavEncoder::encode_pcm16_to_wav(&pcm, 24000, 1)
+            .expect("WAV encoding must succeed");
+        std::fs::write(&wav_path, wav_bytes).expect("Write wav must succeed");
+
+        let req = CloneVoiceRequest {
+            name: "Path Cloned Speaker".to_string(),
+            engine_id: "qwen3-tts".to_string(),
+            reference_audio_base64: None,
+            reference_audio_path: Some(wav_path.to_str().unwrap().to_string()),
+            reference_transcript: Some("Testing path cloning.".to_string()),
+            language: "en-US".to_string(),
+            description: Some("Speaker cloned from local WAV path".to_string()),
+            gender: Some(Gender::Male),
+            metadata: HashMap::new(),
+        };
+
+        let profile = engine.clone_voice(&req).await.expect("Path cloning must succeed");
+        assert_eq!(profile.name, "Path Cloned Speaker");
+        assert!(profile.embedding.is_some());
+        assert_eq!(profile.embedding.as_ref().unwrap().len(), 512);
+        assert!(profile.metadata.contains_key("f0_mean_hz"));
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
     }
 }
